@@ -1,85 +1,66 @@
 // import React from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import Navbar from '../common/Navbar';
+import AdminDashboard from '../admin/AdminDashboard';
+import CashierDashboard from '../cashier/CashierDashboard';
+import CollectingDashboard from '../collectingOfficer/CollectionDashboard';
+import DisbursingODashboard from '../disbursingOfficer/DisbursementDashboard';
+import Loading from './Loading';
 
-// const Dashboard = () => {
-//   return (
-//     <div className="dashboard">
-//       <h2>Dashboard</h2>
-//       <p>Welcome to your dashboard! This page is under construction.</p>
-//       <p>User role: {localStorage.getItem('userRole')}</p>
-//     </div>
-//   );
-// };
+const AccessDenied = ({ role }) => (
+  <div className="access-denied">
+    <h2>Access Denied</h2>
+    <p>Invalid user role: {role}</p>
+  </div>
+);
 
-// export default Dashboard;
+const LoginPrompt = () => (
+  <div className="login-prompt">
+    <h2>Please log in</h2>
+    <p>You need to be logged in to access the dashboard.</p>
+  </div>
+);
 
-
-// src/pages/Dashboard.jsx
-import React from 'react';
-import './css/Dashboard.css';
-
-const Dashboard = ({ userRole }) => {
-  // Sample data based on role
-  const getDashboardData = (role) => {
-    const data = {
-      admin: {
-        title: "Admin Dashboard",
-        stats: [
-          { title: 'Total Staff', value: '45', change: '+5%' },
-          { title: 'Revenue', value: '₱125,000', change: '+12%' },
-          { title: 'Active Users', value: '234', change: '+8%' },
-          { title: 'System Health', value: '98%', change: '0%' }
-        ]
-      },
-      cashier: {
-        title: "Cashier Dashboard",
-        stats: [
-          { title: 'Today\'s Sales', value: '₱15,250', change: '+8%' },
-          { title: 'Transactions', value: '45', change: '+12%' },
-          { title: 'Pending', value: '3', change: '-2' },
-          { title: 'Cash Flow', value: '₱12,800', change: '+5%' }
-        ]
-      },
-      // Add other roles...
-    };
-    return data[role] || data.admin;
+const Dashboard = ({ onToggleSidebar }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return <Loading message="Checking authentication..." />;
+  }
+  
+  if (!user) {
+    return (
+      <div className="dashboard-page">
+        <Navbar userRole={null} user={null} onToggleSidebar={onToggleSidebar}/>
+        <LoginPrompt />
+      </div>
+    );
+  }
+  
+  const userRole = user?.role;
+  
+  const roleComponentMap = {
+    'Admin': AdminDashboard,
+    'Cashier': CashierDashboard,
+    'Collecting Officer': CollectingDashboard,
+    'Disbursing Officer': DisbursingODashboard,
   };
-
-  const dashboardData = getDashboardData(userRole);
-
+  
+  const SelectedDashboard = roleComponentMap[userRole];
+  
+  if (!SelectedDashboard) {
+    return (
+      <div className="dashboard-page">
+        <Navbar userRole={userRole} user={user} onToggleSidebar={onToggleSidebar}/>
+        <AccessDenied role={userRole} />
+      </div>
+    );
+  }
+  
   return (
-    <div className="dashboard">
-      <div className="dashboard-header">
-        <h1>{dashboardData.title}</h1>
-        <p>Welcome back! Here's your overview for today.</p>
-      </div>
-
-      <div className="stats-grid">
-        {dashboardData.stats.map((stat, index) => (
-          <div key={index} className="stat-card">
-            <div className="stat-content">
-              <h3 className="stat-value">{stat.value}</h3>
-              <p className="stat-title">{stat.title}</p>
-              {stat.change && (
-                <span className="stat-change">
-                  {stat.change}
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="dashboard-content">
-        <div className="content-card">
-          <h3>Recent Activity</h3>
-          <p>Your recent activities will be shown here...</p>
-        </div>
-        
-        <div className="content-card">
-          <h3>Quick Actions</h3>
-          <p>Role-specific quick actions will appear here...</p>
-        </div>
-      </div>
+    <div className="dashboard-page">
+      <Navbar userRole={userRole} user={user} onToggleSidebar={onToggleSidebar}/>
+      <SelectedDashboard user={user} />
     </div>
   );
 };

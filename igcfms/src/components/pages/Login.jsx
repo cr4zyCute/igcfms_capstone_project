@@ -1,30 +1,35 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { loginUser } from '../../services/api';
-import { Link } from 'react-router-dom';
-
+import { Link, useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setAuth } = useAuth();  
+
+  const { login } = useAuth();
+  const navigate = useNavigate(); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const data = await loginUser(email, password); 
+      const data = await loginUser(email, password);
+
       if (data.access_token) {
-        
-        localStorage.setItem('token', data.access_token);
-        localStorage.setItem('userRole', data.role);
-        
-        setAuth({ token: data.access_token, role: data.role });
+        // Build userData from response
+        const userData = {
+          email,
+          role: data.role,
+        };
+
+       
+        login(userData, data.access_token);
 
         alert('Login successful! Role: ' + data.role);
-         window.location.href = '/dashboard';
+        navigate('/dashboard'); 
       } else {
         alert(data.message || 'Login failed.');
       }
@@ -65,7 +70,6 @@ const Login = () => {
         </Link>
       </p>
     </div>
-    
   );
 };
 

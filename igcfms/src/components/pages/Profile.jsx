@@ -5,7 +5,7 @@ const Profile = () => {
     <div className="profile">
       <h2>Profile</h2>
       <p>Profile page coming soon!</p>
-      <p>Token: {localStorage.getItem('token') ? '✅ Available' : '❌ Missing'}</p>
+      <p>Token: {localStorage.getItem('token') ? 'Available' : ' Missing'}</p>
     </div>
   );
 };

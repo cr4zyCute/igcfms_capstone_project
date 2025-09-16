@@ -1,9 +1,18 @@
 // src/components/common/Navbar.jsx
 import React, { useState } from 'react';
 import '../common/css/Navbar.css';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Navbar = ({ userRole, user, onToggleSidebar }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  }
 
   return (
     <header className="navbar">
@@ -48,9 +57,12 @@ const Navbar = ({ userRole, user, onToggleSidebar }) => {
                 <span>⚙️</span> Settings
               </a>
               <hr className="dropdown-divider" />
-              <a href="/logout" className="dropdown-item">
+              <button 
+                onClick={handleLogout} 
+                className="dropdown-item logout-btn"
+              >
                 <span>🚪</span> Logout
-              </a>
+              </button>
             </div>
           )}
         </div>
