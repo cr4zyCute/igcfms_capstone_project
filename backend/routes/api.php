@@ -9,6 +9,7 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\OverrideRequestController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ReceiptController;
+use App\Http\Controllers\DashboardController;
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
@@ -60,4 +61,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin: review override request
     Route::put('/override_requests/{id}/review', [OverrideRequestController::class, 'review']);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+    Route::get('/dashboard/daily-revenue', [DashboardController::class, 'dailyRevenue']);
+    Route::get('/dashboard/fund-distribution', [DashboardController::class, 'fundDistribution']);
+    Route::get('/dashboard/recent-logs', [DashboardController::class, 'recentLogs']);
 });

@@ -673,3 +673,13 @@ table h4 {
         -webkit-overflow-scrolling: touch;
     }
 }
+.admin-page {
+  font-family: sans-serif;
+}
+
+.card {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}

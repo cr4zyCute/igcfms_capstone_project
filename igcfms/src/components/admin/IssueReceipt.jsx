@@ -1,4 +1,3 @@
-// /pages/admin/IssueReceipt.jsx
 import React, { useState, useEffect } from "react";
 import "../../assets/admin.css";
 import axios from "axios";

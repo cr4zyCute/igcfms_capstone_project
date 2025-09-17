@@ -1,6 +1,5 @@
-// /pages/admin/IssueMoney.jsx
 import React, { useState, useEffect } from "react";
-import "../../assets/admin.css";
+//import "../../assets/admin.css";
 import axios from "axios";
 
 const IssueMoney = () => {
