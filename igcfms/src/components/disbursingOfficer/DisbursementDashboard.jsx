@@ -1,16 +1,19 @@
 import React from 'react';
+import IssueMoney from './IssueMoney';
+import IssueCheque from './IssueCheque';
 
-const DisbursementDashboard = ({ user }) => {
-  return (
-    <div className="dashboard-content">
-      <h1>Disbursement Dashboard</h1>
-      <p>Welcome, {user?.email}</p>
-      <div className="stats">
-        <div className="stat-card">Disbursements Today: ₱8,720</div>
-        <div className="stat-card">Cheques Issued: 12</div>
-      </div>
-    </div>
-  );
+const DisbursementDashboard = ({ activeTab }) => {
+ 
+  switch(activeTab){
+    case "issue-money":
+      return <IssueMoney/>;
+    case "issue-cheque":
+      return <IssueCheque/>;
+    default: 
+    return <div>Welcom to Collector Dashboard</div>
+  }
+
+
 };
 
 export default DisbursementDashboard;

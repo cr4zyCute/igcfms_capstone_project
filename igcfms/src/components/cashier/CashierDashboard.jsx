@@ -1,16 +1,25 @@
-import React from 'react';
+import React from "react";
+import ViewTransactions from './ViewTransactions';
+import FundsAccounts from './FundsAccounts';
+import OverrideTransactions from './OverrideTransactions';
+import GenerateReports from './GenerateReports';
 
-const CashierDashboard = ({ user }) => {
-  return (
-    <div className="dashboard-content">
-      <h1>Cashier Dashboard</h1>
-      <p>Welcome, {user?.email}</p>
-      <div className="stats">
-        <div className="stat-card">Today's Transactions: 15</div>
-        <div className="stat-card">Total Cash: ₱5,230</div>
-      </div>
-    </div>
-  );
+
+const CashierDashboard = ({ activeTab }) => {
+  switch (activeTab) {
+    case "generate-reports":
+      return <GenerateReports />;
+    case "override-transactions":
+      return <OverrideTransactions/>;
+    case "view-transactions":
+      return <ViewTransactions />;
+    case "funds-accounts":
+      return <FundsAccounts/>;
+    case "daily-summary":
+      return <div>Daily summary content here</div>;
+    default:
+      return <div>Welcome to Cashier Dashboard</div>;
+  }
 };
 
 export default CashierDashboard;

@@ -1,12 +1,14 @@
-// import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../common/Navbar';
 import AdminDashboard from '../admin/AdminDashboard';
 import CashierDashboard from '../cashier/CashierDashboard';
-import CollectingDashboard from '../collectingOfficer/CollectionDashboard';
+import CollectingDashboard from '../collectingOfficer/CollectiingDashboard';
 import DisbursingODashboard from '../disbursingOfficer/DisbursementDashboard';
+import Sidebar from '../common/Sidebar';
 import Loading from './Loading';
-
+import '../pages/css/Dashboard.css';
+  
 const AccessDenied = ({ role }) => (
   <div className="access-denied">
     <h2>Access Denied</h2>
@@ -21,9 +23,10 @@ const LoginPrompt = () => (
   </div>
 );
 
-const Dashboard = ({ onToggleSidebar }) => {
+const Dashboard = () => {
   const { user, loading } = useAuth();
-  
+  const [activeTab, setActiveTab] = useState('dashboard');
+
   if (loading) {
     return <Loading message="Checking authentication..." />;
   }
@@ -31,7 +34,7 @@ const Dashboard = ({ onToggleSidebar }) => {
   if (!user) {
     return (
       <div className="dashboard-page">
-        <Navbar userRole={null} user={null} onToggleSidebar={onToggleSidebar}/>
+        <Navbar userRole={null} user={null} />
         <LoginPrompt />
       </div>
     );
@@ -51,7 +54,7 @@ const Dashboard = ({ onToggleSidebar }) => {
   if (!SelectedDashboard) {
     return (
       <div className="dashboard-page">
-        <Navbar userRole={userRole} user={user} onToggleSidebar={onToggleSidebar}/>
+        <Navbar userRole={userRole} user={user} />
         <AccessDenied role={userRole} />
       </div>
     );
@@ -59,8 +62,16 @@ const Dashboard = ({ onToggleSidebar }) => {
   
   return (
     <div className="dashboard-page">
-      <Navbar userRole={userRole} user={user} onToggleSidebar={onToggleSidebar}/>
-      <SelectedDashboard user={user} />
+      <Navbar userRole={userRole} user={user} />
+      
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
+
+      <main className="dashboard-main">
+        <SelectedDashboard user={user} activeTab={activeTab} />
+      </main>
     </div>
   );
 };

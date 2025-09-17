@@ -1,51 +1,45 @@
-// src/components/common/Sidebar.jsx
 import React from 'react';
-import { getNavigationConfig } from '../../utils/navigationConfig';
+import { useAuth } from '../../contexts/AuthContext';
+import AdminSidebar from '../admin/AdminSidebar';
+import CashierSidebar from '../cashier/CashierSidebar';
+import CollectingSidebar from '../collectingOfficer/CollectingSidebar';
+import DisbursingSidebar from '../disbursingOfficer/DisbursingSidebar';
 import '../common/css/Sidebar.css';
 
-const Sidebar = ({ userRole, isOpen, onClose }) => {
-  const config = getNavigationConfig(userRole);
-  const { sidebar } = config;
+
+const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
+  const { user } = useAuth();
+
+  const renderSidebarContent = () => {
+    switch (user?.role) {
+      case 'Admin':
+        return <AdminSidebar activeTab={activeTab} setActiveTab={setActiveTab} />;
+      case 'Cashier':
+        return <CashierSidebar activeTab={activeTab} setActiveTab={setActiveTab} />;
+      case 'Collecting Officer':
+        return <CollectingSidebar activeTab={activeTab} setActiveTab={setActiveTab} />;
+      case 'Disbursing Officer':
+        return <DisbursingSidebar activeTab={activeTab} setActiveTab={setActiveTab} />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
-      {/* Overlay for mobile */}
       {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
       
-      <aside className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
-        {/* Logo Section */}
+      <div className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <h2>IGCFMS</h2>
-            <span>Management System</span>
-          </div>
+            <div className="logo">
+            {/* logo here please  */}
+            </div>
+              <h1 className="navbar-title">IGCFMS</h1>
+            <span className="navbar-subtitle">Financial Management System</span>
+          <button className="sidebar-close" onClick={onClose}>×</button>
         </div>
-
-        {/* Navigation Menu */}
-        <nav className="sidebar-nav">
-          <ul>
-            {sidebar.map((item) => (
-              <li key={item.path} className="nav-item">
-                <a 
-                  href={item.path} 
-                  className="nav-link"
-                  onClick={onClose}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  <span className="nav-title">{item.title}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        {/* Footer with Role Badge */}
-        <div className="sidebar-footer">
-          <div className="role-badge">
-            <span>{userRole}</span>
-          </div>
-        </div>
-      </aside>
+        {renderSidebarContent()}
+      </div>
     </>
   );
 };

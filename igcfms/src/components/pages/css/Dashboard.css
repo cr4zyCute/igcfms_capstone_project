@@ -1,0 +1,20 @@
+/* Dashboard.css */
+.dashboard-page {
+  display: flex;
+  background: #f9fafb;
+  min-height: 100vh;
+}
+
+.dashboard-main {
+  flex: 1;
+  margin-left: 240px;  
+  margin-top: 70px;    
+  padding: 2rem;
+}
+
+.tab-content {
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}

@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     user,
     login,
     logout,
-    loading
+    loading // Make sure loading is included here
   };
 
   return (
