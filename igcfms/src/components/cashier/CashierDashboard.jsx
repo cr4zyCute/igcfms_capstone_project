@@ -3,9 +3,13 @@ import ViewTransactions from './ViewTransactions';
 import FundsAccounts from './FundsAccounts';
 import OverrideTransactions from './OverrideTransactions';
 import GenerateReports from './GenerateReports';
+import CashierHome from '../cashier/CashierHome';
+import '../pages/css/Dashboard.css';
+import '../common/css/Sidebar.css';
 
 
-const CashierDashboard = ({ activeTab }) => {
+
+const CashierDashboard = ({ user,activeTab }) => {
   switch (activeTab) {
     case "generate-reports":
       return <GenerateReports />;
@@ -18,7 +22,7 @@ const CashierDashboard = ({ activeTab }) => {
     case "daily-summary":
       return <div>Daily summary content here</div>;
     default:
-      return <div>Welcome to Cashier Dashboard</div>;
+      return <CashierHome user={user}/>;
   }
 };
 

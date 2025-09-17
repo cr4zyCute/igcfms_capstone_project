@@ -1,8 +1,11 @@
 import React from 'react';
 import IssueReceipt from './IssueReceipt';
 import ReceiveMoney from './ReceiveMoney';
+import CollectorHome from './CollectorHome';
+import '../pages/css/Dashboard.css';
+import '../common/css/Sidebar.css';
 
-const CollectingDashboard = ({ activeTab }) => {
+const CollectingDashboard = ({ user, activeTab }) => {
  
   switch(activeTab){
     case "issue-receipt":
@@ -10,7 +13,7 @@ const CollectingDashboard = ({ activeTab }) => {
     case "receive-money":
       return <ReceiveMoney/>;
     default: 
-    return <div>Welcom to Collector Dashboard</div>
+    return <CollectorHome user={user}/>;
   }
 
 

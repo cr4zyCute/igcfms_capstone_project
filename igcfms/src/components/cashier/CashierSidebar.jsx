@@ -1,4 +1,3 @@
-// src/components/cashier/CashierSidebar.jsx
 import React from 'react';
 
 const CashierSidebar = ({ activeTab, setActiveTab }) => {
@@ -12,7 +11,7 @@ const CashierSidebar = ({ activeTab, setActiveTab }) => {
 
   return (
     <div className="sidebar-content">
-      <ul className="sidebar-menu">
+       <nav className="sidebar-nav">
         {menuItems.map(item => (
           <li key={item.id}>
             <button
@@ -23,7 +22,7 @@ const CashierSidebar = ({ activeTab, setActiveTab }) => {
             </button>
           </li>
         ))}
-      </ul>
+      </nav>
     </div>
   );
 };

@@ -1,8 +1,9 @@
 import React from 'react';
 import IssueMoney from './IssueMoney';
 import IssueCheque from './IssueCheque';
+import DisburserHome from './DisburserHome';
 
-const DisbursementDashboard = ({ activeTab }) => {
+const DisbursementDashboard = ({ user,activeTab }) => {
  
   switch(activeTab){
     case "issue-money":
@@ -10,7 +11,7 @@ const DisbursementDashboard = ({ activeTab }) => {
     case "issue-cheque":
       return <IssueCheque/>;
     default: 
-    return <div>Welcom to Collector Dashboard</div>
+    return <DisburserHome user={user}/>
   }
 
 
