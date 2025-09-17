@@ -35,8 +35,6 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
             {/* logo here please  */}
             </div>
               <h1 className="navbar-title">IGCFMS</h1>
-            <span className="navbar-subtitle">Financial Management System</span>
-          <button className="sidebar-close" onClick={onClose}>×</button>
         </div>
         {renderSidebarContent()}
       </div>

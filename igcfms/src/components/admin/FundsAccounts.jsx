@@ -1,5 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { getFundAccounts, createFundAccount, getFundAccount } from '../../services/api';
+import React, { useState, useEffect } from "react";
+import "../../assets/admin.css";
+import {
+  getFundAccounts,
+  createFundAccount,
+  getFundAccount,
+} from "../../services/api";
 
 const FundsAccounts = () => {
   const [accounts, setAccounts] = useState([]);
@@ -8,16 +13,16 @@ const FundsAccounts = () => {
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [newAccount, setNewAccount] = useState({
-    name: '',
-    code: '',
-    description: '',
+    name: "",
+    code: "",
+    description: "",
     initial_balance: 0,
-    account_type: 'Revenue',
-    department: ''
+    account_type: "Revenue",
+    department: "",
   });
 
   useEffect(() => {
@@ -29,10 +34,10 @@ const FundsAccounts = () => {
       setLoading(true);
       const response = await getFundAccounts();
       setAccounts(response);
-      setError('');
+      setError("");
     } catch (err) {
-      setError('Failed to fetch fund accounts. Please try again.');
-      console.error('Error fetching accounts:', err);
+      setError("Failed to fetch fund accounts. Please try again.");
+      console.error("Error fetching accounts:", err);
     } finally {
       setLoading(false);
     }
@@ -45,43 +50,42 @@ const FundsAccounts = () => {
 
       setTransactions(response);
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      console.error("Error fetching transactions:", err);
       setTransactions([]);
     } finally {
       setTransactionsLoading(false);
     }
   };
 
-const handleAddAccount = async (e) => {
-  e.preventDefault();
+  const handleAddAccount = async (e) => {
+    e.preventDefault();
 
-  console.log('Sending new account:', newAccount); // DEBUG
+    console.log("Sending new account:", newAccount); // DEBUG
 
-  try {
-    setLoading(true);
-    await createFundAccount({
-      ...newAccount,
-      initial_balance: Number(newAccount.initial_balance) || 0
-    });
-    setSuccess('Fund account created successfully!');
-    setNewAccount({
-      name: '',
-      code: '',
-      description: '',
-      initial_balance: 0,
-      account_type: 'Revenue',
-      department: ''
-    });
-    setShowAddAccount(false);
-    fetchAccounts(); 
-  } catch (err) {
-    setError('Failed to create fund account. Please try again.');
-    console.error('Error creating account:', err.response?.data || err);
-  } finally {
-    setLoading(false);
-  }
-};
-
+    try {
+      setLoading(true);
+      await createFundAccount({
+        ...newAccount,
+        initial_balance: Number(newAccount.initial_balance) || 0,
+      });
+      setSuccess("Fund account created successfully!");
+      setNewAccount({
+        name: "",
+        code: "",
+        description: "",
+        initial_balance: 0,
+        account_type: "Revenue",
+        department: "",
+      });
+      setShowAddAccount(false);
+      fetchAccounts();
+    } catch (err) {
+      setError("Failed to create fund account. Please try again.");
+      console.error("Error creating account:", err.response?.data || err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAccountSelect = async (account) => {
     setSelectedAccount(account);
@@ -89,14 +93,18 @@ const handleAddAccount = async (e) => {
   };
 
   if (loading) {
-    return <div className="loading">Loading fund accounts...</div>;
+    return (
+      <div className="spinner-container">
+        <div className="spinner" aria-label="Loading fund accounts" />
+      </div>
+    );
   }
 
   return (
     <div className="funds-accounts">
       <div className="section-header">
         <h3>Fund Accounts Management</h3>
-        <button 
+        <button
           className="btn btn-primary"
           onClick={() => setShowAddAccount(true)}
           disabled={loading}
@@ -118,7 +126,9 @@ const handleAddAccount = async (e) => {
                 <input
                   type="text"
                   value={newAccount.name}
-                  onChange={(e) => setNewAccount({...newAccount, name: e.target.value})}
+                  onChange={(e) =>
+                    setNewAccount({ ...newAccount, name: e.target.value })
+                  }
                   required
                   disabled={loading}
                 />
@@ -128,7 +138,9 @@ const handleAddAccount = async (e) => {
                 <input
                   type="text"
                   value={newAccount.code}
-                  onChange={(e) => setNewAccount({...newAccount, code: e.target.value})}
+                  onChange={(e) =>
+                    setNewAccount({ ...newAccount, code: e.target.value })
+                  }
                   required
                   disabled={loading}
                 />
@@ -137,7 +149,12 @@ const handleAddAccount = async (e) => {
                 <label>Description</label>
                 <textarea
                   value={newAccount.description}
-                  onChange={(e) => setNewAccount({...newAccount, description: e.target.value})}
+                  onChange={(e) =>
+                    setNewAccount({
+                      ...newAccount,
+                      description: e.target.value,
+                    })
+                  }
                   disabled={loading}
                 />
               </div>
@@ -148,10 +165,10 @@ const handleAddAccount = async (e) => {
                   step="0.01"
                   value={newAccount.initial_balance}
                   onChange={(e) => {
-                    const value = e.target.value;  
+                    const value = e.target.value;
                     setNewAccount({
                       ...newAccount,
-                      initial_balance: value === '' ? '' : parseFloat(value)
+                      initial_balance: value === "" ? "" : parseFloat(value),
                     });
                   }}
                   required
@@ -162,7 +179,12 @@ const handleAddAccount = async (e) => {
                 <label>Account Type</label>
                 <select
                   value={newAccount.account_type}
-                  onChange={(e) => setNewAccount({...newAccount, account_type: e.target.value})}
+                  onChange={(e) =>
+                    setNewAccount({
+                      ...newAccount,
+                      account_type: e.target.value,
+                    })
+                  }
                   disabled={loading}
                 >
                   <option value="Revenue">Revenue</option>
@@ -177,23 +199,22 @@ const handleAddAccount = async (e) => {
                 <input
                   type="text"
                   value={newAccount.department}
-                  onChange={(e) => setNewAccount({...newAccount, department: e.target.value})}
+                  onChange={(e) =>
+                    setNewAccount({ ...newAccount, department: e.target.value })
+                  }
                   disabled={loading}
                 />
               </div>
               <div className="form-actions">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowAddAccount(false)}
                   disabled={loading}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={loading}
-                >
-                  {loading ? 'Creating...' : 'Create Account'}
+                <button type="submit" disabled={loading}>
+                  {loading ? "Creating..." : "Create Account"}
                 </button>
               </div>
             </form>
@@ -204,15 +225,19 @@ const handleAddAccount = async (e) => {
       <div className="accounts-overview">
         <h4>Fund Accounts</h4>
         <div className="account-cards">
-          {accounts.map(account => (
-            <div 
-              key={account.id} 
-              className={`account-card ${selectedAccount?.id === account.id ? 'selected' : ''}`}
+          {accounts.map((account) => (
+            <div
+              key={account.id}
+              className={`account-card ${
+                selectedAccount?.id === account.id ? "selected" : ""
+              }`}
               onClick={() => handleAccountSelect(account)}
             >
               <h5>{account.name}</h5>
               <p className="code">{account.code}</p>
-              <p className="balance">₱{account.current_balance?.toLocaleString() || '0.00'}</p>
+              <p className="balance">
+                ₱{account.current_balance?.toLocaleString() || "0.00"}
+              </p>
               <p className="type">{account.account_type}</p>
               <p className="department">{account.department}</p>
             </div>
@@ -224,7 +249,9 @@ const handleAddAccount = async (e) => {
         <div className="account-details">
           <h4>Transaction History: {selectedAccount.name}</h4>
           {transactionsLoading ? (
-            <div className="loading">Loading transactions...</div>
+            <div className="spinner-container">
+              <div className="spinner" aria-label="Loading transactions" />
+            </div>
           ) : transactions.length > 0 ? (
             <table>
               <thead>
@@ -237,19 +264,34 @@ const handleAddAccount = async (e) => {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(transaction => (
+                {transactions.map((transaction) => (
                   <tr key={transaction.id}>
-                    <td>{new Date(transaction.created_at).toLocaleDateString()}</td>
+                    <td>
+                      {new Date(transaction.created_at).toLocaleDateString()}
+                    </td>
                     <td>{transaction.description}</td>
                     <td>
-                      <span className={`transaction-type ${transaction.type?.toLowerCase()}`}>
+                      <span
+                        className={`transaction-type ${transaction.type?.toLowerCase()}`}
+                      >
                         {transaction.type}
                       </span>
                     </td>
-                    <td className={transaction.type === 'Collection' ? 'text-success' : 'text-danger'}>
-                      {transaction.type === 'Collection' ? '+' : '-'}₱{transaction.amount?.toLocaleString()}
+                    <td
+                      className={
+                        transaction.type === "Collection"
+                          ? "text-success"
+                          : "text-danger"
+                      }
+                    >
+                      {transaction.type === "Collection" ? "+" : "-"}₱
+                      {transaction.amount?.toLocaleString()}
                     </td>
-                    <td>{transaction.reference || transaction.reference_no || transaction.receipt_no}</td>
+                    <td>
+                      {transaction.reference ||
+                        transaction.reference_no ||
+                        transaction.receipt_no}
+                    </td>
                   </tr>
                 ))}
               </tbody>

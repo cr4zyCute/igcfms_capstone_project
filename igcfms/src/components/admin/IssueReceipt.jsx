@@ -1,22 +1,24 @@
 // /pages/admin/IssueReceipt.jsx
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import "../../assets/admin.css";
+import axios from "axios";
 
 const IssueReceipt = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   const [transactions, setTransactions] = useState([]);
-  const [transactionId, setTransactionId] = useState('');
-  const [payerName, setPayerName] = useState('');
-  const [receiptNo, setReceiptNo] = useState('');
-  const [message, setMessage] = useState('');
+  const [transactionId, setTransactionId] = useState("");
+  const [payerName, setPayerName] = useState("");
+  const [receiptNo, setReceiptNo] = useState("");
+  const [message, setMessage] = useState("");
 
   // Fetch only "Collection" transactions without receipts
   useEffect(() => {
-    axios.get('http://localhost:8000/api/transactions?type=Collection', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(res => setTransactions(res.data))
-    .catch(err => console.error(err));
+    axios
+      .get("http://localhost:8000/api/transactions?type=Collection", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => setTransactions(res.data))
+      .catch((err) => console.error(err));
   }, [token]);
 
   const handleSubmit = async (e) => {
@@ -30,15 +32,15 @@ const IssueReceipt = () => {
         receipt_number: receiptNo,
       };
 
-      await axios.post('http://localhost:8000/api/receipts', payload, config);
+      await axios.post("http://localhost:8000/api/receipts", payload, config);
 
-      setMessage('Receipt issued successfully');
-      setPayerName('');
-      setReceiptNo('');
-      setTransactionId('');
+      setMessage("Receipt issued successfully");
+      setPayerName("");
+      setReceiptNo("");
+      setTransactionId("");
     } catch (err) {
       console.error(err);
-      setMessage('Error issuing receipt.');
+      setMessage("Error issuing receipt.");
     }
   };
 
@@ -49,11 +51,11 @@ const IssueReceipt = () => {
 
       <select
         value={transactionId}
-        onChange={e => setTransactionId(e.target.value)}
+        onChange={(e) => setTransactionId(e.target.value)}
         className="border p-2 w-full mb-2"
       >
         <option value="">-- Select Transaction --</option>
-        {transactions.map(tx => (
+        {transactions.map((tx) => (
           <option key={tx.id} value={tx.id}>
             #{tx.id} - {tx.amount} ({tx.fund_account?.name})
           </option>
@@ -63,13 +65,13 @@ const IssueReceipt = () => {
       <input
         placeholder="Payer Name"
         value={payerName}
-        onChange={e => setPayerName(e.target.value)}
+        onChange={(e) => setPayerName(e.target.value)}
         className="border p-2 w-full mb-2"
       />
       <input
         placeholder="Receipt Number"
         value={receiptNo}
-        onChange={e => setReceiptNo(e.target.value)}
+        onChange={(e) => setReceiptNo(e.target.value)}
         className="border p-2 w-full mb-2"
       />
 

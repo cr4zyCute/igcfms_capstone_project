@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { getUsers, createUser, toggleUserStatus } from '../../services/api';
+import React, { useState, useEffect } from "react";
+import "../../assets/admin.css";
+import { getUsers, createUser, toggleUserStatus } from "../../services/api";
 
 const ManageStaff = () => {
   const [staffMembers, setStaffMembers] = useState([]);
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [newStaff, setNewStaff] = useState({
-    name: '',
-    email: '',
-    role: 'Cashier',
-    password: ''
+    name: "",
+    email: "",
+    role: "Cashier",
+    password: "",
   });
 
   useEffect(() => {
@@ -24,10 +25,10 @@ const ManageStaff = () => {
       setLoading(true);
       const users = await getUsers(); // already returns data array
       setStaffMembers(users);
-      setError('');
+      setError("");
     } catch (err) {
-      setError('Failed to fetch staff members. Please try again.');
-      console.error('Error fetching staff:', err);
+      setError("Failed to fetch staff members. Please try again.");
+      console.error("Error fetching staff:", err);
     } finally {
       setLoading(false);
     }
@@ -38,13 +39,13 @@ const ManageStaff = () => {
     try {
       setLoading(true);
       await createUser(newStaff);
-      setSuccess('Staff member added successfully!');
-      setNewStaff({ name: '', email: '', role: 'Cashier', password: '' });
+      setSuccess("Staff member added successfully!");
+      setNewStaff({ name: "", email: "", role: "Cashier", password: "" });
       setShowAddStaff(false);
       fetchStaffMembers(); // Refresh the list
     } catch (err) {
-      setError('Failed to add staff member. Please try again.');
-      console.error('Error adding staff:', err);
+      setError("Failed to add staff member. Please try again.");
+      console.error("Error adding staff:", err);
     } finally {
       setLoading(false);
     }
@@ -53,23 +54,27 @@ const ManageStaff = () => {
   const handleToggleStatus = async (id) => {
     try {
       await toggleUserStatus(id);
-      setSuccess('Staff status updated successfully!');
+      setSuccess("Staff status updated successfully!");
       fetchStaffMembers();
     } catch (err) {
-      setError('Failed to update staff status. Please try again.');
-      console.error('Error updating staff status:', err);
+      setError("Failed to update staff status. Please try again.");
+      console.error("Error updating staff status:", err);
     }
   };
 
   if (loading) {
-    return <div className="loading">Loading staff members...</div>;
+    return (
+      <div className="spinner-container">
+        <div className="spinner" aria-label="Loading staff members" />
+      </div>
+    );
   }
 
   return (
     <div className="staff-management">
       <div className="section-header">
         <h3>Staff Management</h3>
-        <button 
+        <button
           className="btn btn-primary"
           onClick={() => setShowAddStaff(true)}
           disabled={loading}
@@ -91,7 +96,9 @@ const ManageStaff = () => {
                 <input
                   type="text"
                   value={newStaff.name}
-                  onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
+                  onChange={(e) =>
+                    setNewStaff({ ...newStaff, name: e.target.value })
+                  }
                   required
                   disabled={loading}
                 />
@@ -101,7 +108,9 @@ const ManageStaff = () => {
                 <input
                   type="email"
                   value={newStaff.email}
-                  onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
+                  onChange={(e) =>
+                    setNewStaff({ ...newStaff, email: e.target.value })
+                  }
                   required
                   disabled={loading}
                 />
@@ -110,7 +119,9 @@ const ManageStaff = () => {
                 <label>Role</label>
                 <select
                   value={newStaff.role}
-                  onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
+                  onChange={(e) =>
+                    setNewStaff({ ...newStaff, role: e.target.value })
+                  }
                   disabled={loading}
                 >
                   <option value="Cashier">Cashier</option>
@@ -124,17 +135,23 @@ const ManageStaff = () => {
                 <input
                   type="password"
                   value={newStaff.password}
-                  onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
+                  onChange={(e) =>
+                    setNewStaff({ ...newStaff, password: e.target.value })
+                  }
                   required
                   disabled={loading}
                 />
               </div>
               <div className="form-actions">
-                <button type="button" onClick={() => setShowAddStaff(false)} disabled={loading}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStaff(false)}
+                  disabled={loading}
+                >
                   Cancel
                 </button>
                 <button type="submit" disabled={loading}>
-                  {loading ? 'Adding...' : 'Add Staff'}
+                  {loading ? "Adding..." : "Add Staff"}
                 </button>
               </div>
             </form>
@@ -162,23 +179,39 @@ const ManageStaff = () => {
                   <td>{staff.id}</td>
                   <td>{staff.name}</td>
                   <td>{staff.email}</td>
-                  <td><span className="role-badge">{staff.role}</span></td>
-                  <td><span className={`status-badge ${staff.status}`}>{staff.status}</span></td>
-                  <td>{staff.last_login ? new Date(staff.last_login).toLocaleString() : 'Never'}</td>
+                  <td>
+                    <span className="role-badge">{staff.role}</span>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${staff.status}`}>
+                      {staff.status}
+                    </span>
+                  </td>
+                  <td>
+                    {staff.last_login
+                      ? new Date(staff.last_login).toLocaleString()
+                      : "Never"}
+                  </td>
                   <td>
                     <button
-                      className={`btn ${staff.status === 'active' ? 'btn-warning' : 'btn-success'}`}
+                      className={`btn ${
+                        staff.status === "active"
+                          ? "btn-warning"
+                          : "btn-success"
+                      }`}
                       onClick={() => handleToggleStatus(staff.id)}
                       disabled={loading}
                     >
-                      {staff.status === 'active' ? 'Deactivate' : 'Activate'}
+                      {staff.status === "active" ? "Deactivate" : "Activate"}
                     </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="7" style={{ textAlign: 'center' }}>No staff members found.</td>
+                <td colSpan="7" style={{ textAlign: "center" }}>
+                  No staff members found.
+                </td>
               </tr>
             )}
           </tbody>

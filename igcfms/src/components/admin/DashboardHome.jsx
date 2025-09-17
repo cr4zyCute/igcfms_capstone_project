@@ -1,10 +1,13 @@
 import React from "react";
+import "../../assets/admin.css";
 
 const DashboardHome = () => {
   return (
-    <div>
-      <h2>Admin Dashboard</h2>
-      <p>Welcome to the admin dashboard home screen.</p>
+    <div className="admin-page">
+      <div className="card">
+        <h2>Admin Dashboard</h2>
+        <p>Welcome to the admin dashboard home screen.</p>
+      </div>
     </div>
   );
 };

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { getTransactions } from '../../services/api';
+import React, { useState, useEffect } from "react";
+import "../../assets/admin.css";
+import { getTransactions } from "../../services/api";
 
 const ViewTransactions = ({ filterByAccountIds = null }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -12,14 +13,14 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
         setLoading(true);
         let params = {};
         if (filterByAccountIds && Array.isArray(filterByAccountIds)) {
-          params.accountIds = filterByAccountIds.join(',');
+          params.accountIds = filterByAccountIds.join(",");
         }
         const response = await getTransactions(params);
         setTransactions(response);
-        setError('');
+        setError("");
       } catch (err) {
-        console.error('Error fetching transactions:', err);
-        setError('Failed to fetch transactions. Please try again.');
+        console.error("Error fetching transactions:", err);
+        setError("Failed to fetch transactions. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -28,7 +29,12 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
     fetchTransactions();
   }, [filterByAccountIds]);
 
-  if (loading) return <div>Loading transactions...</div>;
+  if (loading)
+    return (
+      <div className="spinner-container">
+        <div className="spinner" aria-label="Loading transactions" />
+      </div>
+    );
   if (error) return <div className="alert alert-error">{error}</div>;
 
   return (
@@ -48,17 +54,24 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
             </tr>
           </thead>
           <tbody>
-            {transactions.map(tx => (
+            {transactions.map((tx) => (
               <tr key={tx.id}>
                 <td>{new Date(tx.created_at).toLocaleDateString()}</td>
                 <td>{tx.description}</td>
                 <td>
-                  <span className={`transaction-type ${tx.type?.toLowerCase()}`}>
+                  <span
+                    className={`transaction-type ${tx.type?.toLowerCase()}`}
+                  >
                     {tx.type}
                   </span>
                 </td>
-                <td className={tx.type === 'Collection' ? 'text-success' : 'text-danger'}>
-                  {tx.type === 'Collection' ? '+' : '-'}₱{tx.amount?.toLocaleString()}
+                <td
+                  className={
+                    tx.type === "Collection" ? "text-success" : "text-danger"
+                  }
+                >
+                  {tx.type === "Collection" ? "+" : "-"}₱
+                  {tx.amount?.toLocaleString()}
                 </td>
                 <td>{tx.reference || tx.reference_no || tx.receipt_no}</td>
               </tr>

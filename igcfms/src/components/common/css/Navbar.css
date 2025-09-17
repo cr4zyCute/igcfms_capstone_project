@@ -11,7 +11,8 @@
 
   position: fixed;
   top: 0;
-  left: 240px;   /* <- pushes navbar to the right of sidebar */
+  left: 240px;
+  /* <- pushes navbar to the right of sidebar */
   right: 0;
   z-index: 100;
 }
@@ -110,7 +111,7 @@
   background: #f3f4f6;
   border-radius: 10px;
   padding: 0.5rem 0;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
 }
 
 .dropdown-item {
@@ -127,6 +128,7 @@
 .dropdown-item:hover {
   background: #e5e7eb;
 }
+
 /* Profile button */
 .profile-button {
   display: flex;
@@ -188,14 +190,17 @@
 .user-details {
   flex: 1;
 }
+
 .user-name {
   font-weight: 600;
   color: #111827;
 }
+
 .user-email-small {
   font-size: 0.8rem;
   color: #6b7280;
 }
+
 .user-role-badge {
   display: inline-block;
   margin-top: 2px;

@@ -7,8 +7,10 @@
   left: 0;
   height: 100vh;
   width: 250px;
-  background: #1e293b; /* deep slate */
-  color: #f1f5f9; /* light gray text */
+  background: #0f172a;
+  /* deeper slate */
+  color: #e5e7eb;
+  /* light text */
   display: flex;
   flex-direction: column;
   border-right: 1px solid #334155;
@@ -28,14 +30,15 @@
 .sidebar-header .logo {
   width: 40px;
   height: 40px;
-  background: #3b82f6; /* primary accent */
-  border-radius: 8px;
+  background: #e2e8f0;
+  /* neutral circle */
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
   font-size: 18px;
-  color: #fff;
+  color: #0f172a;
 }
 
 .sidebar-header .brand-text {
@@ -43,15 +46,30 @@
   flex-direction: column;
 }
 
-.sidebar-header .brand-text h1 {
+.sidebar-header .brand-text h1,
+.sidebar-header .navbar-title {
   font-size: 16px;
   font-weight: 600;
   margin: 0;
 }
 
-.sidebar-header .brand-text span {
+.sidebar-header .brand-text span,
+.sidebar-header .navbar-subtitle {
   font-size: 12px;
   color: #94a3b8;
+}
+
+.sidebar-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.sidebar-close:hover {
+  color: #cbd5e1;
 }
 
 /* Navigation */
@@ -71,30 +89,40 @@
   margin-bottom: 6px;
 }
 
-.sidebar-nav a {
+.sidebar-nav a,
+.sidebar-content .sidebar-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 20px;
+  padding: 12px 16px;
   text-decoration: none;
   color: #cbd5e1;
   font-size: 14px;
-  border-radius: 8px;
+  border-radius: 12px;
   transition: all 0.2s ease;
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
-.sidebar-nav a:hover {
-  background: #334155;
-  color: #fff;
+.sidebar-nav a:hover,
+.sidebar-content .sidebar-item:hover {
+  background: rgba(59, 130, 246, 0.12);
+  /* blue hover */
+  color: #ffffff;
 }
 
-.sidebar-nav a.active {
+.sidebar-nav a.active,
+.sidebar-content .sidebar-item.active {
   background: #3b82f6;
   color: #fff;
   font-weight: 500;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
 }
 
-.sidebar-nav a .icon {
+.sidebar-nav a .icon,
+.sidebar-content .sidebar-icon {
   font-size: 18px;
   min-width: 20px;
   text-align: center;

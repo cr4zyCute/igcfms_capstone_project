@@ -1,19 +1,38 @@
 // components/admin/StaffManagement.jsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
+import "../../assets/admin.css";
 
 const StaffManagement = () => {
   const [staffMembers, setStaffMembers] = useState([
-    { id: 1, name: 'John Doe', role: 'cashier', email: 'john@example.com', status: 'active' },
-    { id: 2, name: 'Jane Smith', role: 'collecting_officer', email: 'jane@example.com', status: 'active' },
-    { id: 3, name: 'Robert Johnson', role: 'disbursing_officer', email: 'robert@example.com', status: 'inactive' },
+    {
+      id: 1,
+      name: "John Doe",
+      role: "cashier",
+      email: "john@example.com",
+      status: "active",
+    },
+    {
+      id: 2,
+      name: "Jane Smith",
+      role: "collecting_officer",
+      email: "jane@example.com",
+      status: "active",
+    },
+    {
+      id: 3,
+      name: "Robert Johnson",
+      role: "disbursing_officer",
+      email: "robert@example.com",
+      status: "inactive",
+    },
   ]);
 
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [newStaff, setNewStaff] = useState({
-    name: '',
-    email: '',
-    role: 'cashier',
-    password: ''
+    name: "",
+    email: "",
+    role: "cashier",
+    password: "",
   });
 
   const handleAddStaff = (e) => {
@@ -23,27 +42,32 @@ const StaffManagement = () => {
       name: newStaff.name,
       email: newStaff.email,
       role: newStaff.role,
-      status: 'active'
+      status: "active",
     };
-    
+
     setStaffMembers([...staffMembers, newStaffMember]);
-    setNewStaff({ name: '', email: '', role: 'cashier', password: '' });
+    setNewStaff({ name: "", email: "", role: "cashier", password: "" });
     setShowAddStaff(false);
   };
 
   const toggleStaffStatus = (id) => {
-    setStaffMembers(staffMembers.map(staff => 
-      staff.id === id 
-        ? { ...staff, status: staff.status === 'active' ? 'inactive' : 'active' } 
-        : staff
-    ));
+    setStaffMembers(
+      staffMembers.map((staff) =>
+        staff.id === id
+          ? {
+              ...staff,
+              status: staff.status === "active" ? "inactive" : "active",
+            }
+          : staff
+      )
+    );
   };
 
   return (
     <div className="staff-management">
       <div className="section-header">
         <h3>Staff Management</h3>
-        <button 
+        <button
           className="btn btn-primary"
           onClick={() => setShowAddStaff(true)}
         >
@@ -61,7 +85,9 @@ const StaffManagement = () => {
                 <input
                   type="text"
                   value={newStaff.name}
-                  onChange={(e) => setNewStaff({...newStaff, name: e.target.value})}
+                  onChange={(e) =>
+                    setNewStaff({ ...newStaff, name: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -70,7 +96,9 @@ const StaffManagement = () => {
                 <input
                   type="email"
                   value={newStaff.email}
-                  onChange={(e) => setNewStaff({...newStaff, email: e.target.value})}
+                  onChange={(e) =>
+                    setNewStaff({ ...newStaff, email: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -78,7 +106,9 @@ const StaffManagement = () => {
                 <label>Role</label>
                 <select
                   value={newStaff.role}
-                  onChange={(e) => setNewStaff({...newStaff, role: e.target.value})}
+                  onChange={(e) =>
+                    setNewStaff({ ...newStaff, role: e.target.value })
+                  }
                 >
                   <option value="cashier">Cashier</option>
                   <option value="collecting_officer">Collecting Officer</option>
@@ -91,12 +121,16 @@ const StaffManagement = () => {
                 <input
                   type="password"
                   value={newStaff.password}
-                  onChange={(e) => setNewStaff({...newStaff, password: e.target.value})}
+                  onChange={(e) =>
+                    setNewStaff({ ...newStaff, password: e.target.value })
+                  }
                   required
                 />
               </div>
               <div className="form-actions">
-                <button type="button" onClick={() => setShowAddStaff(false)}>Cancel</button>
+                <button type="button" onClick={() => setShowAddStaff(false)}>
+                  Cancel
+                </button>
                 <button type="submit">Add Staff</button>
               </div>
             </form>
@@ -117,7 +151,7 @@ const StaffManagement = () => {
             </tr>
           </thead>
           <tbody>
-            {staffMembers.map(staff => (
+            {staffMembers.map((staff) => (
               <tr key={staff.id}>
                 <td>{staff.id}</td>
                 <td>{staff.name}</td>
@@ -129,11 +163,13 @@ const StaffManagement = () => {
                   </span>
                 </td>
                 <td>
-                  <button 
-                    className={`btn ${staff.status === 'active' ? 'btn-warning' : 'btn-success'}`}
+                  <button
+                    className={`btn ${
+                      staff.status === "active" ? "btn-warning" : "btn-success"
+                    }`}
                     onClick={() => toggleStaffStatus(staff.id)}
                   >
-                    {staff.status === 'active' ? 'Deactivate' : 'Activate'}
+                    {staff.status === "active" ? "Deactivate" : "Activate"}
                   </button>
                   <button className="btn btn-info">Edit</button>
                 </td>

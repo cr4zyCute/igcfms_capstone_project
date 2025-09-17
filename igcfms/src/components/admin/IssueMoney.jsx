@@ -1,23 +1,24 @@
 // /pages/admin/IssueMoney.jsx
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import "../../assets/admin.css";
+import axios from "axios";
 
 const IssueMoney = () => {
-  const token = localStorage.getItem('token');
-  const userId = localStorage.getItem('userId');
+  const token = localStorage.getItem("token");
+  const userId = localStorage.getItem("userId");
   const [fundAccounts, setFundAccounts] = useState([]);
-  const [amount, setAmount] = useState('');
-  const [payeeName, setPayeeName] = useState('');
-  const [referenceNo, setReferenceNo] = useState('');
-  const [fundAccountId, setFundAccountId] = useState('');
-  const [description, setDescription] = useState('');
-  const [modeOfPayment, setModeOfPayment] = useState('Cash');
-  const [chequeNumber, setChequeNumber] = useState('');
-  const [message, setMessage] = useState('');
+  const [amount, setAmount] = useState("");
+  const [payeeName, setPayeeName] = useState("");
+  const [referenceNo, setReferenceNo] = useState("");
+  const [fundAccountId, setFundAccountId] = useState("");
+  const [description, setDescription] = useState("");
+  const [modeOfPayment, setModeOfPayment] = useState("Cash");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     axios
-      .get('http://localhost:8000/api/fund-accounts', {
+      .get("http://localhost:8000/api/fund-accounts", {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => setFundAccounts(res.data))
@@ -28,22 +29,22 @@ const IssueMoney = () => {
     e.preventDefault();
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      
+
       const transactionPayload = {
-        type: 'Disbursement',
+        type: "Disbursement",
         amount: parseFloat(amount),
-        description: description || 'Disbursement transaction',
+        description: description || "Disbursement transaction",
         fund_account_id: parseInt(fundAccountId),
         mode_of_payment: modeOfPayment,
         recipient: payeeName, // For transactions table
         reference_no: referenceNo,
         payee_name: payeeName, // For disbursements table
-        cheque_number: modeOfPayment === 'Cheque' ? chequeNumber : null,
+        cheque_number: modeOfPayment === "Cheque" ? chequeNumber : null,
         user_id: parseInt(userId),
       };
 
       const transactionRes = await axios.post(
-        'http://localhost:8000/api/transactions',
+        "http://localhost:8000/api/transactions",
         transactionPayload,
         config
       );
@@ -52,19 +53,21 @@ const IssueMoney = () => {
       setMessage(`Disbursement created successfully (ID: ${transactionId})`);
 
       // Reset form
-      setAmount('');
-      setPayeeName('');
-      setReferenceNo('');
-      setFundAccountId('');
-      setDescription('');
-      setChequeNumber('');
+      setAmount("");
+      setPayeeName("");
+      setReferenceNo("");
+      setFundAccountId("");
+      setDescription("");
+      setChequeNumber("");
     } catch (err) {
-      console.error('Error details:', err.response?.data);
+      console.error("Error details:", err.response?.data);
       if (err.response?.status === 422 && err.response.data?.errors) {
-        const errorMessages = Object.values(err.response.data.errors).flat().join(', ');
+        const errorMessages = Object.values(err.response.data.errors)
+          .flat()
+          .join(", ");
         setMessage(`Validation error: ${errorMessages}`);
       } else {
-        setMessage('Error creating disbursement.');
+        setMessage("Error creating disbursement.");
       }
     }
   };
@@ -98,7 +101,7 @@ const IssueMoney = () => {
         step="0.01"
         required
       />
-      
+
       <textarea
         placeholder="Description (optional)"
         value={description}
@@ -118,7 +121,7 @@ const IssueMoney = () => {
         <option value="Bank Transfer">Bank Transfer</option>
       </select>
 
-      {modeOfPayment === 'Cheque' && (
+      {modeOfPayment === "Cheque" && (
         <input
           placeholder="Cheque Number"
           value={chequeNumber}
