@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { loginUser } from '../../services/api';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { useAuth } from "../../contexts/AuthContext";
+import { loginUser } from "../../services/api";
+import { Link, useNavigate } from "react-router-dom";
+import "./css/Login.css"; 
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { login } = useAuth();
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,56 +21,95 @@ const Login = () => {
       const data = await loginUser(email, password);
 
       if (data.access_token) {
-        // Build userData from response
         const userData = {
           email,
           role: data.role,
         };
 
-       
         login(userData, data.access_token);
 
-        alert('Login successful! Role: ' + data.role);
-        navigate('/dashboard'); 
+        alert("Login successful! Role: " + data.role);
+        navigate("/dashboard");
       } else {
-        alert(data.message || 'Login failed.');
+        alert(data.message || "Login failed.");
       }
     } catch (err) {
       console.error(err);
-      alert('Login error. Check console.');
+      alert("Login error. Check console.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-page">
-      <h2>Login</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
-      <p className="text-center mt-4">
-        Don't have an account?{' '}
-        <Link to="/register" className="text-blue-600 hover:text-blue-500">
-          Register here
-        </Link>
-      </p>
+    <div className="container">
+      {/* Left Panel */}
+      <div className="left-panel">
+        <div className="left-content">
+          <div className="header">
+            <h1>ICGFMS</h1>
+            <p>Smarter stock starts here.</p>
+          </div>
+
+          {/* Social Buttons */}
+          <div className="social-login">
+            <button type="button" className="social-btn google">
+              Google
+            </button>
+            <button type="button" className="social-btn apple">
+              Apple
+            </button>
+          </div>
+
+          <div className="divider">Or</div>
+
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} className="login-form">
+            <label>Email</label>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+
+            <label>Password</label>
+            <div className="password-field">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <span
+                className="toggle-eye"
+                onClick={() => setShowPassword((prev) => !prev)}
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </span>
+            </div>
+
+            <button type="submit" className="continue-btn" disabled={loading}>
+              {loading ? "Logging in..." : "Log in"}
+            </button>
+          </form>
+
+          <p className="register">
+            Don't have an account?{" "}
+            <Link to="/register" className="text-blue-600 hover:text-blue-500">
+              Register here
+            </Link>
+          </p>
+        </div>
+      </div>
+
+      {/* Right Panel */}
+      <div className="right-panel">
+        <img src="/your-image.png" alt="IGCFMS Preview" />
+        {/* place your-image.png inside the public/ folder */}
+      </div>
     </div>
   );
 };
