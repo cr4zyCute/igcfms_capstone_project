@@ -3,6 +3,9 @@ import { useAuth } from "../../contexts/AuthContext";
 import { loginUser } from "../../services/api";
 import { Link, useNavigate } from "react-router-dom";
 import "./css/Login.css"; 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -23,7 +26,7 @@ const Login = () => {
      
       const token = data.access_token || data.token;
       if (token) {
-        // Store the token in localStorage
+        
         localStorage.setItem('auth_token', token);
 
         const userData = {
@@ -53,20 +56,9 @@ const Login = () => {
         <div className="left-content">
           <div className="header">
             <h1>ICGFMS</h1>
-            <p>Smarter stock starts here.</p>
+            <p> Integrated Government Cashiering and Financial Management System </p>
           </div>
 
-          {/* Social Buttons */}
-          <div className="social-login">
-            <button type="button" className="social-btn google">
-              Google
-            </button>
-            <button type="button" className="social-btn apple">
-              Apple
-            </button>
-          </div>
-
-          <div className="divider">Or</div>
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="login-form">
@@ -89,10 +81,10 @@ const Login = () => {
                 required
               />
               <span
-                className="toggle-eye"
+                className="toggle-eye cursor-pointer"
                 onClick={() => setShowPassword((prev) => !prev)}
               >
-                {showPassword ? "🙈" : "👁️"}
+                <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
               </span>
             </div>
 

@@ -1,0 +1,106 @@
+/* Register.css */
+
+/* Container & Layout */
+.register-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: #f3f4f6; /* light gray */
+}
+
+.register-card {
+  display: flex;
+  max-width: 1200px;
+  width: 100%;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+/* Form Section */
+.register-form {
+  flex: 1;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.register-form h2 {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.register-form input,
+.register-form select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.register-form input:focus,
+.register-form select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+}
+
+.register-form button {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background-color: #3b82f6;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.register-form button:hover {
+  background-color: #2563eb;
+}
+
+.register-message {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.register-message.success {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.register-message.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* Info Panel */
+.register-info {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #eff6ff;
+  padding: 2rem;
+  text-align: center;
+  font-size: 1rem;
+  color: #1e293b;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .register-card {
+    flex-direction: column;
+  }
+  .register-info {
+    display: none;
+  }
+}
