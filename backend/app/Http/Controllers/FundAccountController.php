@@ -11,15 +11,18 @@ class FundAccountController extends Controller
     // List all fund accounts
     public function index()
     {
-        $accounts = FundAccount::all()->map(function ($account) {
-            // Calculate current balance based on transactions
-            $transactionsSum = $account->transactions()->sum('amount');
-            $account->current_balance = $account->initial_balance + $transactionsSum;
-            return $account;
-        });
+        $accounts = FundAccount::where('is_active', true)
+            ->get()
+            ->map(function ($account) {
+                $transactionsSum = $account->transactions()->sum('amount');
+                $account->current_balance = $account->initial_balance + $transactionsSum;
+                return $account;
+            });
 
         return response()->json($accounts);
     }
+
+
 
     // Show transactions of a single fund account
     public function show($id)
@@ -56,5 +59,56 @@ class FundAccountController extends Controller
         ]);
 
         return response()->json($account, 201);
+    }
+    public function update(Request $request, $id)
+    {
+        $account = FundAccount::findOrFail($id);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'code' => "required|string|max:50|unique:fund_accounts,code,$id",
+            'description' => 'nullable|string',
+            'initial_balance' => 'required|numeric|min:0',
+            'account_type' => 'required|in:Revenue,Expense,Asset,Liability,Equity',
+            'department' => 'nullable|string|max:255',
+        ]);
+
+        // Only allow these fields to be updated
+        $account->update($request->only([
+            'name',
+            'code',
+            'description',
+            'initial_balance',
+            'account_type',
+            'department'
+        ]));
+
+        return response()->json(['message' => 'Fund account updated successfully']);
+    }
+
+
+    // Delete a fund account
+    public function destroy($id)
+    {
+        $account = FundAccount::withCount('transactions')->find($id);
+
+        if (!$account) {
+            return response()->json(['message' => 'Fund account not found'], 404);
+        }
+
+        // If there are transactions, don't hard delete – just deactivate
+        if ($account->transactions_count > 0) {
+            $account->is_active = false;
+            $account->save();
+
+            return response()->json([
+                'message' => 'Fund account has transactions successfully deleted.'
+            ], 200);
+        }
+
+        // No transactions, safe to soft delete
+        $account->delete();
+
+        return response()->json(['message' => 'Fund account deleted successfully'], 200);
     }
 }

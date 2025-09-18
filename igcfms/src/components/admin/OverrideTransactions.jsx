@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import "../../assets/admin.css";
 import axios from "axios";
 
 const OverrideTransactions = ({ role }) => {
@@ -7,21 +6,22 @@ const OverrideTransactions = ({ role }) => {
   const [overrideRequests, setOverrideRequests] = useState([]);
   const [selectedTransaction, setSelectedTransaction] = useState("");
   const [reason, setReason] = useState("");
+  const [proposedAmount, setProposedAmount] = useState("");
+  const [proposedDescription, setProposedDescription] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [proposedChanges, setProposedChanges] = useState({});
 
-  const token = localStorage.getItem("token"); // Assuming auth token for protected API
+  const token = localStorage.getItem("token");
 
-  // Fetch transactions for dropdown
+  // Fetch transactions
   useEffect(() => {
     const fetchTransactions = async () => {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
       try {
-        const res = await axios.get(
-          "http://localhost:8000/api/transactions",
-          config
-        );
+        const res = await axios.get("http://localhost:8000/api/transactions", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         setTransactions(res.data);
       } catch (err) {
         console.error(err);
@@ -31,182 +31,200 @@ const OverrideTransactions = ({ role }) => {
     fetchTransactions();
   }, [token]);
 
-  // Fetch override requests (for admin or cashier own requests)
-  useEffect(() => {
-    const fetchOverrideRequests = async () => {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      try {
-        const url =
-          role === "Admin"
-            ? "http://localhost:8000/api/override_requests"
-            : "http://localhost:8000/api/override_requests/my_requests";
-        const res = await axios.get(url, config);
-        setOverrideRequests(res.data);
-      } catch (err) {
-        console.error(err);
-        setMessage("Failed to load override requests.");
-      }
-    };
-    fetchOverrideRequests();
-  }, [role, token]);
-
-  // Cashier submits request
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedTransaction || !reason) {
-      setMessage("Please select a transaction and provide a reason.");
-      return;
-    }
-
-    setLoading(true);
+  // Fetch override requests
+  const fetchOverrideRequests = async () => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.post(
-        "http://localhost:8000/api/transactions/override",
-        { transaction_id: selectedTransaction, reason },
-        config
-      );
-      setMessage("Override request submitted successfully.");
-      setSelectedTransaction("");
-      setReason("");
-
-      // Refresh the list after submission
       const res = await axios.get(
-        role === "Admin"
-          ? "http://localhost:8000/api/override_requests"
-          : "http://localhost:8000/api/override_requests/my_requests",
-        config
+        "http://localhost:8000/api/override_requests",
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       setOverrideRequests(res.data);
     } catch (err) {
       console.error(err);
-      setMessage("Failed to submit override request.");
-    } finally {
-      setLoading(false);
+      setMessage("Failed to load override requests.");
     }
   };
 
-  // Admin reviews request
+  useEffect(() => {
+    fetchOverrideRequests();
+  }, [role]);
+
+  // Submit override request
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!selectedTransaction || !reason) {
+    setMessage("Please select a transaction and provide a reason.");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    // Define config here
+    const config = { headers: { Authorization: `Bearer ${token}` } };
+
+    await axios.post(
+      "http://localhost:8000/api/override_requests",
+      {
+        transaction_id: selectedTransaction,
+        reason,
+        proposed_changes: JSON.stringify(proposedChanges),
+      },
+      config // ✅ now defined
+    );
+
+    setMessage("Override request submitted successfully.");
+    setSelectedTransaction("");
+    setReason("");
+    setProposedChanges({});
+
+    // Refresh override requests after submission
+    const res = await axios.get(
+      role === "Admin"
+        ? "http://localhost:8000/api/override_requests"
+        : "http://localhost:8000/api/override_requests/my_requests",
+      config
+    );
+    setOverrideRequests(res.data);
+  } catch (err) {
+    console.error(err);
+    setMessage("Failed to submit override request.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  // Admin review
   const handleReview = async (id, status) => {
     if (!reviewNotes) {
-      setMessage("Please provide review notes.");
+      setMessage("Provide review notes");
       return;
     }
-    setLoading(true);
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
+      setLoading(true);
       await axios.put(
         `http://localhost:8000/api/override_requests/${id}/review`,
         { status, review_notes: reviewNotes },
-        config
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       setMessage(`Override request ${status}`);
-      setOverrideRequests((prev) =>
-        prev.map((req) =>
-          req.id === id
-            ? { ...req, status, review_notes: reviewNotes, reviewed_by: "You" }
-            : req
-        )
-      );
       setReviewNotes("");
+      fetchOverrideRequests();
     } catch (err) {
       console.error(err);
-      setMessage("Failed to review request.");
+      setMessage("Failed to review request");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="override-transactions p-4 bg-white shadow rounded">
+    <div className="p-4 bg-white shadow rounded">
       <h2 className="text-xl font-bold mb-4">Override Transactions</h2>
       {message && <p className="mb-4 text-red-500">{message}</p>}
 
-      {role === "Cashier" && (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 mb-6">
-          <div>
-            <label className="block font-semibold mb-1">
-              Select Transaction
-            </label>
-            <select
-              value={selectedTransaction}
-              onChange={(e) => setSelectedTransaction(e.target.value)}
-              className="w-full border p-2 rounded"
-            >
-              <option value="">-- Select Transaction --</option>
-              {transactions.map((tx) => (
-                <option key={tx.id} value={tx.id}>
-                  {tx.id} | {tx.type} | {tx.amount} | {tx.description}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block font-semibold mb-1">
-              Reason for Override
-            </label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={4}
-              className="w-full border p-2 rounded"
-              placeholder="Explain why this transaction needs to be overridden..."
-            />
-          </div>
-          <button
-            type="submit"
-            className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:opacity-50"
-            disabled={loading}
-          >
-            {loading ? "Submitting..." : "Submit Override Request"}
-          </button>
-        </form>
-      )}
+{role === "Cashier" && (
+  <form onSubmit={handleSubmit} className="flex flex-col gap-4 mb-6">
+    <div>
+      <label className="block font-semibold mb-1">Select Transaction</label>
+      <select
+        value={selectedTransaction}
+        onChange={(e) => setSelectedTransaction(e.target.value)}
+        className="w-full border p-2 rounded"
+      >
+        <option value="">-- Select Transaction --</option>
+        {transactions.map((tx) => (
+          <option key={tx.id} value={tx.id}>
+            {tx.id} | {tx.type} | {tx.amount} | {tx.description}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="block font-semibold mb-1">Reason for Override</label>
+      <textarea
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        rows={3}
+        className="w-full border p-2 rounded"
+        placeholder="Explain why this transaction needs to be overridden..."
+      />
+    </div>
+
+    {/* New fields for proposed changes */}
+    <div>
+      <label className="block font-semibold mb-1">New Amount (optional)</label>
+      <input
+        type="number"
+        step="0.01"
+        onChange={(e) =>
+          setProposedChanges((prev) => ({ ...prev, amount: e.target.value }))
+        }
+        className="w-full border p-2 rounded"
+      />
+    </div>
+
+    <div>
+      <label className="block font-semibold mb-1">New Description (optional)</label>
+      <input
+        type="text"
+        onChange={(e) =>
+          setProposedChanges((prev) => ({ ...prev, description: e.target.value }))
+        }
+        className="w-full border p-2 rounded"
+      />
+    </div>
+
+    <button
+      type="submit"
+      className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:opacity-50"
+      disabled={loading}
+    >
+      {loading ? "Submitting..." : "Submit Override Request"}
+    </button>
+  </form>
+)}
+
 
       <h3 className="text-lg font-semibold mb-2">Existing Override Requests</h3>
-      <table className="w-full border-collapse border">
+      <table className="w-full border">
         <thead>
-          <tr className="bg-gray-200">
-            <th className="border p-2">ID</th>
-            <th className="border p-2">Transaction</th>
-            <th className="border p-2">Requested By</th>
-            <th className="border p-2">Reason</th>
-            <th className="border p-2">Status</th>
-            {role === "Admin" && <th className="border p-2">Review Notes</th>}
-            {role === "Admin" && <th className="border p-2">Actions</th>}
+          <tr>
+            <th>ID</th>
+            <th>Transaction</th>
+            <th>Requested By</th>
+            <th>Reason</th>
+            <th>Proposed Changes</th>
+            <th>Status</th>
+            {role === "Admin" && <th>Review Notes</th>}
+            {role === "Admin" && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
           {overrideRequests.map((req) => (
             <tr key={req.id}>
-              <td className="border p-2">{req.id}</td>
-              <td className="border p-2">{req.transaction_id}</td>
-              <td className="border p-2">
-                {req.requested_by_name || req.requested_by}
-              </td>
-              <td className="border p-2">{req.reason}</td>
-              <td className="border p-2">{req.status}</td>
+              <td>{req.id}</td>
+              <td>{req.transaction_id}</td>
+              <td>{req.requested_by}</td>
+              <td>{req.reason}</td>
+              <td>{req.changes}</td>
+              <td>{req.status}</td>
               {role === "Admin" && (
                 <>
-                  <td className="border p-2">{req.review_notes || ""}</td>
-                  <td className="border p-2 flex gap-2">
+                  <td>
                     <input
                       type="text"
-                      placeholder="Notes"
                       value={reviewNotes}
                       onChange={(e) => setReviewNotes(e.target.value)}
-                      className="border p-1 rounded"
+                      placeholder="Notes"
                     />
-                    <button
-                      onClick={() => handleReview(req.id, "approved")}
-                      className="bg-green-600 text-white p-1 rounded hover:bg-green-700"
-                    >
+                  </td>
+                  <td>
+                    <button onClick={() => handleReview(req.id, "approved")}>
                       Approve
                     </button>
-                    <button
-                      onClick={() => handleReview(req.id, "rejected")}
-                      className="bg-red-600 text-white p-1 rounded hover:bg-red-700"
-                    >
+                    <button onClick={() => handleReview(req.id, "rejected")}>
                       Reject
                     </button>
                   </td>

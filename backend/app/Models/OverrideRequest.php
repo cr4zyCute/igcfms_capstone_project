@@ -21,12 +21,12 @@ class OverrideRequest extends Model
         return $this->belongsTo(Transaction::class, 'transaction_id');
     }
 
-    public function requester()
+    public function requestedBy()
     {
         return $this->belongsTo(User::class, 'requested_by');
     }
 
-    public function reviewer()
+    public function reviewedBy()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
     }

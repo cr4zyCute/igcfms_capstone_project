@@ -106,6 +106,19 @@ const api = axios.create({
         throw error;
       }
     };
+    export const updateFundAccount = async (id, data) => {
+      try {
+        const response = await api.put(`/fund-accounts/${id}`, data);
+        return response.data;
+      } catch (error) {
+        throw error;
+      }
+    };
+    export const deleteFundAccount = async (id) => {
+      const response = await api.delete(`/fund-accounts/${id}`);
+      return response.data;
+    };
+
 
   export const createTransaction = async (transactionData) => {
     try {

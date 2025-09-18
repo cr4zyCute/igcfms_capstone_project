@@ -10,6 +10,7 @@ use App\Http\Controllers\OverrideRequestController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\CashierController;
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
@@ -68,4 +69,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/daily-revenue', [DashboardController::class, 'dailyRevenue']);
     Route::get('/dashboard/fund-distribution', [DashboardController::class, 'fundDistribution']);
     Route::get('/dashboard/recent-logs', [DashboardController::class, 'recentLogs']);
+    Route::get('/dashboard/recent-transactions', [DashboardController::class, 'recentTransactions']);
+    Route::get('/dashboard/fund-performance', [DashboardController::class, 'fundPerformance']);
+    Route::get('/dashboard/top-fund-accounts', [DashboardController::class, 'topFundAccounts']);
+    Route::get('/dashboard/monthly-revenue', [DashboardController::class, 'monthlyRevenue']);
 });
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/fund-accounts', [FundAccountController::class, 'index']);
+    Route::get('/fund-accounts/{id}', [FundAccountController::class, 'show']);
+    Route::post('/fund-accounts', [FundAccountController::class, 'store']);
+    Route::put('/fund-accounts/{id}', [FundAccountController::class, 'update']); // <-- Add this
+    Route::delete('/fund-accounts/{id}', [FundAccountController::class, 'destroy']);
+});
+// Cashier submits override
+Route::post('/transactions/override', [OverrideRequestController::class, 'submit'])->middleware('auth:sanctum');
+
+// Get override requests
+Route::get('/override_requests', [OverrideRequestController::class, 'index'])->middleware('auth:sanctum');
+
+// Admin reviews request
+Route::put('/override_requests/{id}/review', [OverrideRequestController::class, 'review'])->middleware('auth:sanctum');

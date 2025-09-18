@@ -4,6 +4,8 @@ import {
   getFundAccounts,
   createFundAccount,
   getFundAccount,
+  updateFundAccount,
+  deleteFundAccount,
 } from "../../services/api";
 
 const FundsAccounts = () => {
@@ -11,6 +13,7 @@ const FundsAccounts = () => {
   const [transactions, setTransactions] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showEditAccount, setShowEditAccount] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -24,6 +27,8 @@ const FundsAccounts = () => {
     account_type: "Revenue",
     department: "",
   });
+
+  const [editAccount, setEditAccount] = useState({});
 
   useEffect(() => {
     fetchAccounts();
@@ -92,6 +97,53 @@ const FundsAccounts = () => {
     await fetchAccountTransactions(account.id);
   };
 
+  const handleEditAccount = async (e) => {
+    e.preventDefault();
+
+    try {
+      setLoading(true);
+      await updateFundAccount(editAccount.id, {
+      name: editAccount.name,
+      code: editAccount.code,
+      description: editAccount.description,
+      initial_balance: Number(editAccount.initial_balance),
+      account_type: editAccount.account_type,
+      department: editAccount.department,
+    });
+        setShowEditAccount(false);
+        fetchAccounts(); // refresh the list
+        setSelectedAccount(null);
+    } catch (err) {
+      setError("Failed to update fund account. Please try again.");
+      console.error("Error updating account:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+const handleDeleteAccount = async (accountId) => {
+  try {
+    setLoading(true);
+    const response = await deleteFundAccount(accountId); // API call
+
+    setSuccess(response.message || "Fund account deactivated successfully!");
+
+    // Remove the deactivated account from state so UI updates instantly
+    setAccounts(accounts.filter(acc => acc.id !== accountId));
+
+    // Deselect if it was selected
+    if (selectedAccount?.id === accountId) setSelectedAccount(null);
+
+  } catch (err) {
+    setError("Failed to deactivate fund account. Please try again.");
+    console.error("Error deleting account:", err.response?.data || err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
   if (loading) {
     return (
       <div className="spinner-container">
@@ -108,7 +160,7 @@ const FundsAccounts = () => {
           className="btn btn-primary"
           onClick={() => setShowAddAccount(true)}
           disabled={loading}
-        >
+        >   
           Add New Account
         </button>
       </div>
@@ -222,6 +274,112 @@ const FundsAccounts = () => {
         </div>
       )}
 
+      {showEditAccount && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h4>Edit Fund Account</h4>
+            <form onSubmit={handleEditAccount}>
+              <div className="form-group">
+                <label>Account Name</label>
+                <input
+                  type="text"
+                  value={editAccount.name}
+                  onChange={(e) =>
+                    setEditAccount({ ...editAccount, name: e.target.value })
+                  }
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div className="form-group">
+                <label>Account Code</label>
+                <input
+                  type="text"
+                  value={editAccount.code}
+                  onChange={(e) =>
+                    setEditAccount({ ...editAccount, code: e.target.value })
+                  }
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea
+                  value={editAccount.description}
+                  onChange={(e) =>
+                    setEditAccount({
+                      ...editAccount,
+                      description: e.target.value,
+                    })
+                  }
+                  disabled={loading}
+                />
+              </div>
+              <div className="form-group">
+                <label>Initial Balance</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editAccount.initial_balance}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEditAccount({
+                      ...editAccount,
+                      initial_balance: value === "" ? "" : parseFloat(value),
+                    });
+                  }}
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div className="form-group">
+                <label>Account Type</label>
+                <select
+                  value={editAccount.account_type}
+                  onChange={(e) =>
+                    setEditAccount({
+                      ...editAccount,
+                      account_type: e.target.value,
+                    })
+                  }
+                  disabled={loading}
+                >
+                  <option value="Revenue">Revenue</option>
+                  <option value="Expense">Expense</option>
+                  <option value="Asset">Asset</option>
+                  <option value="Liability">Liability</option>
+                  <option value="Equity">Equity</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Department</label>
+                <input
+                  type="text"
+                  value={editAccount.department}
+                  onChange={(e) =>
+                    setEditAccount({ ...editAccount, department: e.target.value })
+                  }
+                  disabled={loading}
+                />
+              </div>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  onClick={() => setShowEditAccount(false)}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={loading}>
+                  {loading ? "Updating..." : "Update Account"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="accounts-overview">
         <h4>Fund Accounts</h4>
         <div className="account-cards">
@@ -240,6 +398,34 @@ const FundsAccounts = () => {
               </p>
               <p className="type">{account.account_type}</p>
               <p className="department">{account.department}</p>
+              <div className="account-actions">
+                <button
+                  className="btn btn-sm btn-warning"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedAccount(account);
+                    setShowEditAccount(true);
+                    setEditAccount({ ...account });
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  className="btn btn-sm btn-danger"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (
+                      window.confirm(
+                        "Are you sure you want to delete this fund account?"
+                      )
+                    ) {
+                      await handleDeleteAccount(account.id);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

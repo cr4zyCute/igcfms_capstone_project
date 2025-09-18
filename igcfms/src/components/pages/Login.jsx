@@ -20,13 +20,18 @@ const Login = () => {
     try {
       const data = await loginUser(email, password);
 
-      if (data.access_token) {
+     
+      const token = data.access_token || data.token;
+      if (token) {
+        // Store the token in localStorage
+        localStorage.setItem('auth_token', token);
+
         const userData = {
           email,
           role: data.role,
         };
 
-        login(userData, data.access_token);
+        login(userData, token);
 
         alert("Login successful! Role: " + data.role);
         navigate("/dashboard");

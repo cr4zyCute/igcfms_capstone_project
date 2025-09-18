@@ -1,0 +1,120 @@
+.cashier-page {
+  padding: 32px;
+  background: #f7fafc;
+  min-height: 100vh;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.cashier-title {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 24px;
+  color: #22223b;
+}
+
+.cashier-kpi-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.cashier-kpi-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(34,34,59,0.06);
+  padding: 24px 32px;
+  min-width: 200px;
+  flex: 1 1 200px;
+  text-align: center;
+}
+
+.kpi-label {
+  color: #6c757d;
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #22223b;
+}
+
+.cashier-table-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(34,34,59,0.06);
+  padding: 24px;
+  margin-top: 16px;
+}
+
+.cashier-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.cashier-table th, .cashier-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e9ecef;
+  text-align: left;
+}
+
+.cashier-table th {
+  background: #f1f3f8;
+  color: #495057;
+  font-weight: 600;
+}
+
+.tx-type {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.95em;
+  font-weight: 500;
+}
+
+.tx-type.collection {
+  background: #e6fffa;
+  color: #089981;
+}
+
+.tx-type.disbursement {
+  background: #fff5f5;
+  color: #e53e3e;
+}
+
+.no-tx {
+  text-align: center;
+  color: #aaa;
+  padding: 24px 0;
+}
+
+/* Spinner styles */
+.cashier-spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+}
+
+.cashier-spinner {
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #3498db;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  animation: cashier-spin 1s linear infinite;
+}
+
+@keyframes cashier-spin {
+  0% { transform: rotate(0deg);}
+  100% { transform: rotate(360deg);}
+}
+
+.cashier-loading-text {
+  margin-top: 18px;
+  font-size: 1.2rem;
+  color: #555;
+}
