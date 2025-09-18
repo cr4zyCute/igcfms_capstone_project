@@ -3,3 +3,4 @@ vendor/
 .env
 public/storage
 build/
+.aider*

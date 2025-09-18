@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import './css/Register.css';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -85,32 +86,28 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create Account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              sign in to your existing account
-            </Link>
-          </p>
-        </div>
+    <div className="register-container">
+      <div className="register-card">
+        {/* Form Section */}
+        <div className="register-form">
+          <div className="register-header">
+            <h2>Create Account</h2>
+            <p className="register-subtitle">
+              Join our Internal Government Collection and Financial Management System
+            </p>
+          </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {message && (
-            <div className={`p-3 rounded-md ${
-              message.includes('submitted') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            <div className={`register-message ${
+              message.includes('submitted') || message.includes('success') ? 'success' : 'error'
             }`}>
               {message}
             </div>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="name" className="form-label">
                 Full Name
               </label>
               <input
@@ -120,13 +117,12 @@ const Register = () => {
                 required
                 value={formData.name}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter your full name"
               />
             </div>
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+            <div className="form-group">
+              <label htmlFor="email" className="form-label">
                 Email Address
               </label>
               <input
@@ -136,13 +132,12 @@ const Register = () => {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your email"
+                placeholder="Enter your email address"
               />
             </div>
 
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+            <div className="form-group">
+              <label htmlFor="role" className="form-label">
                 Role
               </label>
               <select
@@ -150,7 +145,6 @@ const Register = () => {
                 name="role"
                 value={formData.role}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="Collecting Officer">Collecting Officer</option>
                 <option value="Disbursing Officer">Disbursing Officer</option>
@@ -159,50 +153,68 @@ const Register = () => {
               </select>
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter password (min. 6 characters)"
-                minLength={6}
-              />
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="password" className="form-label">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Minimum 6 characters"
+                  minLength={6}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="password_confirmation" className="form-label">
+                  Confirm Password
+                </label>
+                <input
+                  id="password_confirmation"
+                  name="password_confirmation"
+                  type="password"
+                  required
+                  value={formData.password_confirmation}
+                  onChange={handleChange}
+                  placeholder="Confirm your password"
+                />
+              </div>
             </div>
 
-            <div>
-              <label htmlFor="password_confirmation" className="block text-sm font-medium text-gray-700">
-                Confirm Password
-              </label>
-              <input
-                id="password_confirmation"
-                name="password_confirmation"
-                type="password"
-                required
-                value={formData.password_confirmation}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Confirm your password"
-              />
-            </div>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
+            <button type="submit" disabled={loading}>
+              {loading && <span className="loading-spinner"></span>}
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
+
+            <div className="login-link">
+              <p>Already have an account? {' '}
+                <Link to="/login">Sign in here</Link>
+              </p>
+            </div>
+          </form>
+        </div>
+
+        {/* Info Panel */}
+        <div className="register-info">
+          <div className="info-content">
+            <h3 className="info-title">Welcome to IGCFMS</h3>
+            <p className="info-description">
+              Streamline your government financial operations with our comprehensive management system.
+            </p>
+            <ul className="info-features">
+              <li>Secure financial data management</li>
+              <li>Real-time collection tracking</li>
+              <li>Automated disbursement processes</li>
+              <li>Comprehensive reporting tools</li>
+              <li>Multi-role access control</li>
+            </ul>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
