@@ -30,13 +30,27 @@ class ReportsController extends Controller
     {
         $request->validate([
             'report_type' => 'required|in:daily,monthly,yearly',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+            'department' => 'nullable|string|max:100',
+            'category' => 'nullable|string|max:100',
+            'include_transactions' => 'nullable|boolean',
+            'include_overrides' => 'nullable|boolean',
+            'format' => 'nullable|in:pdf,excel,csv',
         ]);
 
         $report = Report::create([
             'report_type' => $request->report_type,
+            'date_from' => $request->date_from,
+            'date_to' => $request->date_to,
+            'department' => $request->department,
+            'category' => $request->category,
+            'include_transactions' => $request->include_transactions ?? true,
+            'include_overrides' => $request->include_overrides ?? false,
+            'format' => $request->format ?? 'pdf',
             'generated_by' => Auth::id(),
             'file_path' => null,
-            'generated_at' => now(), // Make sure to set generated_at
+            'generated_at' => now(),
         ]);
 
         // Load the relationship before returning

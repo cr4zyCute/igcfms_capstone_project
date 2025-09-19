@@ -163,15 +163,12 @@ const GenerateReports = () => {
   const validateReportForm = () => {
     const { reportType, dateFrom, dateTo } = reportForm;
 
-    if (reportType === 'custom' && !dateFrom) {
-      showMessage("Please select start date for custom report.", 'error');
+    if (!reportType) {
+      showMessage("Please select a report type.", 'error');
       return false;
     }
-    if (reportType === 'custom' && !dateTo) {
-      showMessage("Please select end date for custom report.", 'error');
-      return false;
-    }
-    if (reportType === 'custom' && new Date(dateFrom) > new Date(dateTo)) {
+    
+    if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
       showMessage("Start date cannot be after end date.", 'error');
       return false;
     }
@@ -292,36 +289,29 @@ const GenerateReports = () => {
                 required
               >
                 <option value="daily">Daily Report</option>
-                <option value="weekly">Weekly Report</option>
                 <option value="monthly">Monthly Report</option>
-                <option value="quarterly">Quarterly Report</option>
                 <option value="yearly">Yearly Report</option>
-                <option value="custom">Custom Date Range</option>
               </select>
             </div>
 
-            {reportForm.reportType === 'custom' && (
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Date From *</label>
-                  <input
-                    type="date"
-                    value={reportForm.dateFrom}
-                    onChange={(e) => handleFormChange('dateFrom', e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Date To *</label>
-                  <input
-                    type="date"
-                    value={reportForm.dateTo}
-                    onChange={(e) => handleFormChange('dateTo', e.target.value)}
-                    required
-                  />
-                </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Date From</label>
+                <input
+                  type="date"
+                  value={reportForm.dateFrom}
+                  onChange={(e) => handleFormChange('dateFrom', e.target.value)}
+                />
               </div>
-            )}
+              <div className="form-group">
+                <label>Date To</label>
+                <input
+                  type="date"
+                  value={reportForm.dateTo}
+                  onChange={(e) => handleFormChange('dateTo', e.target.value)}
+                />
+              </div>
+            </div>
 
             <div className="form-row">
               <div className="form-group">
@@ -488,11 +478,8 @@ const GenerateReports = () => {
             >
               <option value="all">All Types</option>
               <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
               <option value="yearly">Yearly</option>
-              <option value="custom">Custom</option>
             </select>
           </div>
 
@@ -671,6 +658,68 @@ const GenerateReports = () => {
                     <i className="fas fa-check"></i> Generate Report
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Success Modal */}
+      {reportResult && (
+        <div className="modal-overlay" onClick={() => setReportResult(null)}>
+          <div className="modal-content success" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><i className="fas fa-check-circle"></i> Report Generated Successfully</h3>
+              <button className="modal-close" onClick={() => setReportResult(null)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="success-details">
+                <div className="success-icon">
+                  <i className="fas fa-chart-line"></i>
+                </div>
+                <h4>Report Generated</h4>
+                <div className="result-details">
+                  <div className="detail-item">
+                    <label>Report ID:</label>
+                    <span>#{reportResult.id}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Type:</label>
+                    <span>{reportResult.reportType}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Format:</label>
+                    <span>{reportResult.format?.toUpperCase() || 'PDF'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Generated At:</label>
+                    <span>{new Date(reportResult.generatedAt).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="close-btn"
+                onClick={() => setReportResult(null)}
+              >
+                <i className="fas fa-times"></i> Close
+              </button>
+              <button
+                type="button"
+                className="download-btn"
+                onClick={() => {
+                  if (reportResult.filePath) {
+                    const downloadUrl = `${API_BASE.replace('/api', '')}/${reportResult.filePath}`;
+                    window.open(downloadUrl, '_blank');
+                  }
+                }}
+                disabled={!reportResult.filePath}
+              >
+                <i className="fas fa-download"></i> Download Report
               </button>
             </div>
           </div>

@@ -21,7 +21,8 @@ const IssueCheque = () => {
     amount: "",
     issueDate: new Date().toISOString().split('T')[0],
     memo: "",
-    fundAccountId: ""
+    fundAccountId: "",
+    method: "Cheque"
   });
 
   // Filter states
@@ -37,6 +38,7 @@ const IssueCheque = () => {
   const [showChequeModal, setShowChequeModal] = useState(false);
   const [selectedCheque, setSelectedCheque] = useState(null);
   const [chequeResult, setChequeResult] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const API_BASE = "http://localhost:8000/api";
   const token = localStorage.getItem("token");
@@ -61,15 +63,23 @@ const IssueCheque = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch disbursements (for cheque mode), cheques, and fund accounts
-      const [disbursementsRes, chequesRes, fundAccountsRes] = await Promise.all([
-        axios.get(`${API_BASE}/disbursements?mode_of_payment=Cheque`, { headers }).catch(() => ({ data: [] })),
-        axios.get(`${API_BASE}/cheques`, { headers }).catch(() => ({ data: [] })),
+      // Fetch transactions (disbursements with cheque method) and fund accounts
+      const [transactionsRes, fundAccountsRes] = await Promise.all([
+        axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] })),
         axios.get(`${API_BASE}/fund-accounts`, { headers }).catch(() => ({ data: [] }))
       ]);
 
-      setDisbursements(disbursementsRes.data || []);
-      setCheques(chequesRes.data || []);
+      // Filter for disbursement transactions that can have cheques
+      const allTransactions = transactionsRes.data || [];
+      const disbursementTransactions = allTransactions.filter(tx => 
+        tx.type === 'Disbursement' && tx.mode_of_payment === 'Cheque'
+      );
+      
+      // Use disbursements as cheques for display
+      const chequesData = disbursementTransactions;
+
+      setDisbursements(disbursementTransactions);
+      setCheques(chequesData);
       setFundAccounts(fundAccountsRes.data || []);
 
     } catch (err) {
@@ -149,15 +159,15 @@ const IssueCheque = () => {
       [field]: value
     }));
 
-    // Auto-populate fields when disbursement is selected
+    // Auto-populate fields when transaction is selected
     if (field === 'disbursementId' && value) {
-      const selectedDisbursement = disbursements.find(d => d.id.toString() === value);
-      if (selectedDisbursement) {
+      const selectedTransaction = disbursements.find(d => d.id.toString() === value);
+      if (selectedTransaction) {
         setFormData(prev => ({
           ...prev,
-          payeeName: selectedDisbursement.payee_name || "",
-          amount: selectedDisbursement.amount || "",
-          fundAccountId: selectedDisbursement.fund_account_id || ""
+          payeeName: selectedTransaction.recipient || "",
+          amount: Math.abs(selectedTransaction.amount) || "",
+          fundAccountId: selectedTransaction.fund_account_id || ""
         }));
       }
     }
@@ -181,7 +191,7 @@ const IssueCheque = () => {
     const { disbursementId, chequeNumber, bankName, accountNumber, payeeName, amount } = formData;
 
     if (!disbursementId) {
-      showMessage("Please select a disbursement.", 'error');
+      showMessage("Please select a transaction.", 'error');
       return false;
     }
     if (!chequeNumber.trim()) {
@@ -233,18 +243,19 @@ const IssueCheque = () => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const payload = {
-        disbursement_id: parseInt(formData.disbursementId),
+        transaction_id: parseInt(formData.disbursementId),
+        payee_name: formData.payeeName.trim(),
+        method: 'Cheque',
         cheque_number: formData.chequeNumber.trim(),
         bank_name: formData.bankName.trim(),
         account_number: formData.accountNumber.trim(),
-        payee_name: formData.payeeName.trim(),
         amount: parseFloat(formData.amount),
         issue_date: formData.issueDate,
         memo: formData.memo.trim() || null,
         fund_account_id: formData.fundAccountId ? parseInt(formData.fundAccountId) : null
       };
 
-      const response = await axios.post(`${API_BASE}/cheques`, payload, { headers });
+      const response = await axios.post(`${API_BASE}/disbursements`, payload, { headers });
 
       setChequeResult({
         id: response.data.id || response.data.data?.id,
@@ -252,10 +263,14 @@ const IssueCheque = () => {
         payeeName: formData.payeeName,
         amount: formData.amount,
         bankName: formData.bankName,
+        accountNumber: formData.accountNumber,
         issueDate: formData.issueDate,
-        disbursementId: formData.disbursementId
+        disbursementId: formData.disbursementId,
+        memo: formData.memo
       });
 
+      showMessage("Cheque issued successfully!");
+      
       // Reset form
       setFormData({
         disbursementId: "",
@@ -269,7 +284,7 @@ const IssueCheque = () => {
         fundAccountId: ""
       });
 
-      setShowChequeModal(true);
+      setShowSuccessModal(true);
       fetchInitialData(); // Refresh data
 
     } catch (err) {
@@ -289,7 +304,68 @@ const IssueCheque = () => {
 
   const viewChequeDetails = (cheque) => {
     setSelectedCheque(cheque);
-    // Could open a details modal here
+    setShowChequeModal(true);
+  };
+
+  const printCheque = (cheque) => {
+    // Create a printable cheque format
+    const printWindow = window.open('', '_blank');
+    const chequeHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Cheque - ${cheque.cheque_number}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .cheque-container { border: 2px solid #000; padding: 20px; width: 600px; height: 250px; position: relative; }
+          .bank-name { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+          .cheque-number { position: absolute; top: 20px; right: 20px; font-size: 14px; }
+          .date { position: absolute; top: 60px; right: 20px; }
+          .payee { margin-top: 40px; margin-bottom: 20px; }
+          .amount-words { margin-bottom: 10px; border-bottom: 1px solid #000; padding-bottom: 5px; }
+          .amount-figures { position: absolute; right: 20px; bottom: 80px; font-size: 16px; font-weight: bold; }
+          .signature { position: absolute; bottom: 20px; right: 20px; border-top: 1px solid #000; padding-top: 5px; width: 150px; text-align: center; }
+          .memo { position: absolute; bottom: 20px; left: 20px; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="cheque-container">
+          <div class="bank-name">${cheque.bank_name}</div>
+          <div class="cheque-number">Cheque No: ${cheque.cheque_number}</div>
+          <div class="date">Date: ${new Date(cheque.issue_date || cheque.created_at).toLocaleDateString()}</div>
+          <div class="payee">Pay to the order of: <strong>${cheque.payee_name}</strong></div>
+          <div class="amount-words">The sum of: ${numberToWords(parseFloat(cheque.amount))} Pesos</div>
+          <div class="amount-figures">₱${parseFloat(cheque.amount).toLocaleString()}</div>
+          <div class="signature">Authorized Signature</div>
+          ${cheque.memo ? `<div class="memo">Memo: ${cheque.memo}</div>` : ''}
+        </div>
+        <script>
+          window.onload = function() {
+            window.print();
+            window.close();
+          }
+        </script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(chequeHtml);
+    printWindow.document.close();
+  };
+
+  // Helper function to convert numbers to words (simplified)
+  const numberToWords = (num) => {
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    if (num === 0) return 'Zero';
+    if (num < 10) return ones[num];
+    if (num < 20) return teens[num - 10];
+    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 !== 0 ? ' ' + ones[num % 10] : '');
+    if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred' + (num % 100 !== 0 ? ' ' + numberToWords(num % 100) : '');
+    if (num < 1000000) return numberToWords(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 !== 0 ? ' ' + numberToWords(num % 1000) : '');
+    
+    return num.toString(); // Fallback for very large numbers
   };
 
   // Generate next cheque number
@@ -355,10 +431,10 @@ const IssueCheque = () => {
                 onChange={(e) => handleInputChange('disbursementId', e.target.value)}
                 required
               >
-                <option value="">-- Select Disbursement --</option>
-                {disbursements.map((disbursement) => (
-                  <option key={disbursement.id} value={disbursement.id}>
-                    #{disbursement.id} - ₱{parseFloat(disbursement.amount || 0).toLocaleString()} - {disbursement.payee_name || 'N/A'}
+                <option value="">-- Select Transaction --</option>
+                {disbursements.map((transaction) => (
+                  <option key={transaction.id} value={transaction.id}>
+                    #{transaction.id} - ₱{parseFloat(transaction.amount || 0).toLocaleString()} - {transaction.recipient || transaction.description || 'N/A'}
                   </option>
                 ))}
               </select>
@@ -646,7 +722,7 @@ const IssueCheque = () => {
                         </button>
                         <button 
                           className="print-btn"
-                          onClick={() => window.print()}
+                          onClick={() => printCheque(cheque)}
                           title="Print Cheque"
                         >
                           <i className="fas fa-print"></i>
@@ -746,13 +822,89 @@ const IssueCheque = () => {
         </div>
       )}
 
-      {/* Success Modal */}
-      {showChequeModal && chequeResult && (
+      {/* Cheque Details Modal */}
+      {showChequeModal && selectedCheque && (
         <div className="modal-overlay" onClick={() => setShowChequeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><i className="fas fa-money-check"></i> Cheque Details</h3>
+              <button className="modal-close" onClick={() => setShowChequeModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="confirmation-details">
+                <div className="detail-item">
+                  <label>Cheque ID:</label>
+                  <span>#{selectedCheque.id}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Cheque Number:</label>
+                  <span>{selectedCheque.cheque_number}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Disbursement ID:</label>
+                  <span>#{selectedCheque.disbursement_id}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Payee Name:</label>
+                  <span>{selectedCheque.payee_name}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Bank Name:</label>
+                  <span>{selectedCheque.bank_name}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Account Number:</label>
+                  <span>{selectedCheque.account_number}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Amount:</label>
+                  <span>₱{parseFloat(selectedCheque.amount || 0).toLocaleString()}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Issue Date:</label>
+                  <span>{new Date(selectedCheque.issue_date || selectedCheque.created_at).toLocaleDateString()}</span>
+                </div>
+                {selectedCheque.memo && (
+                  <div className="detail-item">
+                    <label>Memo:</label>
+                    <span>{selectedCheque.memo}</span>
+                  </div>
+                )}
+                <div className="detail-item">
+                  <label>Created At:</label>
+                  <span>{new Date(selectedCheque.created_at).toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="close-btn"
+                onClick={() => setShowChequeModal(false)}
+              >
+                <i className="fas fa-times"></i> Close
+              </button>
+              <button
+                type="button"
+                className="print-btn"
+                onClick={() => printCheque(selectedCheque)}
+              >
+                <i className="fas fa-print"></i> Print Cheque
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && chequeResult && (
+        <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
           <div className="modal-content success" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3><i className="fas fa-check-circle"></i> Cheque Issued Successfully</h3>
-              <button className="modal-close" onClick={() => setShowChequeModal(false)}>
+              <button className="modal-close" onClick={() => setShowSuccessModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -794,14 +946,14 @@ const IssueCheque = () => {
               <button
                 type="button"
                 className="close-btn"
-                onClick={() => setShowChequeModal(false)}
+                onClick={() => setShowSuccessModal(false)}
               >
                 <i className="fas fa-times"></i> Close
               </button>
               <button
                 type="button"
                 className="print-btn"
-                onClick={() => window.print()}
+                onClick={() => printCheque(chequeResult)}
               >
                 <i className="fas fa-print"></i> Print Cheque
               </button>

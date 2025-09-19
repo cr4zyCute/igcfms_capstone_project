@@ -15,6 +15,9 @@ class ReceiptController extends Controller
             'receipt_number' => 'required|string|max:50|unique:receipts,receipt_number',
         ]);
 
+        // Add issued_at timestamp
+        $validated['issued_at'] = now();
+
         $receipt = Receipt::create($validated);
 
         return response()->json([
@@ -22,5 +25,12 @@ class ReceiptController extends Controller
             'message' => 'Receipt created successfully',
             'data' => $receipt
         ]);
+    }
+
+    // Add index method for getting receipts
+    public function index()
+    {
+        $receipts = Receipt::with('transaction')->get();
+        return response()->json($receipts);
     }
 }

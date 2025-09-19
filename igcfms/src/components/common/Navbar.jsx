@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import '../common/css/Navbar.css';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import NotificationBell from '../common/NotificationBell';
 
 const Navbar = ({ userRole, user, onToggleSidebar }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -36,7 +37,7 @@ const Navbar = ({ userRole, user, onToggleSidebar }) => {
     <header className="navbar">
       <div className="navbar-left">
         <div className="brand-container">
-          
+         
           <div className="brand-text">
               <h2>{user?.role} Menu</h2>
 
@@ -46,11 +47,9 @@ const Navbar = ({ userRole, user, onToggleSidebar }) => {
 
 
       <div className="navbar-right">
+
         <div className="quick-actions">
-          <button className="action-btn notification-btn" title="Notifications">
-            <span className="action-icon"></span>
-            <span className="notification-badge">3</span>
-          </button>
+        <NotificationBell />
         </div>
 
         {/* User Profile */}

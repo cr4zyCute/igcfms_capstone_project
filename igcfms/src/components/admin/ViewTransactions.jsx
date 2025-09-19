@@ -212,9 +212,6 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
         <h2 className="vt-title">
           <i className="fas fa-list"></i> View All Transactions
         </h2>
-        <p className="vt-subtitle">
-          Comprehensive transaction records with advanced filtering and export options
-        </p>
         <div className="header-actions">
           <button 
             className="export-btn"

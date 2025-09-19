@@ -11,6 +11,9 @@ use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CashierController;
+use App\Http\Controllers\DisbursementController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\NotificationController;
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
@@ -43,22 +46,36 @@ Route::middleware('auth:sanctum')->group(function () {
     //transaction
     Route::get('/transactions', [TransactionController::class, 'index']);
     Route::post('/transactions', [TransactionController::class, 'store']);
-    Route::post('/transactions/override', [TransactionController::class, 'requestOverride']);
     //reports
     Route::get('/reports', [ReportsController::class, 'index']);
     Route::post('/reports', [ReportsController::class, 'store']);
     //receipt
+    Route::get('/receipts', [ReceiptController::class, 'index']);
     Route::post('/receipts', [ReceiptController::class, 'store']);
+    //disbursements/cheques
+    Route::get('/disbursements', [DisbursementController::class, 'index']);
+    Route::post('/disbursements', [DisbursementController::class, 'store']);
+    Route::get('/cheques', [DisbursementController::class, 'cheques']);
+    Route::get('/disbursements/{id}', [DisbursementController::class, 'show']);
+    //audit logs
+    Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    Route::post('/audit-logs', [AuditLogController::class, 'store']);
+    //notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
 });
 Route::middleware('auth:sanctum')->group(function () {
     // Admin: list all override requests
     Route::get('/override_requests', [OverrideRequestController::class, 'index']);
+    Route::get('/override-requests', [OverrideRequestController::class, 'index']); // Alternative route with hyphen
 
     // Cashier: list only their override requests
     Route::get('/override_requests/my_requests', [OverrideRequestController::class, 'myRequests']);
 
     // Cashier: submit new override request
-    Route::post('/transactions/override', [TransactionController::class, 'requestOverride']);
+    Route::post('/transactions/override', [OverrideRequestController::class, 'store']);
 
     // Admin: review override request
     Route::put('/override_requests/{id}/review', [OverrideRequestController::class, 'review']);
@@ -81,8 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/fund-accounts/{id}', [FundAccountController::class, 'update']); // <-- Add this
     Route::delete('/fund-accounts/{id}', [FundAccountController::class, 'destroy']);
 });
-// Cashier submits override
-Route::post('/transactions/override', [OverrideRequestController::class, 'submit'])->middleware('auth:sanctum');
+// Remove duplicate route
 
 // Get override requests
 Route::get('/override_requests', [OverrideRequestController::class, 'index'])->middleware('auth:sanctum');

@@ -1,5 +1,5 @@
 import React from "react";
-
+import NotificationBell from '../common/NotificationBell';
 
 const AdminSidebar = ({ activeTab, setActiveTab }) => {
   const menuItems = [
@@ -18,6 +18,7 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
   return (
     <div className="sidebar-content">
       <nav className="sidebar-nav">
+        <NotificationBell />
         <ul className="sidebar-menu">
           {menuItems.map((item) => (
             <li key={item.id}>

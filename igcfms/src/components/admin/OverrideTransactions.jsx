@@ -55,28 +55,47 @@ const OverrideTransactions = ({ role = "Admin" }) => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch transactions and override requests
-      const [transactionsRes, overrideRes] = await Promise.all([
-        axios.get(`${API_BASE}/transactions`, { headers }),
-        axios.get(`${API_BASE}/override-requests`, { headers }).catch(() => ({ data: [] }))
-      ]);
+      // Fetch only what we need based on user role
+      if (role === "Admin") {
+        // Admin needs both transactions and override requests
+        const [transactionsRes, overrideRes] = await Promise.all([
+          axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${API_BASE}/override_requests`, { headers }).catch(() => ({ data: [] }))
+        ]);
 
-      setTransactions(transactionsRes.data || []);
-      const requests = overrideRes.data || [];
-      setOverrideRequests(requests);
+        setTransactions(transactionsRes.data || []);
+        const requests = overrideRes.data || [];
+        setOverrideRequests(requests);
 
-      // Calculate statistics
-      const totalRequests = requests.length;
-      const pendingRequests = requests.filter(req => req.status === 'pending').length;
-      const approvedRequests = requests.filter(req => req.status === 'approved').length;
-      const rejectedRequests = requests.filter(req => req.status === 'rejected').length;
+        // Calculate statistics
+        const totalRequests = requests.length;
+        const pendingRequests = requests.filter(req => req.status === 'pending').length;
+        const approvedRequests = requests.filter(req => req.status === 'approved').length;
+        const rejectedRequests = requests.filter(req => req.status === 'rejected').length;
 
-      setStats({
-        totalRequests,
-        pendingRequests,
-        approvedRequests,
-        rejectedRequests
-      });
+        setStats({
+          totalRequests: totalRequests,
+          pendingRequests: pendingRequests,
+          approvedRequests: approvedRequests,
+          rejectedRequests: rejectedRequests
+        });
+      } else {
+        // Cashier only needs transactions for creating requests
+        const transactionsRes = await axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] }));
+        setTransactions(transactionsRes.data || []);
+
+        // Get cashier's own requests
+        const overrideRes = await axios.get(`${API_BASE}/override_requests/my_requests`, { headers }).catch(() => ({ data: [] }));
+        const requests = overrideRes.data || [];
+        setOverrideRequests(requests);
+
+        setStats({
+          totalRequests: requests.length,
+          pendingRequests: requests.filter(req => req.status === 'pending').length,
+          approvedRequests: requests.filter(req => req.status === 'approved').length,
+          rejectedRequests: requests.filter(req => req.status === 'rejected').length
+        });
+      }
 
     } catch (err) {
       console.error('Override transactions error:', err);
@@ -162,11 +181,13 @@ const OverrideTransactions = ({ role = "Admin" }) => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
-      await axios.post(`${API_BASE}/override-requests`, {
-        transaction_id: selectedTransaction,
+      const payload = {
+        transaction_id: parseInt(selectedTransaction),
         reason: reason.trim(),
-        changes: JSON.stringify(proposedChanges),
-      }, { headers });
+        changes: proposedChanges
+      };
+
+      await axios.post(`${API_BASE}/transactions/override`, payload, { headers });
 
       showMessage("Override request submitted successfully!");
       setSelectedTransaction("");
@@ -195,7 +216,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
-      await axios.put(`${API_BASE}/override-requests/${requestId}/review`, {
+      await axios.put(`${API_BASE}/override_requests/${requestId}/review`, {
         status,
         review_notes: reviewNotes.trim()
       }, { headers });
@@ -394,7 +415,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                         <span className="transaction-id">#{request.transaction_id}</span>
                       </div>
                     </td>
-                    <td>{request.requested_by || 'N/A'}</td>
+                    <td>{request.requested_by?.name || request.requestedBy?.name || 'N/A'}</td>
                     <td className="reason-cell">
                       {request.reason || 'No reason provided'}
                     </td>
@@ -511,6 +532,50 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                   />
                 </div>
 
+                <div className="form-group">
+                  <label>Proposed New Category (Optional)</label>
+                  <select
+                    onChange={(e) =>
+                      setProposedChanges((prev) => ({ ...prev, category: e.target.value }))
+                    }
+                  >
+                    <option value="">-- Keep Current Category --</option>
+                    <option value="Tax Collection">Tax Collection</option>
+                    <option value="Permit Fees">Permit Fees</option>
+                    <option value="License Fees">License Fees</option>
+                    <option value="Service Fees">Service Fees</option>
+                    <option value="Fines and Penalties">Fines and Penalties</option>
+                    <option value="Salaries">Salaries</option>
+                    <option value="Office Supplies">Office Supplies</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Proposed New Department (Optional)</label>
+                  <select
+                    onChange={(e) =>
+                      setProposedChanges((prev) => ({ ...prev, department: e.target.value }))
+                    }
+                  >
+                    <option value="">-- Keep Current Department --</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Operations">Operations</option>
+                    <option value="HR">HR</option>
+                    <option value="IT">IT</option>
+                    <option value="Legal">Legal</option>
+                    <option value="Procurement">Procurement</option>
+                    <option value="Public Works">Public Works</option>
+                    <option value="Health Services">Health Services</option>
+                    <option value="Education">Education</option>
+                    <option value="Social Services">Social Services</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
                 <div className="form-actions">
                   <button
                     type="button"
@@ -563,7 +628,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                 </div>
                 <div className="detail-item">
                   <label>Requested By:</label>
-                  <span>{selectedRequest.requested_by || 'N/A'}</span>
+                  <span>{selectedRequest.requested_by?.name || selectedRequest.requestedBy?.name || 'N/A'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Reason:</label>
