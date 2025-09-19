@@ -2,9 +2,9 @@ import React from 'react';
 
 const DisbursingSidebar = ({ activeTab, setActiveTab }) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '' },
-    { id: 'issue-money', label: 'Issue Money', icon: '' },
-    { id: 'issue-cheque', label: 'Issue Cheque', icon: '' },
+    { id: 'dashboard', label: 'Dashboard', icon: <i className="fas fa-tachometer-alt"></i> },
+    { id: 'issue-money', label: 'Issue Money', icon: <i className="fas fa-hand-holding-usd"></i> },
+    { id: 'issue-cheque', label: 'Issue Cheque', icon: <i className="fas fa-receipt"></i> },
     { id: 'view-transactions', label: 'View Transactions', icon: '' },
     { id: 'daily-summary', label: 'Daily Summary', icon: '' }
   ];

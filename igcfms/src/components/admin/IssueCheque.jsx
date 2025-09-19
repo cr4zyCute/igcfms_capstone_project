@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./css/issuecheque.css";
+import "./css/cheque-styles.css";
 
 const IssueCheque = () => {
   const [loading, setLoading] = useState(false);
@@ -898,65 +899,116 @@ const IssueCheque = () => {
         </div>
       )}
 
-      {/* Success Modal */}
+      {/* Official Cheque Modal */}
       {showSuccessModal && chequeResult && (
         <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
-          <div className="modal-content success" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3><i className="fas fa-check-circle"></i> Cheque Issued Successfully</h3>
+          <div className="cheque-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="cheque-actions-bar">
               <button className="modal-close" onClick={() => setShowSuccessModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
+              <button className="print-btn" onClick={() => window.print()}>
+                <i className="fas fa-print"></i> Print
+              </button>
             </div>
-            <div className="modal-body">
-              <div className="success-details">
-                <div className="success-icon">
-                  <i className="fas fa-money-check"></i>
+            
+            {/* Official Cheque Document */}
+            <div className="official-cheque" id="cheque-document">
+              {/* Cheque Header */}
+              <div className="cheque-header">
+                <div className="cheque-logo-section">
+                  <div className="logo-placeholder">
+                    <i className="fas fa-university"></i>
+                  </div>
+                  <div className="cheque-bank-info">
+                    <h1 className="bank-name">{chequeResult.bankName}</h1>
+                    <p className="bank-address">Government Banking Division</p>
+                    <p className="bank-contact">IGCFMS Account Services</p>
+                  </div>
                 </div>
-                <h4>Cheque Generated</h4>
-                <div className="result-details">
-                  <div className="detail-item">
-                    <label>Cheque ID:</label>
-                    <span>#{chequeResult.id}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Cheque Number:</label>
-                    <span>{chequeResult.chequeNumber}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Payee:</label>
-                    <span>{chequeResult.payeeName}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Amount:</label>
-                    <span>₱{parseFloat(chequeResult.amount || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Bank:</label>
-                    <span>{chequeResult.bankName}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Issue Date:</label>
-                    <span>{new Date(chequeResult.issueDate).toLocaleDateString()}</span>
+                
+                <div className="cheque-number-section">
+                  <div className="cheque-number-box">
+                    <span className="cheque-number-label">CHEQUE NO.</span>
+                    <span className="cheque-number-value">{chequeResult.chequeNumber}</span>
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="close-btn"
-                onClick={() => setShowSuccessModal(false)}
-              >
-                <i className="fas fa-times"></i> Close
-              </button>
-              <button
-                type="button"
-                className="print-btn"
-                onClick={() => printCheque(chequeResult)}
-              >
-                <i className="fas fa-print"></i> Print Cheque
-              </button>
+
+              {/* Cheque Body */}
+              <div className="cheque-body">
+                <div className="cheque-date-section">
+                  <span className="date-label">Date:</span>
+                  <span className="date-value">{new Date(chequeResult.issueDate).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}</span>
+                </div>
+
+                <div className="cheque-payee-section">
+                  <div className="payee-line">
+                    <span className="payee-label">Pay to the order of:</span>
+                    <span className="payee-name">{chequeResult.payeeName}</span>
+                  </div>
+                </div>
+
+                <div className="cheque-amount-section">
+                  <div className="amount-words-line">
+                    <span className="amount-words-label">The sum of:</span>
+                    <span className="amount-in-words">
+                      {numberToWords(parseFloat(chequeResult.amount))} Pesos Only
+                    </span>
+                  </div>
+                  
+                  <div className="amount-figures-section">
+                    <span className="currency-symbol">₱</span>
+                    <span className="amount-figures">{parseFloat(chequeResult.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+
+                {chequeResult.memo && (
+                  <div className="cheque-memo-section">
+                    <span className="memo-label">Memo:</span>
+                    <span className="memo-text">{chequeResult.memo}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Cheque Footer */}
+              <div className="cheque-footer">
+                <div className="cheque-account-info">
+                  <div className="account-number">
+                    <span className="account-label">Account No:</span>
+                    <span className="account-value">{chequeResult.accountNumber}</span>
+                  </div>
+                  <div className="routing-info">
+                    <span className="routing-label">Routing:</span>
+                    <span className="routing-value">IGCF-001-2024</span>
+                  </div>
+                </div>
+
+                <div className="cheque-signature-section">
+                  <div className="signature-line"></div>
+                  <div className="signature-label">Authorized Signature</div>
+                  <div className="signature-title">IGCFMS Disbursing Officer</div>
+                </div>
+
+                <div className="cheque-security-features">
+                  <div className="security-line"></div>
+                  <div className="micr-line">
+                    ⑆001⑆ {chequeResult.accountNumber} ⑆ {chequeResult.chequeNumber}⑆
+                  </div>
+                </div>
+              </div>
+
+              {/* Cheque Watermark */}
+              <div className="cheque-watermark">
+                <span>IGCFMS</span>
+              </div>
+
+              {/* Security Features */}
+              <div className="cheque-security-border"></div>
             </div>
           </div>
         </div>

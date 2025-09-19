@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import "../admin/css/home.css";
 import axios from "axios";
+import LoadingSpinner, { StatsSkeleton, CardSkeleton, TableSkeleton } from "../common/LoadingSpinner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, ComposedChart
@@ -28,7 +29,11 @@ const DashboardHome = () => {
   const [transactionTrends, setTransactionTrends] = useState([]);
   const [userActivity, setUserActivity] = useState([]);
   const [overrideRequests, setOverrideRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState({
+    stats: true,
+    charts: true,
+    tables: true
+  });
   const [error, setError] = useState(null);
 
   const API_BASE = "http://localhost:8000/api";
@@ -36,13 +41,13 @@ const DashboardHome = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        setLoading(true);
+        setLoading({ stats: true, charts: true, tables: true });
         setError(null);
 
         const token = localStorage.getItem('token');
         if (!token) {
           setError("No authentication token found. Please log in again.");
-          setLoading(false);
+          setLoading({ stats: false, charts: false, tables: false });
           return;
         }
 
@@ -116,6 +121,9 @@ const DashboardHome = () => {
           totalDisbursements,
           netBalance,
         });
+        
+        // Stats are loaded
+        setLoading(prev => ({ ...prev, stats: false }));
 
         // Generate daily revenue data (last 7 days)
         const last7Days = [];
@@ -211,6 +219,9 @@ const DashboardHome = () => {
           total: day.collections + day.disbursements
         }));
         setTransactionTrends(trendData);
+        
+        // Charts are loaded
+        setLoading(prev => ({ ...prev, charts: false }));
 
         // User activity (from audit logs or transactions)
         const userStats = users.map(user => {
@@ -232,12 +243,15 @@ const DashboardHome = () => {
         );
         setAuditLogs(audits.slice(0, 10));
         setOverrideRequests(overrides.filter(req => req.status === 'pending').slice(0, 5));
+        
+        // Tables are loaded
+        setLoading(prev => ({ ...prev, tables: false }));
 
       } catch (err) {
         console.error('Dashboard fetch error:', err);
         setError(err.response?.data?.message || err.message || 'Failed to load dashboard data');
       } finally {
-        setLoading(false);
+        setLoading({ stats: false, charts: false, tables: false });
       }
     };
 
@@ -245,17 +259,6 @@ const DashboardHome = () => {
   }, []);
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AA00FF", "#FF4444"];
-
-  if (loading) {
-    return (
-      <div className="admin-page grid gap-6 p-6 bg-gray-50">
-        <div className="spinner-container">
-          <div className="spinner"></div>
-          <div className="text-xl mt-4">Loading dashboard data...</div>
-        </div>
-      </div>
-    );
-  }
 
   if (error) {
     return (
@@ -279,21 +282,27 @@ const DashboardHome = () => {
       </div>
 
       {/* Enhanced KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <StatCard label="Active Users" value={stats.totalUsers} icon="👥" color="primary" />
-        <StatCard label="Active Fund Accounts" value={stats.activeFunds} icon="🏦" color="info" />
-        <StatCard label="Total Collections" value={`₱${stats.totalCollections.toLocaleString()}`} icon="📈" color="success" />
-        <StatCard label="Total Disbursements" value={`₱${stats.totalDisbursements.toLocaleString()}`} icon="📉" color="danger" />
-        <StatCard label="Net Balance" value={`₱${stats.netBalance.toLocaleString()}`} icon="💰" color="warning" />
-      </div>
+      {loading.stats ? (
+        <StatsSkeleton />
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+            <StatCard label="Active Users" value={stats.totalUsers} icon="👥" color="primary" />
+            <StatCard label="Active Fund Accounts" value={stats.activeFunds} icon="🏦" color="info" />
+            <StatCard label="Total Collections" value={`₱${stats.totalCollections.toLocaleString()}`} icon="📈" color="success" />
+            <StatCard label="Total Disbursements" value={`₱${stats.totalDisbursements.toLocaleString()}`} icon="📉" color="danger" />
+            <StatCard label="Net Balance" value={`₱${stats.netBalance.toLocaleString()}`} icon="💰" color="warning" />
+          </div>
 
-      {/* Secondary KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-        <StatCard label="Today's Transactions" value={stats.todayTransactions} icon="📅" color="secondary" />
-        <StatCard label="Pending Overrides" value={stats.pendingOverrides} icon="⚠️" color="secondary" />
-        <StatCard label="Revenue Accounts" value={`₱${stats.totalRevenue.toLocaleString()}`} icon="💹" color="secondary" />
-        <StatCard label="Expense Accounts" value={`₱${stats.totalExpense.toLocaleString()}`} icon="💸" color="secondary" />
-      </div>
+          {/* Secondary KPIs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+            <StatCard label="Today's Transactions" value={stats.todayTransactions} icon="📅" color="secondary" />
+            <StatCard label="Pending Overrides" value={stats.pendingOverrides} icon="⚠️" color="secondary" />
+            <StatCard label="Revenue Accounts" value={`₱${stats.totalRevenue.toLocaleString()}`} icon="💹" color="secondary" />
+            <StatCard label="Expense Accounts" value={`₱${stats.totalExpense.toLocaleString()}`} icon="💸" color="secondary" />
+          </div>
+        </>
+      )}
 
       {/* Enhanced Charts Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px', marginBottom: '30px' }}>
@@ -303,19 +312,25 @@ const DashboardHome = () => {
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-chart-area"></i> Collections vs Disbursements (7 Days)
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={dailyRevenue}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, '']} />
-              <Legend />
-              <Area type="monotone" dataKey="collections" stackId="1" stroke="#16a34a" fill="#16a34a" fillOpacity={0.3} />
-              <Area type="monotone" dataKey="disbursements" stackId="2" stroke="#dc2626" fill="#dc2626" fillOpacity={0.3} />
-              <Line type="monotone" dataKey="collections" stroke="#16a34a" strokeWidth={3} />
-              <Line type="monotone" dataKey="disbursements" stroke="#dc2626" strokeWidth={3} />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {loading.charts ? (
+            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <LoadingSpinner size="medium" text="Loading chart data..." />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={dailyRevenue}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, '']} />
+                <Legend />
+                <Area type="monotone" dataKey="collections" stackId="1" stroke="#16a34a" fill="#16a34a" fillOpacity={0.3} />
+                <Area type="monotone" dataKey="disbursements" stackId="2" stroke="#dc2626" fill="#dc2626" fillOpacity={0.3} />
+                <Line type="monotone" dataKey="collections" stroke="#16a34a" strokeWidth={3} />
+                <Line type="monotone" dataKey="disbursements" stroke="#dc2626" strokeWidth={3} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Fund Distribution by Account Type */}
@@ -323,23 +338,29 @@ const DashboardHome = () => {
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-chart-pie"></i> Fund Distribution by Account Type
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                dataKey="value"
-                data={fundDistribution}
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label={({ name, value }) => `${name}: ₱${value.toLocaleString()}`}
-              >
-                {fundDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, 'Balance']} />
-            </PieChart>
-          </ResponsiveContainer>
+          {loading.charts ? (
+            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <LoadingSpinner size="medium" text="Loading chart data..." />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  dataKey="value"
+                  data={fundDistribution}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={({ name, value }) => `${name}: ₱${value.toLocaleString()}`}
+                >
+                  {fundDistribution.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, 'Balance']} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Monthly Revenue Trend */}
@@ -347,7 +368,12 @@ const DashboardHome = () => {
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-chart-line"></i> Monthly Revenue Trend (6 Months)
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
+          {loading.charts ? (
+            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <LoadingSpinner size="medium" text="Loading chart data..." />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
             <LineChart data={monthlyRevenue}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" />
@@ -359,6 +385,7 @@ const DashboardHome = () => {
               <Line type="monotone" dataKey="net" stroke="#2563eb" strokeWidth={3} name="Net Balance" strokeDasharray="5 5" />
             </LineChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         {/* Department Performance */}
@@ -366,17 +393,24 @@ const DashboardHome = () => {
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-building"></i> Department Transaction Volume
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={departmentStats.slice(0, 6)} layout="horizontal">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis type="number" />
-              <YAxis dataKey="department" type="category" width={80} />
-              <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, '']} />
-              <Legend />
-              <Bar dataKey="collections" fill="#16a34a" name="Collections" />
-              <Bar dataKey="disbursements" fill="#dc2626" name="Disbursements" />
-            </BarChart>
-          </ResponsiveContainer>
+          {loading.charts ? (
+            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <LoadingSpinner size="medium" text="Loading chart data..." />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={departmentStats.slice(0, 6)} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis type="number" />
+                <YAxis dataKey="department" type="category" width={80} />
+                <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, '']} />
+                <Legend />
+                <Bar dataKey="collections" fill="#16a34a" name="Collections" />
+                <Bar dataKey="disbursements" fill="#dc2626" name="Disbursements" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          
         </div>
 
       </div>
@@ -575,6 +609,7 @@ const DashboardHome = () => {
 
     </div>
   );
+  
 };
 
 // Enhanced KPI Card Component with Color Themes

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../common/Navbar';
+import NotificationBell from '../common/NotificationBell';
 import AdminDashboard from '../admin/AdminDashboard';
 import CashierDashboard from '../cashier/CashierDashboard';
 import CollectingDashboard from '../collectingOfficer/CollectiingDashboard';

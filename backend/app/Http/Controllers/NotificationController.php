@@ -13,21 +13,30 @@ class NotificationController extends Controller
     {
         $user = Auth::user();
         
-        $query = Notification::where('user_id', $user->id)
-            ->orderBy('created_at', 'desc');
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
-        // Filter by read/unread status
-        if ($request->has('unread_only') && $request->unread_only) {
-            $query->unread();
+        $query = Notification::where('user_id', $user->id)->with('user');
+
+        // Filter by read status
+        if ($request->filled('unread_only')) {
+            $query->where('is_read', false);
         }
 
         // Limit results
         $limit = $request->get('limit', 50);
-        $notifications = $query->limit($limit)->get();
+        $notifications = $query->orderBy('created_at', 'desc')
+                              ->limit($limit)
+                              ->get();
+
+        $unreadCount = Notification::where('user_id', $user->id)
+                                  ->where('is_read', false)
+                                  ->count();
 
         return response()->json([
             'notifications' => $notifications,
-            'unread_count' => Notification::where('user_id', $user->id)->unread()->count()
+            'unread_count' => $unreadCount,
         ]);
     }
 

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\FundAccount;
 use App\Models\Transaction;
+use App\Services\ActivityTracker;
+use Illuminate\Support\Facades\Auth;
 
 class FundAccountController extends Controller
 {
@@ -58,6 +60,9 @@ class FundAccountController extends Controller
             'created_by' => $request->created_by,
         ]);
 
+        // Track fund account creation
+        ActivityTracker::trackFundAccount($account, Auth::user(), 'created');
+
         return response()->json($account, 201);
     }
     public function update(Request $request, $id)
@@ -82,6 +87,9 @@ class FundAccountController extends Controller
             'account_type',
             'department'
         ]));
+
+        // Track fund account update
+        ActivityTracker::trackFundAccount($account, Auth::user(), 'updated');
 
         return response()->json(['message' => 'Fund account updated successfully']);
     }

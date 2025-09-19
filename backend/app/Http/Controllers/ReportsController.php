@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Report;
 use Illuminate\Support\Facades\Auth;
+use App\Services\ActivityTracker;
 
 class ReportsController extends Controller
 {
@@ -51,6 +52,16 @@ class ReportsController extends Controller
             'generated_by' => Auth::id(),
             'file_path' => null,
             'generated_at' => now(),
+        ]);
+
+        // Track report generation
+        ActivityTracker::trackReportGeneration($request->report_type, Auth::user(), [
+            'report_id' => $report->id,
+            'date_from' => $request->date_from,
+            'date_to' => $request->date_to,
+            'department' => $request->department,
+            'category' => $request->category,
+            'format' => $request->format ?? 'pdf',
         ]);
 
         // Load the relationship before returning

@@ -7,6 +7,7 @@ use App\Models\Transaction;
 use App\Models\Disbursement;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Services\ActivityTracker;
 
 class DisbursementController extends Controller
 {
@@ -60,6 +61,22 @@ class DisbursementController extends Controller
             }
 
             DB::commit();
+
+            // Track disbursement activity
+            ActivityTracker::log(
+                $request->method === 'Cheque' ? 'cheque_issued' : 'disbursement_created',
+                Auth::user()->name . " (" . Auth::user()->role . ") issued a " . strtolower($request->method) . " disbursement of ₱" . number_format($request->amount, 2) . " to " . $request->payee_name,
+                Auth::user(),
+                [
+                    'disbursement_id' => $disbursement->id,
+                    'transaction_id' => $request->transaction_id,
+                    'payee_name' => $request->payee_name,
+                    'method' => $request->method,
+                    'amount' => $request->amount,
+                    'cheque_number' => $request->cheque_number,
+                    'bank_name' => $request->bank_name,
+                ]
+            );
 
             return response()->json($disbursement->load('transaction'), 201);
 

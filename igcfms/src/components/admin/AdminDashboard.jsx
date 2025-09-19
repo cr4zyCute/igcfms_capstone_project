@@ -10,6 +10,8 @@ import ManageStaff from "./ManageStaff";
 import FundsAccounts from "./FundsAccounts";
 import OverrideTransactions from "./OverrideTransactions";
 import SystemSettings from "./SystemSettings";
+import TransactionManagement from "./TransactionManagement";
+import ActivityDashboard from "./ActivityDashboard";
 import '../pages/css/Dashboard.css';
 
 const AdminDashboard = ({ user, activeTab }) => {
@@ -37,6 +39,10 @@ const AdminDashboard = ({ user, activeTab }) => {
         return <OverrideTransactions />;
       case "system-settings":
         return <SystemSettings />;
+      case "transaction-management":
+        return <TransactionManagement />;
+      case "activity-dashboard":
+        return <ActivityDashboard />;
       default:
         return <DashboardHome user={user} />;
     }

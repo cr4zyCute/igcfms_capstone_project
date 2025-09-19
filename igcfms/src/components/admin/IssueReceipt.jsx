@@ -2,6 +2,48 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./css/issuereceipt.css";
 
+// Helper function to convert numbers to words
+const numberToWords = (num) => {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const thousands = ['', 'Thousand', 'Million', 'Billion'];
+
+  if (num === 0) return 'Zero';
+
+  const convertHundreds = (n) => {
+    let result = '';
+    if (n >= 100) {
+      result += ones[Math.floor(n / 100)] + ' Hundred ';
+      n %= 100;
+    }
+    if (n >= 20) {
+      result += tens[Math.floor(n / 10)] + ' ';
+      n %= 10;
+    } else if (n >= 10) {
+      result += teens[n - 10] + ' ';
+      return result;
+    }
+    if (n > 0) {
+      result += ones[n] + ' ';
+    }
+    return result;
+  };
+
+  let result = '';
+  let thousandIndex = 0;
+  
+  while (num > 0) {
+    if (num % 1000 !== 0) {
+      result = convertHundreds(num % 1000) + thousands[thousandIndex] + ' ' + result;
+    }
+    num = Math.floor(num / 1000);
+    thousandIndex++;
+  }
+
+  return result.trim();
+};
+
 const IssueReceipt = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -610,61 +652,152 @@ const IssueReceipt = () => {
         </div>
       )}
 
-      {/* Success Modal */}
+      {/* Official Receipt Modal */}
       {showReceiptModal && receiptResult && (
         <div className="modal-overlay" onClick={() => setShowReceiptModal(false)}>
-          <div className="modal-content success" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3><i className="fas fa-check-circle"></i> Receipt Issued Successfully</h3>
+          <div className="receipt-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="receipt-actions-bar">
               <button className="modal-close" onClick={() => setShowReceiptModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
+              <button className="print-btn" onClick={() => window.print()}>
+                <i className="fas fa-print"></i> Print
+              </button>
             </div>
-            <div className="modal-body">
-              <div className="success-details">
-                <div className="success-icon">
-                  <i className="fas fa-receipt"></i>
+            
+            {/* Official Receipt Document */}
+            <div className="official-receipt" id="receipt-document">
+              {/* Receipt Header */}
+              <div className="receipt-header">
+                <div className="receipt-logo-section">
+                  <div className="logo-placeholder">
+                    <i className="fas fa-university"></i>
+                  </div>
+                  <div className="receipt-title-section">
+                    <h1 className="receipt-org-name">IGCFMS</h1>
+                    <h2 className="receipt-org-subtitle">Integrated Government Cash Flow Management System</h2>
+                    <p className="receipt-address">Government Financial Services Department</p>
+                    <p className="receipt-contact">Tel: (02) 8888-0000 | Email: igcfmsa@gmail.com</p>
+                  </div>
                 </div>
-                <h4>Receipt Generated</h4>
-                <div className="result-details">
-                  <div className="detail-item">
-                    <label>Receipt ID:</label>
-                    <span>#{receiptResult.id}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Receipt Number:</label>
-                    <span>{receiptResult.receiptNumber}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Payer:</label>
-                    <span>{receiptResult.payerName}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Transaction:</label>
-                    <span>#{receiptResult.transactionId}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Issue Date:</label>
-                    <span>{new Date(receiptResult.issueDate).toLocaleDateString()}</span>
+                
+                <div className="receipt-document-info">
+                  <h3 className="receipt-document-title">OFFICIAL RECEIPT</h3>
+                  <div className="receipt-number-box">
+                    <span className="receipt-number-label">Receipt No.</span>
+                    <span className="receipt-number-value">{receiptResult.receiptNumber}</span>
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="close-btn"
-                onClick={() => setShowReceiptModal(false)}
-              >
-                <i className="fas fa-times"></i> Close
-              </button>
-              <button
-                type="button"
-                className="print-btn"
-                onClick={() => window.print()}
-              >
-                <i className="fas fa-print"></i> Print Receipt
-              </button>
+
+              {/* Receipt Body */}
+              <div className="receipt-body">
+                <div className="receipt-date-section">
+                  <div className="receipt-date">
+                    <span className="date-label">Date:</span>
+                    <span className="date-value">{new Date(receiptResult.issueDate).toLocaleDateString('en-US', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}</span>
+                  </div>
+                </div>
+
+                <div className="receipt-payer-section">
+                  <div className="payer-info">
+                    <span className="payer-label">Received from:</span>
+                    <span className="payer-name">{receiptResult.payerName}</span>
+                  </div>
+                </div>
+
+                <div className="receipt-amount-section">
+                  <div className="amount-info">
+                    <span className="amount-label">The sum of:</span>
+                    <div className="amount-details">
+                      {(() => {
+                        const transaction = transactions.find(tx => tx.id.toString() === receiptResult.transactionId);
+                        const amount = transaction ? parseFloat(transaction.amount || 0) : 0;
+                        return (
+                          <>
+                            <div className="amount-words">
+                              <span className="amount-in-words">
+                                {numberToWords(amount)} Pesos Only
+                              </span>
+                            </div>
+                            <div className="amount-figures">
+                              <span className="currency">₱</span>
+                              <span className="amount-value">{amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="receipt-purpose-section">
+                  <div className="purpose-info">
+                    <span className="purpose-label">For:</span>
+                    <div className="purpose-details">
+                      {(() => {
+                        const transaction = transactions.find(tx => tx.id.toString() === receiptResult.transactionId);
+                        return (
+                          <>
+                            <div className="purpose-description">
+                              {transaction?.description || 'Government Collection'}
+                            </div>
+                            <div className="purpose-category">
+                              Category: {transaction?.category || 'General Revenue'}
+                            </div>
+                            <div className="purpose-department">
+                              Department: {transaction?.department || 'Finance'}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="receipt-reference-section">
+                  <div className="reference-info">
+                    <span className="reference-label">Transaction Reference:</span>
+                    <span className="reference-value">TXN-{receiptResult.transactionId}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Receipt Footer */}
+              <div className="receipt-footer">
+                <div className="receipt-signatures">
+                  <div className="signature-section">
+                    <div className="signature-line"></div>
+                    <div className="signature-label">Received by</div>
+                    <div className="signature-title">Authorized Collecting Officer</div>
+                  </div>
+                  <div className="signature-section">
+                    <div className="signature-line"></div>
+                    <div className="signature-label">Verified by</div>
+                    <div className="signature-title">Finance Officer</div>
+                  </div>
+                </div>
+
+                <div className="receipt-footer-info">
+                  <div className="receipt-serial">
+                    <span>Receipt ID: #{receiptResult.id}</span>
+                  </div>
+                  <div className="receipt-timestamp">
+                    <span>Generated: {new Date().toLocaleString()}</span>
+                  </div>
+                  <div className="receipt-validity">
+                    <span>This receipt is computer-generated and valid without signature</span>
+                  </div>
+                </div>
+
+                <div className="receipt-watermark">
+                  <span>IGCFMS - OFFICIAL RECEIPT</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

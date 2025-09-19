@@ -14,6 +14,7 @@ use App\Http\Controllers\CashierController;
 use App\Http\Controllers\DisbursementController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ActivityLogController;
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
@@ -65,6 +66,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
+    //activity logs
+    Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+    Route::get('/activity-logs/recent', [ActivityLogController::class, 'recent']);
+    Route::get('/activity-logs/statistics', [ActivityLogController::class, 'statistics']);
+    Route::get('/activity-logs/user/{userId}', [ActivityLogController::class, 'userActivities']);
+    Route::post('/activity-logs', [ActivityLogController::class, 'store']);
 });
 Route::middleware('auth:sanctum')->group(function () {
     // Admin: list all override requests

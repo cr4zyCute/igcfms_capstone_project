@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use App\Services\ActivityTracker;
 use App\Mail\OverrideRequestNotificationMail;
 use App\Mail\OverrideRequestReviewedMail;
 use App\Http\Controllers\NotificationController;
@@ -61,7 +62,7 @@ class OverrideRequestController extends Controller
 
         // TODO: Create notification for all admin users (after notifications table is created)
         // Uncomment this after running migrations
-        /*
+        
         $adminUsers = User::where('role', 'Admin')->get();
         foreach ($adminUsers as $admin) {
             NotificationController::createNotification(
@@ -76,7 +77,10 @@ class OverrideRequestController extends Controller
                 ]
             );
         }
-        */
+        
+
+        // Track override request activity
+        ActivityTracker::trackOverrideRequest($overrideRequest, Auth::user());
 
         return response()->json($overrideRequest, 201);
     }
@@ -139,6 +143,9 @@ class OverrideRequestController extends Controller
             ]
         );
         */
+
+        // Track override review activity
+        ActivityTracker::trackOverrideReview($overrideRequest, Auth::user(), $request->status);
 
         return response()->json($overrideRequest);
     }

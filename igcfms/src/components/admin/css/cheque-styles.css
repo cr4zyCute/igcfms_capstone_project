@@ -1,0 +1,473 @@
+/* Official Cheque Styles */
+
+/* Cheque Modal */
+.cheque-modal-content {
+  background: #ffffff;
+  border-radius: 8px;
+  width: 95%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.cheque-actions-bar {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  padding: 10px 20px;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+}
+
+.cheque-actions-bar .modal-close,
+.cheque-actions-bar .print-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.cheque-actions-bar .modal-close {
+  background: #dc3545;
+  color: white;
+}
+
+.cheque-actions-bar .print-btn {
+  background: #007bff;
+  color: white;
+}
+
+.cheque-actions-bar .modal-close:hover {
+  background: #c82333;
+}
+
+.cheque-actions-bar .print-btn:hover {
+  background: #0056b3;
+}
+
+/* Official Cheque Document */
+.official-cheque {
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  padding: 30px;
+  font-family: 'Courier New', monospace;
+  color: #000000;
+  line-height: 1.3;
+  position: relative;
+  min-height: 400px;
+  border: 3px solid #2c5aa0;
+  margin: 20px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 20px rgba(44, 90, 160, 0.1);
+}
+
+/* Security Border */
+.cheque-security-border {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  border: 1px dashed #2c5aa0;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Cheque Header */
+.cheque-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #2c5aa0;
+}
+
+.cheque-logo-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  flex: 1;
+}
+
+.logo-placeholder {
+  width: 60px;
+  height: 60px;
+  border: 2px solid #2c5aa0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #2c5aa0;
+  background: #f0f4f8;
+}
+
+.cheque-bank-info {
+  flex: 1;
+}
+
+.bank-name {
+  font-size: 22px;
+  font-weight: bold;
+  margin: 0 0 5px 0;
+  color: #2c5aa0;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.bank-address,
+.bank-contact {
+  font-size: 11px;
+  margin: 2px 0;
+  color: #666666;
+  font-family: 'Arial', sans-serif;
+}
+
+.cheque-number-section {
+  text-align: right;
+  min-width: 150px;
+}
+
+.cheque-number-box {
+  border: 2px solid #2c5aa0;
+  padding: 8px 12px;
+  background: #f0f4f8;
+  border-radius: 4px;
+}
+
+.cheque-number-label {
+  display: block;
+  font-size: 10px;
+  font-weight: bold;
+  margin-bottom: 3px;
+  color: #2c5aa0;
+}
+
+.cheque-number-value {
+  display: block;
+  font-size: 16px;
+  font-weight: bold;
+  color: #000000;
+  font-family: 'Courier New', monospace;
+}
+
+/* Cheque Body */
+.cheque-body {
+  margin: 25px 0;
+  min-height: 200px;
+}
+
+.cheque-date-section {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.date-label {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.date-value {
+  font-size: 14px;
+  border-bottom: 1px solid #000000;
+  padding-bottom: 2px;
+  min-width: 150px;
+  text-align: center;
+  font-family: 'Arial', sans-serif;
+}
+
+.cheque-payee-section {
+  margin-bottom: 25px;
+}
+
+.payee-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.payee-label {
+  font-weight: bold;
+  font-size: 14px;
+  min-width: 140px;
+}
+
+.payee-name {
+  font-size: 16px;
+  border-bottom: 1px solid #000000;
+  padding-bottom: 2px;
+  flex: 1;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-family: 'Arial', sans-serif;
+}
+
+.cheque-amount-section {
+  margin-bottom: 20px;
+}
+
+.amount-words-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.amount-words-label {
+  font-weight: bold;
+  font-size: 14px;
+  min-width: 80px;
+}
+
+.amount-in-words {
+  font-size: 14px;
+  font-weight: bold;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000000;
+  padding-bottom: 2px;
+  flex: 1;
+  font-family: 'Arial', sans-serif;
+}
+
+.amount-figures-section {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5px;
+  border: 2px solid #000000;
+  padding: 8px 15px;
+  background: #fffacd;
+  width: fit-content;
+  margin-left: auto;
+  border-radius: 4px;
+}
+
+.currency-symbol {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.amount-figures {
+  font-size: 20px;
+  font-weight: bold;
+  color: #000000;
+  font-family: 'Courier New', monospace;
+}
+
+.cheque-memo-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.memo-label {
+  font-weight: bold;
+  font-size: 12px;
+  min-width: 50px;
+}
+
+.memo-text {
+  font-size: 12px;
+  border-bottom: 1px solid #000000;
+  padding-bottom: 2px;
+  min-width: 200px;
+  font-family: 'Arial', sans-serif;
+}
+
+/* Cheque Footer */
+.cheque-footer {
+  margin-top: 30px;
+  position: relative;
+}
+
+.cheque-account-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  font-size: 11px;
+  color: #666666;
+}
+
+.account-number,
+.routing-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.account-label,
+.routing-label {
+  font-weight: bold;
+}
+
+.account-value,
+.routing-value {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  color: #000000;
+}
+
+.cheque-signature-section {
+  position: absolute;
+  bottom: 40px;
+  right: 0;
+  text-align: center;
+  width: 200px;
+}
+
+.signature-line {
+  border-bottom: 1px solid #000000;
+  height: 30px;
+  margin-bottom: 5px;
+}
+
+.signature-label {
+  font-size: 10px;
+  margin-bottom: 2px;
+  color: #666666;
+}
+
+.signature-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #2c5aa0;
+}
+
+.cheque-security-features {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.security-line {
+  height: 1px;
+  background: linear-gradient(90deg, #2c5aa0, #ffffff, #2c5aa0);
+  margin-bottom: 5px;
+}
+
+.micr-line {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #2c5aa0;
+  text-align: center;
+  font-weight: bold;
+  letter-spacing: 2px;
+  background: #f0f4f8;
+  padding: 3px;
+  border-radius: 2px;
+}
+
+/* Cheque Watermark */
+.cheque-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-size: 60px;
+  color: rgba(44, 90, 160, 0.08);
+  font-weight: bold;
+  z-index: 1;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: 'Arial Black', sans-serif;
+}
+
+/* Print Styles */
+@media print {
+  .cheque-actions-bar {
+    display: none !important;
+  }
+  
+  .modal-overlay {
+    background: none !important;
+    position: static !important;
+  }
+  
+  .cheque-modal-content {
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  
+  .official-cheque {
+    padding: 15px !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+  
+  .cheque-watermark {
+    color: rgba(44, 90, 160, 0.05) !important;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .cheque-modal-content {
+    width: 98%;
+    margin: 10px auto;
+  }
+  
+  .official-cheque {
+    padding: 15px;
+    margin: 10px;
+  }
+  
+  .cheque-header {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .cheque-logo-section {
+    flex-direction: column;
+    text-align: center;
+    gap: 10px;
+  }
+  
+  .cheque-number-section {
+    text-align: center;
+  }
+  
+  .payee-line,
+  .amount-words-line {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  
+  .payee-name,
+  .amount-in-words {
+    width: 100%;
+  }
+  
+  .amount-figures-section {
+    margin: 0 auto;
+  }
+  
+  .cheque-signature-section {
+    position: static;
+    margin-top: 20px;
+    width: 100%;
+  }
+  
+  .bank-name {
+    font-size: 18px;
+  }
+  
+  .cheque-watermark {
+    font-size: 40px;
+  }
+}
