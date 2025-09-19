@@ -64,24 +64,23 @@ const IssueCheque = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch transactions (disbursements with cheque method) and fund accounts
-      const [transactionsRes, fundAccountsRes] = await Promise.all([
-        axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] })),
-        axios.get(`${API_BASE}/fund-accounts`, { headers }).catch(() => ({ data: [] }))
+      // Fetch disbursements, cheques, and fund accounts
+      const [disbursementsRes, chequesRes, fundsRes] = await Promise.all([
+        axios.get(`${API_BASE}/transactions?type=Disbursement`, { headers }),
+        axios.get(`${API_BASE}/cheques`, { headers }),
+        axios.get(`${API_BASE}/fund-accounts`, { headers })
       ]);
 
-      // Filter for disbursement transactions that can have cheques
-      const allTransactions = transactionsRes.data || [];
-      const disbursementTransactions = allTransactions.filter(tx => 
-        tx.type === 'Disbursement' && tx.mode_of_payment === 'Cheque'
-      );
-      
-      // Use disbursements as cheques for display
-      const chequesData = disbursementTransactions;
+      const disbursementData = disbursementsRes.data || [];
+      setDisbursements(disbursementData);
+      setCheques(chequesRes.data || []);
+      setFundAccounts(fundsRes.data || []);
+      setFilteredCheques(chequesRes.data || []);
 
-      setDisbursements(disbursementTransactions);
-      setCheques(chequesData);
-      setFundAccounts(fundAccountsRes.data || []);
+      // Show helpful message if no disbursements exist
+      if (disbursementData.length === 0) {
+        setError("No disbursement transactions found. Please create disbursement transactions using 'Issue Money' first before issuing cheques.");
+      }
 
     } catch (err) {
       console.error('Issue cheque error:', err);
@@ -308,49 +307,17 @@ const IssueCheque = () => {
     setShowChequeModal(true);
   };
 
-  const printCheque = (cheque) => {
-    // Create a printable cheque format
-    const printWindow = window.open('', '_blank');
-    const chequeHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Cheque - ${cheque.cheque_number}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .cheque-container { border: 2px solid #000; padding: 20px; width: 600px; height: 250px; position: relative; }
-          .bank-name { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-          .cheque-number { position: absolute; top: 20px; right: 20px; font-size: 14px; }
-          .date { position: absolute; top: 60px; right: 20px; }
-          .payee { margin-top: 40px; margin-bottom: 20px; }
-          .amount-words { margin-bottom: 10px; border-bottom: 1px solid #000; padding-bottom: 5px; }
-          .amount-figures { position: absolute; right: 20px; bottom: 80px; font-size: 16px; font-weight: bold; }
-          .signature { position: absolute; bottom: 20px; right: 20px; border-top: 1px solid #000; padding-top: 5px; width: 150px; text-align: center; }
-          .memo { position: absolute; bottom: 20px; left: 20px; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="cheque-container">
-          <div class="bank-name">${cheque.bank_name}</div>
-          <div class="cheque-number">Cheque No: ${cheque.cheque_number}</div>
-          <div class="date">Date: ${new Date(cheque.issue_date || cheque.created_at).toLocaleDateString()}</div>
-          <div class="payee">Pay to the order of: <strong>${cheque.payee_name}</strong></div>
-          <div class="amount-words">The sum of: ${numberToWords(parseFloat(cheque.amount))} Pesos</div>
-          <div class="amount-figures">₱${parseFloat(cheque.amount).toLocaleString()}</div>
-          <div class="signature">Authorized Signature</div>
-          ${cheque.memo ? `<div class="memo">Memo: ${cheque.memo}</div>` : ''}
-        </div>
-        <script>
-          window.onload = function() {
-            window.print();
-            window.close();
-          }
-        </script>
-      </body>
-      </html>
-    `;
-    printWindow.document.write(chequeHtml);
-    printWindow.document.close();
+  // Print only the cheque content
+  const printCheque = () => {
+    const printContent = document.getElementById('cheque-document');
+    const originalContent = document.body.innerHTML;
+    
+    if (printContent) {
+      document.body.innerHTML = printContent.outerHTML;
+      window.print();
+      document.body.innerHTML = originalContent;
+      window.location.reload(); // Reload to restore React functionality
+    }
   };
 
   // Helper function to convert numbers to words (simplified)
@@ -723,7 +690,20 @@ const IssueCheque = () => {
                         </button>
                         <button 
                           className="print-btn"
-                          onClick={() => printCheque(cheque)}
+                          onClick={() => {
+                            setChequeResult({
+                              id: cheque.id,
+                              chequeNumber: cheque.cheque_number,
+                              payeeName: cheque.payee_name,
+                              amount: cheque.amount,
+                              bankName: cheque.bank_name,
+                              accountNumber: cheque.account_number,
+                              issueDate: cheque.issue_date || cheque.created_at,
+                              memo: cheque.memo
+                            });
+                            setShowSuccessModal(true);
+                            setTimeout(() => printCheque(), 500);
+                          }}
                           title="Print Cheque"
                         >
                           <i className="fas fa-print"></i>
@@ -890,7 +870,21 @@ const IssueCheque = () => {
               <button
                 type="button"
                 className="print-btn"
-                onClick={() => printCheque(selectedCheque)}
+                onClick={() => {
+                  setChequeResult({
+                    id: selectedCheque.id,
+                    chequeNumber: selectedCheque.cheque_number,
+                    payeeName: selectedCheque.payee_name,
+                    amount: selectedCheque.amount,
+                    bankName: selectedCheque.bank_name,
+                    accountNumber: selectedCheque.account_number,
+                    issueDate: selectedCheque.issue_date || selectedCheque.created_at,
+                    memo: selectedCheque.memo
+                  });
+                  setShowChequeModal(false);
+                  setShowSuccessModal(true);
+                  setTimeout(() => printCheque(), 500);
+                }}
               >
                 <i className="fas fa-print"></i> Print Cheque
               </button>
@@ -907,7 +901,7 @@ const IssueCheque = () => {
               <button className="modal-close" onClick={() => setShowSuccessModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
-              <button className="print-btn" onClick={() => window.print()}>
+              <button className="print-btn" onClick={printCheque}>
                 <i className="fas fa-print"></i> Print
               </button>
             </div>

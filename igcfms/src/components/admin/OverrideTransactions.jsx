@@ -256,9 +256,6 @@ const OverrideTransactions = ({ role = "Admin" }) => {
         <h2 className="ot-title">
           <i className="fas fa-edit"></i> Override Transactions
         </h2>
-        <p className="ot-subtitle">
-          Manage transaction override requests and approvals
-        </p>
         <div className="header-actions">
           <button 
             className="create-override-btn"

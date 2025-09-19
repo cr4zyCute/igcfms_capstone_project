@@ -173,7 +173,7 @@ const handleDeleteAccount = async (accountId) => {
       <div className="section-header">
         <div>
           <h3><i className="fas fa-university"></i> Fund Accounts Management</h3>
-          <p>Manage government fund accounts, track balances, and view transaction history</p>
+          <p></p>
         </div>
         <button
           className="btn btn-primary"

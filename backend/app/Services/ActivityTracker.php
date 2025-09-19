@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Mail\ActivityNotificationMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 
 class ActivityTracker
@@ -60,6 +61,12 @@ class ActivityTracker
     private static function createAdminNotifications($activityLog)
     {
         try {
+            // Check if notifications table exists before trying to create notifications
+            if (!\Schema::hasTable('notifications')) {
+                Log::info('Notifications table does not exist, skipping notification creation');
+                return;
+            }
+
             $adminUsers = User::where('role', 'Admin')->get();
             
             foreach ($adminUsers as $admin) {

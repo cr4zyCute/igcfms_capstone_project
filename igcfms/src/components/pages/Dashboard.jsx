@@ -26,7 +26,16 @@ const LoginPrompt = () => (
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTabState] = useState(() => {
+    // Get the saved active tab from localStorage, default to 'dashboard'
+    return localStorage.getItem('igcfms_activeTab') || 'dashboard';
+  });
+
+  // Wrapper function to save to localStorage when tab changes
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    localStorage.setItem('igcfms_activeTab', tab);
+  };
 
   if (loading) {
     return <Loading message="Checking authentication..." />;

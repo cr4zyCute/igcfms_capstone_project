@@ -283,7 +283,39 @@ const DashboardHome = () => {
 
       {/* Enhanced KPI Cards */}
       {loading.stats ? (
-        <StatsSkeleton />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+            <div key={i} style={{
+              background: '#ffffff',
+              border: '2px solid #f0f0f0',
+              borderRadius: '12px',
+              padding: '20px',
+              height: '120px',
+              animation: 'pulse 1.5s ease-in-out infinite alternate'
+            }}>
+              <div style={{
+                width: '60%',
+                height: '16px',
+                background: '#e9ecef',
+                borderRadius: '4px',
+                marginBottom: '12px'
+              }}></div>
+              <div style={{
+                width: '80%',
+                height: '32px',
+                background: '#e9ecef',
+                borderRadius: '6px',
+                marginBottom: '8px'
+              }}></div>
+              <div style={{
+                width: '40%',
+                height: '12px',
+                background: '#e9ecef',
+                borderRadius: '3px'
+              }}></div>
+            </div>
+          ))}
+        </div>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
@@ -313,8 +345,20 @@ const DashboardHome = () => {
             <i className="fas fa-chart-area"></i> Collections vs Disbursements (7 Days)
           </h3>
           {loading.charts ? (
-            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LoadingSpinner size="medium" text="Loading chart data..." />
+            <div style={{
+              height: '300px',
+              background: '#f8f9fa',
+              border: '2px solid #e9ecef',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              animation: 'pulse 1.5s ease-in-out infinite alternate'
+            }}>
+              <div style={{ color: '#6c757d', fontSize: '16px', textAlign: 'center' }}>
+                <i className="fas fa-chart-area fa-2x" style={{ marginBottom: '10px', display: 'block' }}></i>
+                Loading Chart...
+              </div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -339,8 +383,20 @@ const DashboardHome = () => {
             <i className="fas fa-chart-pie"></i> Fund Distribution by Account Type
           </h3>
           {loading.charts ? (
-            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LoadingSpinner size="medium" text="Loading chart data..." />
+            <div style={{
+              height: '300px',
+              background: '#f8f9fa',
+              border: '2px solid #e9ecef',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              animation: 'pulse 1.5s ease-in-out infinite alternate'
+            }}>
+              <div style={{ color: '#6c757d', fontSize: '16px', textAlign: 'center' }}>
+                <i className="fas fa-chart-pie fa-2x" style={{ marginBottom: '10px', display: 'block' }}></i>
+                Loading Chart...
+              </div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -369,8 +425,20 @@ const DashboardHome = () => {
             <i className="fas fa-chart-line"></i> Monthly Revenue Trend (6 Months)
           </h3>
           {loading.charts ? (
-            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LoadingSpinner size="medium" text="Loading chart data..." />
+            <div style={{
+              height: '300px',
+              background: '#f8f9fa',
+              border: '2px solid #e9ecef',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              animation: 'pulse 1.5s ease-in-out infinite alternate'
+            }}>
+              <div style={{ color: '#6c757d', fontSize: '16px', textAlign: 'center' }}>
+                <i className="fas fa-chart-line fa-2x" style={{ marginBottom: '10px', display: 'block' }}></i>
+                Loading Chart...
+              </div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -394,8 +462,20 @@ const DashboardHome = () => {
             <i className="fas fa-building"></i> Department Transaction Volume
           </h3>
           {loading.charts ? (
-            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LoadingSpinner size="medium" text="Loading chart data..." />
+            <div style={{
+              height: '300px',
+              background: '#f8f9fa',
+              border: '2px solid #e9ecef',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              animation: 'pulse 1.5s ease-in-out infinite alternate'
+            }}>
+              <div style={{ color: '#6c757d', fontSize: '16px', textAlign: 'center' }}>
+                <i className="fas fa-building fa-2x" style={{ marginBottom: '10px', display: 'block' }}></i>
+                Loading Chart...
+              </div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>

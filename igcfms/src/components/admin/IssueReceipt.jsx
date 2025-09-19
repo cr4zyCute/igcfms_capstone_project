@@ -286,7 +286,28 @@ const IssueReceipt = () => {
 
   const viewReceiptDetails = (receipt) => {
     setSelectedReceipt(receipt);
-    // Could open a details modal here
+    // Set the receipt result to show the modal
+    setReceiptResult({
+      id: receipt.id,
+      receiptNumber: receipt.receipt_number,
+      transactionId: receipt.transaction_id.toString(),
+      payerName: receipt.payer_name,
+      issueDate: receipt.issued_at || receipt.created_at
+    });
+    setShowReceiptModal(true);
+  };
+
+  // Print only the receipt content
+  const printReceipt = () => {
+    const printContent = document.getElementById('receipt-document');
+    const originalContent = document.body.innerHTML;
+    
+    if (printContent) {
+      document.body.innerHTML = printContent.outerHTML;
+      window.print();
+      document.body.innerHTML = originalContent;
+      window.location.reload(); // Reload to restore React functionality
+    }
   };
 
   // Generate next receipt number
@@ -315,9 +336,6 @@ const IssueReceipt = () => {
         <h2 className="ir-title">
           <i className="fas fa-receipt"></i> Issue Receipt Management
         </h2>
-        <p className="ir-subtitle">
-          Issue official receipts for collection transactions and manage receipt records
-        </p>
       </div>
 
       {error && (
@@ -569,7 +587,10 @@ const IssueReceipt = () => {
                           </button>
                           <button 
                             className="print-btn"
-                            onClick={() => window.print()}
+                            onClick={() => {
+                              viewReceiptDetails(receipt);
+                              setTimeout(() => printReceipt(), 500);
+                            }}
                             title="Print Receipt"
                           >
                             <i className="fas fa-print"></i>
@@ -660,7 +681,7 @@ const IssueReceipt = () => {
               <button className="modal-close" onClick={() => setShowReceiptModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
-              <button className="print-btn" onClick={() => window.print()}>
+              <button className="print-btn" onClick={printReceipt}>
                 <i className="fas fa-print"></i> Print
               </button>
             </div>

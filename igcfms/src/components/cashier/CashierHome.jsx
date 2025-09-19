@@ -115,9 +115,79 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <div className="cashier-spinner-container">
-        <div className="cashier-spinner"></div>
-        <div className="cashier-loading-text">Loading cashier dashboard...</div>
+      <div style={{ padding: '30px' }}>
+        {/* Header */}
+        <div style={{ marginBottom: '30px' }}>
+          <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#000000', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <i className="fas fa-cash-register"></i> Cashier Dashboard
+          </h2>
+          <p style={{ fontSize: '14px', color: '#666666', margin: '0' }}>
+            Transaction processing and financial operations management
+          </p>
+        </div>
+
+        {/* Loading Stats Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+            <div key={i} style={{
+              background: '#ffffff',
+              border: '2px solid #f0f0f0',
+              borderRadius: '12px',
+              padding: '20px',
+              height: '120px',
+              animation: 'pulse 1.5s ease-in-out infinite alternate'
+            }}>
+              <div style={{
+                width: '60%',
+                height: '16px',
+                background: '#e9ecef',
+                borderRadius: '4px',
+                marginBottom: '12px'
+              }}></div>
+              <div style={{
+                width: '80%',
+                height: '32px',
+                background: '#e9ecef',
+                borderRadius: '6px',
+                marginBottom: '8px'
+              }}></div>
+              <div style={{
+                width: '40%',
+                height: '12px',
+                background: '#e9ecef',
+                borderRadius: '3px'
+              }}></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Loading Charts */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px', marginBottom: '30px' }}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} style={{
+              background: '#ffffff',
+              border: '2px solid #f0f0f0',
+              borderRadius: '12px',
+              padding: '25px'
+            }}>
+              <div style={{
+                height: '300px',
+                background: '#f8f9fa',
+                border: '2px solid #e9ecef',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                animation: 'pulse 1.5s ease-in-out infinite alternate'
+              }}>
+                <div style={{ color: '#6c757d', fontSize: '16px', textAlign: 'center' }}>
+                  <i className="fas fa-cash-register fa-2x" style={{ marginBottom: '10px', display: 'block' }}></i>
+                  Loading Chart...
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

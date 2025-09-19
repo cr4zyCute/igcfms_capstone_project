@@ -6,7 +6,7 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
     { id: "receive-money", label: "Receive Money", icon: <i className="fas fa-money-bill-wave"></i> },
     { id: "issue-receipt", label: "Issue-Receipt",  icon: <i className="fas fa-receipt"></i> },
     { id: "issue-money", label: "Issue Money", icon: <i className="fas fa-hand-holding-usd"></i>},
-    { id: "issue-check", label: "Issue Check", icon: <i className="fas fa-money-check-alt"></i> },
+    { id: "issue-check", label: "Issue Cheque", icon: <i className="fas fa-money-check-alt"></i> },
     { id: "view-transactions", label: "View All Transactions", icon: <i className="fas fa-list"></i> },
     { id: "funds-accounts", label: "Funds Accounts", icon: <i className="fas fa-university"></i> },
     { id: "generate-reports", label: "Generate Reports", icon: <i className="fas fa-chart-line"></i> },

@@ -124,7 +124,6 @@ const ActivityDashboard = () => {
           <i className="fas fa-chart-line"></i>
           System Activity Dashboard
         </h2>
-        <p>Real-time monitoring of all user activities</p>
         <div className="dashboard-controls">
           <select 
             value={filters.period} 
