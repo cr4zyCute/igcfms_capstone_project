@@ -1,0 +1,518 @@
+/* Fund Accounts Component Styles */
+.funds-accounts {
+  padding: 20px;
+  background: #ffffff;
+  min-height: 100vh;
+}
+
+/* Header Section */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.section-header h3 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-header p {
+  font-size: 14px;
+  color: #666666;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Buttons */
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: #000000;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #333333;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: #f5f5f5;
+  color: #000000;
+  border: 1px solid #e5e5e5;
+}
+
+.btn-secondary:hover {
+  background: #e5e5e5;
+}
+
+.btn-warning {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.btn-warning:hover {
+  background: #d97706;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Alerts */
+.alert {
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.alert-success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.alert-success::before {
+  content: '✓';
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.alert-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.alert-error::before {
+  content: '⚠';
+  font-weight: bold;
+  font-size: 16px;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease;
+  position: relative;
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal h4 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 25px 0;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #000000;
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Account Cards Grid */
+.accounts-overview {
+  margin-bottom: 40px;
+}
+
+.accounts-overview h4 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #000000;
+  margin-bottom: 20px;
+}
+
+.account-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.account-card {
+  background: #ffffff;
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.account-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #000000, #333333);
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+
+.account-card:hover {
+  border-color: #cccccc;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.account-card:hover::before {
+  transform: scaleX(1);
+}
+
+.account-card.selected {
+  border-color: #000000;
+  background: #fafafa;
+}
+
+.account-card.selected::before {
+  transform: scaleX(1);
+}
+
+.account-card h5 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 8px 0;
+}
+
+.account-card .code {
+  font-size: 12px;
+  color: #666666;
+  font-weight: 600;
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 12px;
+}
+
+.account-card .balance {
+  font-size: 24px;
+  font-weight: 700;
+  color: #000000;
+  margin: 12px 0;
+}
+
+.account-card .type {
+  font-size: 14px;
+  color: #666666;
+  margin: 8px 0;
+  font-weight: 500;
+}
+
+.account-card .department {
+  font-size: 12px;
+  color: #999999;
+  margin-bottom: 15px;
+}
+
+.account-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Account Details Section */
+.account-details {
+  background: #ffffff;
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 25px;
+  margin-top: 30px;
+}
+
+.account-details h4 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #000000;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+/* Table Styles */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+  background: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+table th {
+  background: #f8f9fa;
+  padding: 15px 12px;
+  text-align: left;
+  font-weight: 700;
+  color: #000000;
+  font-size: 14px;
+  border-bottom: 2px solid #e5e5e5;
+}
+
+table td {
+  padding: 15px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+  color: #333333;
+}
+
+table tr:hover {
+  background: #fafafa;
+}
+
+table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Transaction Type Badges */
+.transaction-type {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.transaction-type.collection {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.transaction-type.disbursement {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.text-success {
+  color: #16a34a !important;
+  font-weight: 600;
+}
+
+.text-danger {
+  color: #dc2626 !important;
+  font-weight: 600;
+}
+
+/* Loading Spinner */
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f0f0f0;
+  border-top: 4px solid #000000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666666;
+}
+
+.empty-state h4 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #000000;
+}
+
+.empty-state p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .funds-accounts {
+    padding: 15px;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: stretch;
+  }
+  
+  .account-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .modal {
+    padding: 20px;
+    margin: 10px;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .account-actions {
+    flex-direction: column;
+  }
+  
+  table {
+    font-size: 12px;
+  }
+  
+  table th,
+  table td {
+    padding: 10px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .account-card {
+    padding: 15px;
+  }
+  
+  .account-card .balance {
+    font-size: 20px;
+  }
+  
+  .modal {
+    padding: 15px;
+  }
+}

@@ -2,9 +2,9 @@ import React from 'react';
 
 const CollectingSidebar = ({ activeTab, setActiveTab }) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '' },
-    { id: 'receive-money', label: 'Receive Money', icon: '' },
-    { id: 'issue-receipt', label: 'Issue Receipt', icon: '' },
+    { id: 'dashboard', label: 'Dashboard', icon: <i className="fas fa-tachometer-alt"></i> },
+    { id: 'receive-money', label: 'Receive Money', icon: <i className="fas fa-money-bill-wave"></i>  },
+    { id: 'issue-receipt', label: 'Issue Receipt', icon: <i className="fas fa-receipt"></i>  },
     { id: 'view-transactions', label: 'View Transactions', icon: '' },
     { id: 'daily-summary', label: 'Daily Summary', icon: '' }
   ];

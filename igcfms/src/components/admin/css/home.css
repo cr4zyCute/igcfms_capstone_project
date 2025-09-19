@@ -1,18 +1,13 @@
-/* =======================
-   Admin Dashboard Global
-   ======================= */
+
 
 body, html {
   margin: 0;
   padding: 0;
   font-family: 'Inter', sans-serif;
-  background-color: #f9fafb; /* light gray background */
-  color: #1f2937; /* gray-800 */
+  background-color: #f9fafb;
+  color: #1f2937; 
 }
 
-/* =======================
-   Layout & Grid
-   ======================= */
 
 .admin-page {
   min-height: 100vh;

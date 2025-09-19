@@ -67,7 +67,7 @@ const Navbar = ({ userRole, user, onToggleSidebar }) => {
               <span className="user-email">{user?.email}</span>
               <span className="user-role">{userRole}</span>
             </div>
-            <span className={`dropdown-arrow ${isProfileOpen ? 'open' : ''}`}>▼</span>
+            <span className={`dropdown-arrow ${isProfileOpen ? 'open' : ''}`}></span>
           </button>
 
           {isProfileOpen && (
