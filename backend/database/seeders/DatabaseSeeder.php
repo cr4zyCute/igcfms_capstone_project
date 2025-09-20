@@ -48,5 +48,10 @@ class DatabaseSeeder extends Seeder
             'role' => 'Cashier',
             'name' => 'Marvic Pajaganas',
         ]);
+
+        // Call other seeders
+        $this->call([
+            RecipientAccountSeeder::class,
+        ]);
     }
 }

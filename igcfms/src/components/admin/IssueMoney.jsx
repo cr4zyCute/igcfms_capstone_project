@@ -16,8 +16,6 @@ const IssueMoney = () => {
     referenceNo: "",
     fundAccountId: "",
     description: "",
-    department: "",
-    category: "",
     modeOfPayment: "Cash",
     chequeNumber: "",
   });
@@ -92,7 +90,7 @@ const IssueMoney = () => {
   };
 
   const validateForm = () => {
-    const { amount, payeeName, referenceNo, fundAccountId, department, category, modeOfPayment, chequeNumber } = formData;
+    const { amount, payeeName, referenceNo, fundAccountId, modeOfPayment, chequeNumber } = formData;
 
     if (!amount || parseFloat(amount) <= 0) {
       showMessage("Please enter a valid amount.", 'error');
@@ -108,14 +106,6 @@ const IssueMoney = () => {
     }
     if (!fundAccountId) {
       showMessage("Please select a fund account.", 'error');
-      return false;
-    }
-    if (!department) {
-      showMessage("Please select a department.", 'error');
-      return false;
-    }
-    if (!category) {
-      showMessage("Please select a category.", 'error');
       return false;
     }
     if (modeOfPayment === "Cheque" && !chequeNumber.trim()) {
@@ -147,8 +137,8 @@ const IssueMoney = () => {
         amount: parseFloat(formData.amount),
         description: formData.description.trim() || `Disbursement to ${formData.payeeName}`,
         recipient: formData.payeeName.trim(),
-        department: formData.department,
-        category: formData.category,
+        department: "General", // Default value since field is required
+        category: "Disbursement", // Default value since field is required
         reference: formData.referenceNo.trim(),
         reference_no: formData.referenceNo.trim(),
         fund_account_id: parseInt(formData.fundAccountId),
@@ -194,8 +184,6 @@ const IssueMoney = () => {
         referenceNo: "",
         fundAccountId: "",
         description: "",
-        department: "",
-        category: "",
         modeOfPayment: "Cash",
         chequeNumber: "",
       });
@@ -218,17 +206,7 @@ const IssueMoney = () => {
     }
   };
 
-  const departments = [
-    "Finance", "Administration", "Operations", "HR", "IT", "Legal",
-    "Procurement", "Public Works", "Health Services", "Education", 
-    "Social Services", "Other"
-  ];
-
-  const categories = [
-    "Salaries", "Office Supplies", "Equipment", "Utilities", "Travel",
-    "Professional Services", "Maintenance", "Insurance", "Training",
-    "Communications", "Rent", "Other"
-  ];
+  // Department and category removed as requested - using default values in backend
 
   if (loading && fundAccounts.length === 0) {
     return (
@@ -335,34 +313,7 @@ const IssueMoney = () => {
               </div>
             )}
 
-            <div className="form-row">
-              <div className="form-group">
-                <label>Department *</label>
-                <select
-                  value={formData.department}
-                  onChange={(e) => handleInputChange('department', e.target.value)}
-                  required
-                >
-                  <option value="">-- Select Department --</option>
-                  {departments.map(dept => (
-                    <option key={dept} value={dept}>{dept}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Category *</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => handleInputChange('category', e.target.value)}
-                  required
-                >
-                  <option value="">-- Select Category --</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            {/* Department and Category removed as requested */}
 
             <div className="form-group">
               <label>Fund Account *</label>
@@ -488,14 +439,7 @@ const IssueMoney = () => {
                     <span>{formData.chequeNumber}</span>
                   </div>
                 )}
-                <div className="detail-item">
-                  <label>Department:</label>
-                  <span>{formData.department}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Category:</label>
-                  <span>{formData.category}</span>
-                </div>
+                {/* Department and Category removed as requested */}
               </div>
               <p className="confirmation-message">
                 Are you sure you want to create this disbursement?

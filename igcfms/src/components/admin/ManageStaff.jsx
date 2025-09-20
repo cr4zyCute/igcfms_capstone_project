@@ -5,9 +5,13 @@ import { getUsers, createUser, toggleUserStatus } from "../../services/api";
 const ManageStaff = () => {
   const [staffMembers, setStaffMembers] = useState([]);
   const [showAddStaff, setShowAddStaff] = useState(false);
+  const [showEditStaff, setShowEditStaff] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterRole, setFilterRole] = useState("all");
+  const [editingStaff, setEditingStaff] = useState(null);
 
   const [newStaff, setNewStaff] = useState({
     name: "",
@@ -15,6 +19,8 @@ const ManageStaff = () => {
     role: "Cashier",
     password: "",
   });
+
+  const roles = ["Admin", "Cashier", "Collecting Officer", "Disbursing Officer"];
 
   useEffect(() => {
     fetchStaffMembers();
@@ -51,16 +57,49 @@ const ManageStaff = () => {
     }
   };
 
-  const handleToggleStatus = async (id) => {
+  const handleToggleStatus = async (userId) => {
     try {
-      await toggleUserStatus(id);
+      await toggleUserStatus(userId);
       setSuccess("Staff status updated successfully!");
-      fetchStaffMembers();
+      fetchStaffMembers(); // Refresh the list
     } catch (err) {
       setError("Failed to update staff status. Please try again.");
-      console.error("Error updating staff status:", err);
+      console.error("Error toggling status:", err);
     }
   };
+
+  const handleEditStaff = (staff) => {
+    setEditingStaff(staff);
+    setNewStaff({
+      name: staff.name,
+      email: staff.email,
+      role: staff.role,
+      password: "",
+    });
+    setShowEditStaff(true);
+  };
+
+  // Filter and search functionality
+  const filteredStaff = staffMembers.filter((staff) => {
+    const matchesSearch =
+      staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      staff.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === "all" || staff.role === filterRole;
+    return matchesSearch && matchesRole;
+  });
+
+  const getStaffStats = () => {
+    return {
+      total: staffMembers.length,
+      active: staffMembers.filter((s) => s.status === "active").length,
+      admin: staffMembers.filter((s) => s.role === "Admin").length,
+      cashier: staffMembers.filter((s) => s.role === "Cashier").length,
+      collector: staffMembers.filter((s) => s.role === "Collecting Officer").length,
+      disburser: staffMembers.filter((s) => s.role === "Disbursing Officer").length,
+    };
+  };
+
+  const stats = getStaffStats();
 
   if (loading) {
     return (
@@ -72,15 +111,78 @@ const ManageStaff = () => {
 
   return (
     <div className="staff-management">
-      <div className="section-header">
-        <h3>Staff Management</h3>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowAddStaff(true)}
-          disabled={loading}
-        >
-          Add New Staff
+      {/* Header Section */}
+      <div className="funds-header">
+        <div className="header-content">
+          <div className="header-text">
+            <h1 className="header-title">
+              <i className="fas fa-users-cog"></i>
+              Staff Management
+            </h1>
+            <p className="header-subtitle">
+              Manage system users, roles, and access permissions
+            </p>
+          </div>
+        </div>
+        <button className="add-recipient-btn" onClick={() => setShowAddStaff(true)}>
+          <i className="fas fa-user-plus"></i> Add New Staff
         </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="recipient-stats">
+        <div className="stat-card">
+          <div className="stat-icon total">
+            <i className="fas fa-users"></i>
+          </div>
+          <div className="stat-value">{stats.total}</div>
+          <div className="stat-label">Total Staff</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon active">
+            <i className="fas fa-user-check"></i>
+          </div>
+          <div className="stat-value">{stats.active}</div>
+          <div className="stat-label">Active Users</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon admin">
+            <i className="fas fa-user-shield"></i>
+          </div>
+          <div className="stat-value">{stats.admin}</div>
+          <div className="stat-label">Administrators</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon cashier">
+            <i className="fas fa-cash-register"></i>
+          </div>
+          <div className="stat-value">{stats.cashier}</div>
+          <div className="stat-label">Cashiers</div>
+        </div>
+      </div>
+
+      {/* Search and Filter */}
+      <div className="search-filter-section">
+        <div className="search-box">
+          <i className="fas fa-search"></i>
+          <input
+            type="text"
+            placeholder="Search staff by name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="filter-dropdown">
+          <select
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+          >
+            <option value="all">All Roles</option>
+            {roles.map(role => (
+              <option key={role} value={role}>{role}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -173,8 +275,8 @@ const ManageStaff = () => {
             </tr>
           </thead>
           <tbody>
-            {staffMembers.length > 0 ? (
-              staffMembers.map((staff) => (
+            {filteredStaff.length > 0 ? (
+              filteredStaff.map((staff) => (
                 <tr key={staff.id}>
                   <td>{staff.id}</td>
                   <td>{staff.name}</td>

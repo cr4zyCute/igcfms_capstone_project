@@ -8,6 +8,7 @@ import ViewTransactions from "./ViewTransactions";
 import GenerateReports from "./GenerateReports";
 import ManageStaff from "./ManageStaff";
 import FundsAccounts from "./FundsAccounts";
+import RecipientAccount from "./RecipientAccount";
 import OverrideTransactions from "./OverrideTransactions";
 import SystemSettings from "./SystemSettings";
 import TransactionManagement from "./TransactionManagement";
@@ -35,6 +36,8 @@ const AdminDashboard = ({ user, activeTab }) => {
         return <ManageStaff />;
       case "funds-accounts":
         return <FundsAccounts />;
+      case "recipient-account":
+        return <RecipientAccount />;
       case "override-transactions":
         return <OverrideTransactions />;
       case "system-settings":

@@ -223,13 +223,17 @@ const handleDeleteAccount = async (accountId) => {
                 <label>Account Code</label>
                 <input
                   type="text"
-                  value={newAccount.code}
-                  onChange={(e) =>
-                    setNewAccount({ ...newAccount, code: e.target.value })
-                  }
-                  required
-                  disabled={loading}
+                  value="Auto-generated based on account type"
+                  disabled
+                  style={{ 
+                    backgroundColor: '#f5f5f5', 
+                    color: '#666',
+                    fontStyle: 'italic'
+                  }}
                 />
+                <small style={{ color: '#666', fontSize: '12px' }}>
+                  Account code will be automatically generated (e.g., REV001, EXP002)
+                </small>
               </div>
               <div className="form-group">
                 <label>Description</label>
@@ -282,7 +286,7 @@ const handleDeleteAccount = async (accountId) => {
               </div>
               <div className="form-group">
                 <label>Department</label>
-                <select
+                {/* <select
                   value={newAccount.department}
                   onChange={(e) =>
                     setNewAccount({ ...newAccount, department: e.target.value })
@@ -302,7 +306,7 @@ const handleDeleteAccount = async (accountId) => {
                   <option value="Education">Education</option>
                   <option value="Social Services">Social Services</option>
                   <option value="Revenue">Revenue</option>
-                </select>
+                </select> */}
               </div>
               <div className="form-actions">
                 <button
@@ -417,7 +421,7 @@ const handleDeleteAccount = async (accountId) => {
               </div>
               <div className="form-group">
                 <label>Department</label>
-                <select
+                {/* <select
                   value={editAccount.department}
                   onChange={(e) =>
                     setEditAccount({ ...editAccount, department: e.target.value })
@@ -437,7 +441,7 @@ const handleDeleteAccount = async (accountId) => {
                   <option value="Education">Education</option>
                   <option value="Social Services">Social Services</option>
                   <option value="Revenue">Revenue</option>
-                </select>
+                </select> */}
               </div>
               <div className="form-actions">
                 <button

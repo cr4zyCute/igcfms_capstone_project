@@ -15,6 +15,7 @@ use App\Http\Controllers\DisbursementController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\RecipientAccountController;
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
@@ -112,3 +113,15 @@ Route::get('/override_requests', [OverrideRequestController::class, 'index'])->m
 
 // Admin reviews request
 Route::put('/override_requests/{id}/review', [OverrideRequestController::class, 'review'])->middleware('auth:sanctum');
+
+// Recipient Account routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/recipient-accounts', [RecipientAccountController::class, 'index']);
+    Route::post('/recipient-accounts', [RecipientAccountController::class, 'store']);
+    Route::get('/recipient-accounts/{recipientAccount}', [RecipientAccountController::class, 'show']);
+    Route::put('/recipient-accounts/{recipientAccount}', [RecipientAccountController::class, 'update']);
+    Route::delete('/recipient-accounts/{recipientAccount}', [RecipientAccountController::class, 'destroy']);
+    Route::patch('/recipient-accounts/{recipientAccount}/toggle-status', [RecipientAccountController::class, 'toggleStatus']);
+    Route::get('/recipient-accounts-fund-accounts', [RecipientAccountController::class, 'getFundAccounts']);
+    Route::get('/recipient-accounts-stats', [RecipientAccountController::class, 'getStats']);
+});

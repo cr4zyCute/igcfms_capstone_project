@@ -30,12 +30,14 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
       {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
       
       <div className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
-        <div className="sidebar-header">
-            <div className="logo">
-            {/* logo here please  */}
-            </div>
-              <h1 className="navbar-title">IGCFMS</h1>
+      <div className="sidebar-header">
+        <div className="logo-container">
+          <div className="logo-circle">
+            <span>LOGO</span>
+          </div>
+          <h2 className="system-title">IGCFMS</h2>
         </div>
+      </div>
         {renderSidebarContent()}
       </div>
     </>

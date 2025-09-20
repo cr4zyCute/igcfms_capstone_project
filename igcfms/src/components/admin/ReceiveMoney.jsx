@@ -9,8 +9,7 @@ const ReceiveMoney = () => {
   const [receiptNo, setReceiptNo] = useState(""); // Will be auto-generated
   const [fundAccountId, setFundAccountId] = useState("");
   const [description, setDescription] = useState("");
-  const [department, setDepartment] = useState("");
-  const [category, setCategory] = useState("");
+  // Removed department and category as requested
   const [reference, setReference] = useState("");
   const [modeOfPayment, setModeOfPayment] = useState("Cash");
   const [message, setMessage] = useState("");
@@ -45,8 +44,8 @@ const ReceiveMoney = () => {
         amount: parseFloat(amount),
         description: description.trim() || null,
         recipient: payerName.trim(),
-        department: department.trim(),
-        category: category.trim(),
+        department: "General", // Default value since field is required
+        category: "Revenue Collection", // Default value since field is required
         reference: reference.trim() || null,
         fund_account_id: fundAccountId ? parseInt(fundAccountId) : null,
         mode_of_payment: modeOfPayment,
@@ -69,8 +68,8 @@ const ReceiveMoney = () => {
       setReceiptNo("");
       setFundAccountId("");
       setDescription("");
-      setDepartment("");
-      setCategory("");
+     // setDepartment("");
+      //setCategory("");
       setReference("");
       setModeOfPayment("Cash");
       
@@ -109,45 +108,7 @@ const ReceiveMoney = () => {
         required
       />
 
-      <select
-        value={department}
-        onChange={(e) => setDepartment(e.target.value)}
-        className="border p-2 w-full mb-2"
-        required
-      >
-        <option value="">-- Select Department --</option>
-        <option value="Finance">Finance</option>
-        <option value="Administration">Administration</option>
-        <option value="Operations">Operations</option>
-        <option value="Human Resources">Human Resources</option>
-        <option value="Information Technology">Information Technology</option>
-        <option value="Legal">Legal</option>
-        <option value="Procurement">Procurement</option>
-        <option value="Public Works">Public Works</option>
-        <option value="Health Services">Health Services</option>
-        <option value="Education">Education</option>
-        <option value="Social Services">Social Services</option>
-        <option value="Other">Other</option>
-      </select>
-
-      <select
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        className="border p-2 w-full mb-2"
-        required
-      >
-        <option value="">-- Select Category --</option>
-        <option value="Tax Collection">Tax Collection</option>
-        <option value="Permit Fees">Permit Fees</option>
-        <option value="License Fees">License Fees</option>
-        <option value="Service Fees">Service Fees</option>
-        <option value="Fines and Penalties">Fines and Penalties</option>
-        <option value="Rental Income">Rental Income</option>
-        <option value="Interest Income">Interest Income</option>
-        <option value="Grants and Donations">Grants and Donations</option>
-        <option value="Miscellaneous Revenue">Miscellaneous Revenue</option>
-        <option value="Other">Other</option>
-      </select>
+      {/* Department and Category removed as requested - using default values in backend */}
 
       <input
         placeholder="Reference (optional)"

@@ -43,21 +43,24 @@ class FundAccountController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:fund_accounts,code',
             'description' => 'nullable|string',
             'initial_balance' => 'required|numeric|min:0',
             'account_type' => 'required|in:Revenue,Expense,Asset,Liability,Equity',
             'department' => 'nullable|string|max:255',
         ]);
 
+        // Auto-generate account code
+        $accountCode = $this->generateAccountCode($request->account_type);
+
         $account = FundAccount::create([
             'name' => $request->name,
-            'code' => $request->code,
+            'code' => $accountCode,
             'description' => $request->description,
             'initial_balance' => $request->initial_balance,
+            'current_balance' => $request->initial_balance, // Set current balance to initial balance
             'account_type' => $request->account_type,
             'department' => $request->department,
-            'created_by' => $request->created_by,
+            'created_by' => Auth::id(),
         ]);
 
         // Track fund account creation
@@ -65,6 +68,41 @@ class FundAccountController extends Controller
 
         return response()->json($account, 201);
     }
+
+    /**
+     * Generate unique account code based on account type
+     */
+    private function generateAccountCode($accountType)
+    {
+        // Define prefixes for each account type
+        $prefixes = [
+            'Revenue' => 'REV',
+            'Expense' => 'EXP',
+            'Asset' => 'AST',
+            'Liability' => 'LIB',
+            'Equity' => 'EQT'
+        ];
+
+        $prefix = $prefixes[$accountType] ?? 'GEN';
+        
+        // Get the latest account with this prefix
+        $latestAccount = FundAccount::where('code', 'like', $prefix . '%')
+            ->orderBy('code', 'desc')
+            ->first();
+
+        if ($latestAccount) {
+            // Extract the number from the latest code and increment
+            $latestNumber = (int) substr($latestAccount->code, strlen($prefix));
+            $newNumber = $latestNumber + 1;
+        } else {
+            // Start with 1 if no accounts exist with this prefix
+            $newNumber = 1;
+        }
+
+        // Format with leading zeros (e.g., REV001, EXP002)
+        return $prefix . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
+    }
+
     public function update(Request $request, $id)
     {
         $account = FundAccount::findOrFail($id);
