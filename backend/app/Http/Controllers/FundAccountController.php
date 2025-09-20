@@ -26,7 +26,7 @@ class FundAccountController extends Controller
 
 
 
-    // Show transactions of a single fund account
+    // Show a single fund account with computed current_balance and transactions
     public function show($id)
     {
         $account = FundAccount::with('transactions')->find($id);
@@ -35,7 +35,11 @@ class FundAccountController extends Controller
             return response()->json(['message' => 'Fund account not found.'], 404);
         }
 
-        return response()->json($account->transactions);
+        // Compute current_balance from initial_balance + sum(transactions.amount)
+        $transactionsSum = $account->transactions()->sum('amount');
+        $account->current_balance = $account->initial_balance + $transactionsSum;
+
+        return response()->json($account);
     }
 
     // Create a new fund account

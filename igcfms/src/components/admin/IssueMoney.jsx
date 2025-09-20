@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./css/issuemoney.css";
+import notificationService from "../../services/notificationService";
+import balanceService from "../../services/balanceService";
 
 const IssueMoney = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [fundAccounts, setFundAccounts] = useState([]);
+  const [recipientAccounts, setRecipientAccounts] = useState([]);
   const [recentDisbursements, setRecentDisbursements] = useState([]);
   
   // Form states
   const [formData, setFormData] = useState({
     amount: "",
-    payeeName: "",
+    recipientAccountId: "",
     referenceNo: "",
     fundAccountId: "",
     description: "",
     modeOfPayment: "Cash",
     chequeNumber: "",
+    purpose: "",
   });
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -44,13 +48,47 @@ const IssueMoney = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch fund accounts and recent disbursements
-      const [fundsRes, transactionsRes] = await Promise.all([
+      // Fetch fund accounts, recipient accounts, and recent disbursements
+      const [fundsRes, recipientsRes, transactionsRes] = await Promise.all([
         axios.get(`${API_BASE}/fund-accounts`, { headers }),
+        axios.get(`${API_BASE}/recipient-accounts`, { headers }).catch((err) => {
+          console.warn('Failed to fetch recipient accounts:', err);
+          // Return mock data if API endpoint doesn't exist
+          return { 
+            data: [
+              {
+                id: 1,
+                name: "Boy Bawang Supplier",
+                fund_code: "SUP001",
+                contact_person: "Juan Dela Cruz",
+                status: "active"
+              },
+              {
+                id: 2,
+                name: "Office Equipment Supplier",
+                fund_code: "SUP002", 
+                contact_person: "Maria Santos",
+                status: "active"
+              },
+              {
+                id: 3,
+                name: "John Doe Employee",
+                fund_code: "EMP001",
+                contact_person: "John Doe",
+                status: "active"
+              }
+            ]
+          };
+        }),
         axios.get(`${API_BASE}/transactions`, { headers })
       ]);
 
-      setFundAccounts(fundsRes.data || []);
+      // Ensure data is always an array
+      const fundAccountsData = Array.isArray(fundsRes.data) ? fundsRes.data : (fundsRes.data?.data || []);
+      const recipientAccountsData = Array.isArray(recipientsRes.data) ? recipientsRes.data : (recipientsRes.data?.data || []);
+      
+      setFundAccounts(fundAccountsData);
+      setRecipientAccounts(recipientAccountsData);
       
       // Filter recent disbursements
       const allTransactions = transactionsRes.data || [];
@@ -89,15 +127,15 @@ const IssueMoney = () => {
     }, 5000);
   };
 
-  const validateForm = () => {
-    const { amount, payeeName, referenceNo, fundAccountId, modeOfPayment, chequeNumber } = formData;
+  const validateForm = async () => {
+    const { amount, recipientAccountId, referenceNo, fundAccountId, modeOfPayment, chequeNumber, purpose } = formData;
 
     if (!amount || parseFloat(amount) <= 0) {
       showMessage("Please enter a valid amount.", 'error');
       return false;
     }
-    if (!payeeName.trim()) {
-      showMessage("Please enter payee name.", 'error');
+    if (!recipientAccountId) {
+      showMessage("Please select a recipient account.", 'error');
       return false;
     }
     if (!referenceNo.trim()) {
@@ -108,8 +146,62 @@ const IssueMoney = () => {
       showMessage("Please select a fund account.", 'error');
       return false;
     }
+    if (!purpose.trim()) {
+      showMessage("Please enter the purpose of payment.", 'error');
+      return false;
+    }
     if (modeOfPayment === "Cheque" && !chequeNumber.trim()) {
       showMessage("Please enter cheque number.", 'error');
+      return false;
+    }
+
+    // Check fund balance using the loaded fund accounts data
+    try {
+      const selectedFund = Array.isArray(fundAccounts) 
+        ? fundAccounts.find(fund => fund.id === parseInt(fundAccountId))
+        : null;
+        
+      if (!selectedFund) {
+        showMessage("Selected fund account not found. Please refresh and try again.", 'error');
+        return false;
+      }
+
+      // Use the current_balance from the fund account data
+      const currentBalance = parseFloat(selectedFund.current_balance || 0);
+      const requestedAmount = parseFloat(amount);
+      
+      console.log('Fund Balance Check:', {
+        fundName: selectedFund.name,
+        currentBalance,
+        requestedAmount,
+        sufficient: currentBalance >= requestedAmount
+      });
+
+      if (requestedAmount > currentBalance) {
+        showMessage(`Insufficient funds. Available balance: ₱${currentBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
+        return false;
+      }
+
+      // Also try to get the latest balance from the service as a backup check
+      try {
+        const serviceBalance = await balanceService.getFundBalance(parseInt(fundAccountId));
+        const latestBalance = parseFloat(serviceBalance || 0);
+        
+        // Use the higher of the two balances (in case of sync issues)
+        const actualBalance = Math.max(currentBalance, latestBalance);
+        
+        if (requestedAmount > actualBalance) {
+          showMessage(`Insufficient funds. Available balance: ₱${actualBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
+          return false;
+        }
+      } catch (serviceError) {
+        console.warn('Balance service check failed, using fund account data:', serviceError);
+        // Continue with the fund account balance if service fails
+      }
+      
+    } catch (error) {
+      console.error('Balance validation error:', error);
+      showMessage("Error checking fund balance. Please try again.", 'error');
       return false;
     }
 
@@ -119,7 +211,8 @@ const IssueMoney = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
+    const isValid = await validateForm();
+    if (!isValid) return;
     
     setShowConfirmModal(true);
   };
@@ -131,19 +224,42 @@ const IssueMoney = () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Create transaction
+      // Get recipient account details with safety checks
+      const selectedRecipient = Array.isArray(recipientAccounts) 
+        ? recipientAccounts.find(recipient => recipient.id === parseInt(formData.recipientAccountId))
+        : null;
+      const selectedFund = Array.isArray(fundAccounts) 
+        ? fundAccounts.find(fund => fund.id === parseInt(formData.fundAccountId))
+        : null;
+
+      // Create transaction with enhanced audit trail
       const transactionPayload = {
         type: "Disbursement",
         amount: parseFloat(formData.amount),
-        description: formData.description.trim() || `Disbursement to ${formData.payeeName}`,
-        recipient: formData.payeeName.trim(),
+        description: formData.description.trim() || `${formData.purpose} - Payment to ${selectedRecipient?.name || 'Recipient'}`,
+        recipient: selectedRecipient?.name || 'Unknown Recipient',
+        recipient_account_id: parseInt(formData.recipientAccountId),
         department: "General", // Default value since field is required
         category: "Disbursement", // Default value since field is required
         reference: formData.referenceNo.trim(),
         reference_no: formData.referenceNo.trim(),
         fund_account_id: parseInt(formData.fundAccountId),
         mode_of_payment: formData.modeOfPayment,
+        purpose: formData.purpose.trim(),
+        cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
+        issued_by: parseInt(userId),
         created_by: parseInt(userId),
+        audit_trail: {
+          action: "MONEY_ISSUED",
+          fund_account: selectedFund?.name || `Fund #${formData.fundAccountId}`,
+          recipient_account: selectedRecipient?.name || `Recipient #${formData.recipientAccountId}`,
+          amount: parseFloat(formData.amount),
+          purpose: formData.purpose.trim(),
+          payment_method: formData.modeOfPayment,
+          reference: formData.referenceNo.trim(),
+          timestamp: new Date().toISOString(),
+          user_id: parseInt(userId)
+        }
       };
 
       const transactionRes = await axios.post(
@@ -157,9 +273,13 @@ const IssueMoney = () => {
       // Create disbursement record
       const disbursementPayload = {
         transaction_id: transactionId,
-        payee_name: formData.payeeName.trim(),
+        payee_name: selectedRecipient?.name || 'Unknown Recipient',
+        recipient_account_id: parseInt(formData.recipientAccountId),
         method: formData.modeOfPayment,
+        purpose: formData.purpose.trim(),
         cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
+        fund_account_id: parseInt(formData.fundAccountId),
+        issued_by: parseInt(userId),
       };
 
       await axios.post(
@@ -168,24 +288,98 @@ const IssueMoney = () => {
         { headers }
       );
 
+      // selectedFund already declared above
+      
+      // Process transaction and update balance
+      const currentBalance = parseFloat(selectedFund?.current_balance || 0);
+      const amountToDeduct = parseFloat(formData.amount);
+      const newBalance = currentBalance - amountToDeduct;
+      
+      console.log('Processing balance update:', {
+        fund_account_id: parseInt(formData.fundAccountId),
+        amount: amountToDeduct,
+        current_balance_before: currentBalance,
+        new_balance_calculated: newBalance,
+        operation: 'SUBTRACT (ISSUE_MONEY)'
+      });
+      
+      try {
+        // Try balance service first
+        const balanceUpdateResult = await balanceService.processTransaction('ISSUE_MONEY', {
+          fund_account_id: parseInt(formData.fundAccountId),
+          amount: amountToDeduct,
+          recipient: selectedRecipient?.name || 'Unknown Recipient',
+          fund_account_name: selectedFund?.name || `Fund Account #${formData.fundAccountId}`,
+          transaction_id: transactionId,
+          payee_name: selectedRecipient?.name || 'Unknown Recipient',
+          purpose: formData.purpose.trim()
+        });
+        
+        console.log('Balance service update completed:', balanceUpdateResult);
+        
+        // Update local fund accounts state
+        setFundAccounts(prevAccounts => 
+          prevAccounts.map(account => 
+            account.id === parseInt(formData.fundAccountId)
+              ? { ...account, current_balance: balanceUpdateResult.newBalance }
+              : account
+          )
+        );
+        
+      } catch (balanceError) {
+        console.error('Balance service failed, trying direct update:', balanceError);
+        
+        // Fallback: Direct API call to update fund account balance
+        try {
+          await axios.put(
+            `${API_BASE}/fund-accounts/${formData.fundAccountId}`,
+            { current_balance: newBalance },
+            { headers }
+          );
+          
+          console.log('Direct balance update successful:', {
+            old_balance: currentBalance,
+            new_balance: newBalance,
+            amount_deducted: amountToDeduct
+          });
+          
+          // Update local state
+          setFundAccounts(prevAccounts => 
+            prevAccounts.map(account => 
+              account.id === parseInt(formData.fundAccountId)
+                ? { ...account, current_balance: newBalance }
+                : account
+            )
+          );
+          
+        } catch (directUpdateError) {
+          console.error('Direct balance update also failed:', directUpdateError);
+          showMessage('Transaction created but balance update failed. Please refresh the page.', 'error');
+        }
+      }
+
       setDisbursementResult({
         transactionId,
         amount: formData.amount,
-        payeeName: formData.payeeName,
+        recipientName: selectedRecipient?.name || 'Unknown Recipient',
+        recipientAccount: selectedRecipient?.fund_code || 'N/A',
         referenceNo: formData.referenceNo,
+        purpose: formData.purpose,
         modeOfPayment: formData.modeOfPayment,
-        chequeNumber: formData.chequeNumber
+        chequeNumber: formData.chequeNumber,
+        fundAccount: selectedFund?.name || 'Unknown Fund'
       });
 
       // Reset form
       setFormData({
         amount: "",
-        payeeName: "",
+        recipientAccountId: "",
         referenceNo: "",
         fundAccountId: "",
         description: "",
         modeOfPayment: "Cash",
         chequeNumber: "",
+        purpose: "",
       });
 
       setShowSuccessModal(true);
@@ -208,7 +402,7 @@ const IssueMoney = () => {
 
   // Department and category removed as requested - using default values in backend
 
-  if (loading && fundAccounts.length === 0) {
+  if (loading && (!Array.isArray(fundAccounts) || fundAccounts.length === 0)) {
     return (
       <div className="issue-money-loading">
         <div className="spinner"></div>
@@ -247,19 +441,37 @@ const IssueMoney = () => {
         <div className="disbursement-form-section">
           <div className="form-header">
             <h3><i className="fas fa-plus-circle"></i> Create New Disbursement</h3>
+            <button 
+              type="button" 
+              className="refresh-btn"
+              onClick={fetchInitialData}
+              disabled={loading}
+              title="Refresh fund balances"
+            >
+              <i className="fas fa-sync-alt"></i> Refresh
+            </button>
           </div>
           
           <form onSubmit={handleSubmit} className="disbursement-form">
             <div className="form-row">
               <div className="form-group">
-                <label>Payee Name *</label>
-                <input
-                  type="text"
-                  placeholder="Enter payee name"
-                  value={formData.payeeName}
-                  onChange={(e) => handleInputChange('payeeName', e.target.value)}
+                <label>Recipient Account *</label>
+                <select
+                  value={formData.recipientAccountId}
+                  onChange={(e) => handleInputChange('recipientAccountId', e.target.value)}
                   required
-                />
+                >
+                  <option value="">-- Select Recipient Account --</option>
+                  {Array.isArray(recipientAccounts) && recipientAccounts.length > 0 ? (
+                    recipientAccounts.map((recipient) => (
+                      <option key={recipient.id} value={recipient.id}>
+                        {recipient.name} ({recipient.fund_code}) - {recipient.contact_person}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No recipient accounts available</option>
+                  )}
+                </select>
               </div>
               <div className="form-group">
                 <label>Reference Number *</label>
@@ -275,16 +487,63 @@ const IssueMoney = () => {
 
             <div className="form-row">
               <div className="form-group">
-                <label>Amount (₱) *</label>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={formData.amount}
-                  onChange={(e) => handleInputChange('amount', e.target.value)}
-                  min="0.01"
-                  step="0.01"
+                <label>Purpose of Payment *</label>
+                <select
+                  value={formData.purpose}
+                  onChange={(e) => handleInputChange('purpose', e.target.value)}
                   required
-                />
+                >
+                  <option value="">-- Select Purpose --</option>
+                  <option value="Salary">Salary Payment</option>
+                  <option value="Reimbursement">Reimbursement</option>
+                  <option value="Supplier Payment">Supplier Payment</option>
+                  <option value="Contractor Payment">Contractor Payment</option>
+                  <option value="Utility Bills">Utility Bills</option>
+                  <option value="Office Supplies">Office Supplies</option>
+                  <option value="Professional Services">Professional Services</option>
+                  <option value="Travel Expenses">Travel Expenses</option>
+                  <option value="Equipment Purchase">Equipment Purchase</option>
+                  <option value="Maintenance">Maintenance & Repairs</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Fund Account (Source) *</label>
+                <select
+                  value={formData.fundAccountId}
+                  onChange={(e) => handleInputChange('fundAccountId', e.target.value)}
+                  required
+                >
+                  <option value="">-- Select Fund Account --</option>
+                  {Array.isArray(fundAccounts) && fundAccounts.length > 0 ? (
+                    fundAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.code}) - ₱{parseFloat(acc.current_balance || 0).toLocaleString()}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No fund accounts available</option>
+                  )}
+                </select>
+                {formData.fundAccountId && (
+                  <div className="balance-info">
+                    {(() => {
+                      const selectedFund = fundAccounts.find(f => f.id === parseInt(formData.fundAccountId));
+                      return selectedFund ? (
+                        <small className="balance-display">
+                          <i className="fas fa-wallet"></i> 
+                          Available: ₱{parseFloat(selectedFund.current_balance || 0).toLocaleString()}
+                        </small>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+ 
               </div>
               <div className="form-group">
                 <label>Payment Mode *</label>
@@ -313,23 +572,7 @@ const IssueMoney = () => {
               </div>
             )}
 
-            {/* Department and Category removed as requested */}
-
-            <div className="form-group">
-              <label>Fund Account *</label>
-              <select
-                value={formData.fundAccountId}
-                onChange={(e) => handleInputChange('fundAccountId', e.target.value)}
-                required
-              >
-                <option value="">-- Select Fund Account --</option>
-                {fundAccounts.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name} ({acc.code}) - {acc.account_type} - ₱{parseFloat(acc.current_balance || 0).toLocaleString()}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Fund Account selection moved above with Purpose */}
 
             <div className="form-group">
               <label>Description</label>
@@ -418,12 +661,20 @@ const IssueMoney = () => {
             <div className="modal-body">
               <div className="confirmation-details">
                 <div className="detail-item">
-                  <label>Payee Name:</label>
-                  <span>{formData.payeeName}</span>
+                  <label>Recipient Account:</label>
+                  <span>{Array.isArray(recipientAccounts) ? recipientAccounts.find(r => r.id === parseInt(formData.recipientAccountId))?.name || 'Unknown' : 'Loading...'}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Fund Account (Source):</label>
+                  <span>{Array.isArray(fundAccounts) ? fundAccounts.find(f => f.id === parseInt(formData.fundAccountId))?.name || 'Unknown' : 'Loading...'}</span>
                 </div>
                 <div className="detail-item">
                   <label>Amount:</label>
                   <span>₱{parseFloat(formData.amount || 0).toLocaleString()}</span>
+                </div>
+                <div className="detail-item">
+                  <label>Purpose:</label>
+                  <span>{formData.purpose}</span>
                 </div>
                 <div className="detail-item">
                   <label>Reference Number:</label>
@@ -439,7 +690,6 @@ const IssueMoney = () => {
                     <span>{formData.chequeNumber}</span>
                   </div>
                 )}
-                {/* Department and Category removed as requested */}
               </div>
               <p className="confirmation-message">
                 Are you sure you want to create this disbursement?
@@ -498,8 +748,20 @@ const IssueMoney = () => {
                     <span>₱{parseFloat(disbursementResult.amount).toLocaleString()}</span>
                   </div>
                   <div className="detail-item">
-                    <label>Payee:</label>
-                    <span>{disbursementResult.payeeName}</span>
+                    <label>Recipient:</label>
+                    <span>{disbursementResult.recipientName}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Recipient Account:</label>
+                    <span>{disbursementResult.recipientAccount}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Fund Account:</label>
+                    <span>{disbursementResult.fundAccount}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Purpose:</label>
+                    <span>{disbursementResult.purpose}</span>
                   </div>
                   <div className="detail-item">
                     <label>Reference:</label>

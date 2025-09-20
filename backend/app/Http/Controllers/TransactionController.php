@@ -51,6 +51,9 @@ class TransactionController extends Controller
             'department' => 'required_if:type,Collection|string|max:100',
             'category' => 'required_if:type,Collection|string|max:100',
             'reference' => 'nullable|string|max:255',
+            // Disbursement-specific (optional if schema supports it)
+            'recipient_account_id' => 'nullable|exists:recipient_accounts,id',
+            'purpose' => 'nullable|string',
         ]);
 
         // Get authenticated user
@@ -92,10 +95,15 @@ class TransactionController extends Controller
             $referenceNo = 'DIS-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
         }
 
+        // Ensure amount sign: Disbursement should be negative, Collection positive
+        $signedAmount = $validated['type'] === 'Disbursement'
+            ? -abs($validated['amount'])
+            : abs($validated['amount']);
+
         // Create the transaction with auto-generated fields
         $transaction = Transaction::create([
             'type' => $validated['type'],
-            'amount' => $validated['amount'],
+            'amount' => $signedAmount,
             'description' => $validated['description'] ?? ($transactionType . ' transaction'),
             'fund_account_id' => $validated['fund_account_id'],
             'mode_of_payment' => $validated['mode_of_payment'],
@@ -108,6 +116,9 @@ class TransactionController extends Controller
             'recipient' => $validated['recipient'] ?? $validated['payer_name'] ?? null,
             'department' => $validated['department'] ?? null,
             'category' => $validated['category'] ?? null,
+            // Disbursement-specific optional fields for better linkage (if columns exist)
+            'recipient_account_id' => $validated['recipient_account_id'] ?? null,
+            'purpose' => $validated['purpose'] ?? null,
             // Timestamps auto-handled by Laravel
         ]);
 

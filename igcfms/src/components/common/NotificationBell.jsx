@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './css/notificationbell.css';
+import notificationService from '../../services/notificationService';
+import NotificationPanel from './NotificationPanel';
 
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
@@ -18,12 +20,33 @@ const NotificationBell = () => {
       fetchNotifications();
       fetchUnreadCount();
       
+      // Listen to our notification service
+      const handleNotificationUpdate = (serviceNotifications) => {
+        setNotifications(prev => {
+          // Merge service notifications with existing ones
+          const merged = [...serviceNotifications, ...prev];
+          // Remove duplicates based on ID
+          const unique = merged.filter((notif, index, self) => 
+            index === self.findIndex(n => n.id === notif.id)
+          );
+          return unique.slice(0, 20); // Keep only latest 20
+        });
+        
+        const unread = serviceNotifications.filter(n => !n.read).length;
+        setUnreadCount(prev => prev + unread);
+      };
+
+      notificationService.addListener(handleNotificationUpdate);
+      
       // Poll for new notifications every 30 seconds
       const interval = setInterval(() => {
         fetchUnreadCount();
       }, 30000);
 
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        notificationService.removeListener(handleNotificationUpdate);
+      };
     }
   }, [token]);
 

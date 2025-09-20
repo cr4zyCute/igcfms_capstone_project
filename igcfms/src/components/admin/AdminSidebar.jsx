@@ -74,7 +74,7 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
               className="section-header"
               onClick={() => toggleSection(section.title)}
             >
-              <h3 className="section-title">{section.title}</h3>
+              <p className="section-title">{section.title}</p>
               <i className={`fas fa-chevron-${expandedSections[section.title] ? 'down' : 'right'} section-arrow`}></i>
             </button>
             <div className={`section-content ${expandedSections[section.title] ? 'expanded' : 'collapsed'}`}>

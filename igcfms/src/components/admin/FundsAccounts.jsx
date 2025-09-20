@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import "../../assets/admin.css";
 import "./css/fundsaccount.css";
+import notificationService from "../../services/notificationService";
+import balanceService from "../../services/balanceService";
 import {
   getFundAccounts,
   createFundAccount,
@@ -36,6 +38,24 @@ const FundsAccounts = () => {
 
   useEffect(() => {
     fetchAccounts();
+    //loadAccounts();
+    
+    // Set up real-time balance updates
+    const handleBalanceUpdate = ({ fundAccountId, newBalance, oldBalance }) => {
+      setAccounts(prevAccounts => 
+        prevAccounts.map(account => 
+          account.id === fundAccountId 
+            ? { ...account, current_balance: newBalance }
+            : account
+        )
+      );
+    };
+
+    balanceService.addBalanceListener(handleBalanceUpdate);
+
+    return () => {
+      balanceService.removeBalanceListener(handleBalanceUpdate);
+    };
   }, []);
 
   // Function to show popup messages
@@ -83,10 +103,18 @@ const FundsAccounts = () => {
 
     try {
       setLoading(true);
-      await createFundAccount({
+      const createdAccount = await createFundAccount({
         ...newAccount,
         initial_balance: Number(newAccount.initial_balance) || 0,
       });
+      
+      // Send notification for new fund account
+      await notificationService.notifyTransaction('FUND_ACCOUNT_CREATED', {
+        name: newAccount.name,
+        balance: newAccount.initial_balance,
+        fund_account_id: createdAccount.id || createdAccount.data?.id
+      });
+      
       showPopupMessage("success", "Fund account created successfully!");
       setNewAccount({
         name: "",

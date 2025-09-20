@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import "../../assets/admin.css";
 import axios from "axios";
+import notificationService from "../../services/notificationService";
+import balanceService from "../../services/balanceService";
 
 const ReceiveMoney = () => {
   const [fundAccounts, setFundAccounts] = useState([]);
@@ -60,6 +62,25 @@ const ReceiveMoney = () => {
       });
 
       const transactionData = response.data.data;
+      
+      // Get fund account details for notifications
+      const selectedFund = fundAccounts.find(fund => fund.id === parseInt(fundAccountId));
+      
+      // Process transaction and update balance
+      try {
+        await balanceService.processTransaction('RECEIVE_MONEY', {
+          fund_account_id: parseInt(fundAccountId),
+          amount: parseFloat(amount),
+          payer: payerName.trim(),
+          fund_account_name: selectedFund?.name || `Fund Account #${fundAccountId}`,
+          transaction_id: transactionData.id || transactionData.transaction_id,
+          receipt_no: transactionData.receipt_no
+        });
+      } catch (balanceError) {
+        console.error('Balance update error:', balanceError);
+        // Continue even if balance update fails
+      }
+
       setMessage(`Collection transaction created successfully! Receipt No: ${transactionData.receipt_no}, Reference No: ${transactionData.reference_no}`);
       
       // Reset form
@@ -68,8 +89,6 @@ const ReceiveMoney = () => {
       setReceiptNo("");
       setFundAccountId("");
       setDescription("");
-     // setDepartment("");
-      //setCategory("");
       setReference("");
       setModeOfPayment("Cash");
       

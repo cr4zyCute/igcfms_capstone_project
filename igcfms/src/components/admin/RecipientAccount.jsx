@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./css/recipientaccount.css";
+import notificationService from "../../services/notificationService";
+import balanceService from "../../services/balanceService";
 
 const RecipientAccount = () => {
   // State for recipients and fund accounts
@@ -303,6 +305,14 @@ const RecipientAccount = () => {
       };
       
       setRecipients(prev => [...prev, newRecipient]);
+      
+      // Send notification for new recipient account
+      const selectedFund = fundAccounts.find(fund => fund.id === parseInt(formData.fund_account_id));
+      await notificationService.notifyTransaction('RECIPIENT_ACCOUNT_CREATED', {
+        name: formData.name,
+        fund_account: selectedFund?.name || `Fund Account #${formData.fund_account_id}`,
+        fund_account_id: formData.fund_account_id
+      });
       
       showNotification('success', 'Success', 'Recipient account created successfully');
       resetForm();
