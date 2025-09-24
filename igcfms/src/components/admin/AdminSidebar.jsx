@@ -69,6 +69,20 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
         </button>
       </div>
 
+      {/* Notifications - Special Item */}
+      <div className="admin-notifications-section">
+        <button
+          className={`admin-sidebar-item notifications-item ${
+            activeTab === "notifications" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("notifications")}
+        >
+          <i className="fas fa-bell admin-item-icon"></i>
+          <span className="admin-item-label">Notifications</span>
+        
+        </button>
+      </div>
+
       {/* Menu Sections */}
       <nav className="admin-sidebar-nav">
         {menuSections.map((section, sectionIndex) => (

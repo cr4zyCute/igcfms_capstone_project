@@ -189,27 +189,77 @@
   font-weight: 500;
 }
 
-.admin-sidebar-item.additional-item:last-child {
-  margin-bottom: 0;
+/* Notifications Section */
+.admin-notifications-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.admin-sidebar-item.notifications-item {
+  font-weight: 600;
+  position: relative;
+  justify-content: space-between;
+}
+
+.notification-badge {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.admin-sidebar-item.notifications-item.active .notification-badge {
+  background: #ffffff;
+  color: #000000;
+}
+
+.admin-sidebar-item.notifications-item:hover .notification-badge {
+  background: #dc2626;
+}
+
+.admin-sidebar-item.notifications-item.active:hover .notification-badge {
+  background: #f3f4f6;
+  color: #000000;
 }
 
 /* Responsive Design */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .admin-sidebar-content {
-    padding: 0;
+    padding: 0 10px;
   }
   
-  .admin-dashboard-section,
-  .admin-additional-section {
-    padding: 12px 16px;
+  .admin-sidebar-item {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  
+  .admin-item-icon {
+    font-size: 14px;
   }
   
   .admin-section-header {
-    padding: 10px 16px;
+    padding: 10px 12px;
+    font-size: 13px;
   }
   
-  .admin-sidebar-menu {
-    padding: 0 16px 8px 16px;
+  .submenu-item {
+    padding: 8px 12px 8px 24px;
+    font-size: 12px;
+  }
+  
+  .notification-badge {
+    font-size: 10px;
+    padding: 1px 5px;
+    min-width: 16px;
+    height: 16px;
   }
 }
 

@@ -70,8 +70,11 @@ const IssueReceipt = () => {
 
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [receiptResult, setReceiptResult] = useState(null);
+  const [transactionSearch, setTransactionSearch] = useState("");
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
 
   const API_BASE = "http://localhost:8000/api";
   const token = localStorage.getItem("token");
@@ -83,6 +86,10 @@ const IssueReceipt = () => {
   useEffect(() => {
     applyFilters();
   }, [receipts, filters]);
+
+  useEffect(() => {
+    filterTransactions();
+  }, [transactions, transactionSearch]);
 
   const fetchInitialData = async () => {
     try {
@@ -151,6 +158,24 @@ const IssueReceipt = () => {
     setFilteredReceipts(filtered);
   };
 
+  const filterTransactions = () => {
+    let filtered = [...transactions];
+
+    if (transactionSearch.trim()) {
+      const searchLower = transactionSearch.toLowerCase();
+      filtered = filtered.filter(tx => 
+        tx.id.toString().includes(searchLower) ||
+        tx.description?.toLowerCase().includes(searchLower) ||
+        tx.recipient?.toLowerCase().includes(searchLower) ||
+        tx.amount?.toString().includes(searchLower) ||
+        tx.department?.toLowerCase().includes(searchLower) ||
+        tx.category?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    setFilteredTransactions(filtered);
+  };
+
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({
       ...prev,
@@ -183,6 +208,29 @@ const IssueReceipt = () => {
         }));
       }
     }
+  };
+
+  const openTransactionModal = () => {
+    setTransactionSearch("");
+    setFilteredTransactions(transactions);
+    setShowTransactionModal(true);
+  };
+
+  const selectTransaction = (transaction) => {
+    handleInputChange('transactionId', transaction.id.toString());
+    // Auto-generate receipt number when transaction is selected
+    const generatedReceiptNumber = generateReceiptNumber();
+    handleInputChange('receiptNumber', generatedReceiptNumber);
+    setShowTransactionModal(false);
+  };
+
+  const getSelectedTransactionDisplay = () => {
+    if (!formData.transactionId) return "-- Select Transaction --";
+    
+    const transaction = transactions.find(tx => tx.id.toString() === formData.transactionId);
+    if (!transaction) return "-- Select Transaction --";
+    
+    return `#${transaction.id} - ₱${parseFloat(transaction.amount || 0).toLocaleString()} - ${transaction.description || 'Collection'} - ${transaction.recipient || 'N/A'}`;
   };
 
   const showMessage = (message, type = 'success') => {
@@ -362,18 +410,28 @@ const IssueReceipt = () => {
           <form onSubmit={handleSubmit} className="receipt-form">
             <div className="form-group">
               <label>Select Collection Transaction *</label>
-              <select
-                value={formData.transactionId}
-                onChange={(e) => handleInputChange('transactionId', e.target.value)}
-                required
-              >
-                <option value="">-- Select Transaction --</option>
-                {transactions.map((tx) => (
-                  <option key={tx.id} value={tx.id}>
-                    #{tx.id} - ₱{parseFloat(tx.amount || 0).toLocaleString()} - {tx.description || 'Collection'} - {tx.recipient || 'N/A'}
-                  </option>
-                ))}
-              </select>
+              <div className="transaction-selector">
+                <button
+                  type="button"
+                  className="transaction-select-btn"
+                  onClick={openTransactionModal}
+                >
+                  <span className="selected-transaction">
+                    {getSelectedTransactionDisplay()}
+                  </span>
+                  <i className="fas fa-chevron-down"></i>
+                </button>
+                {formData.transactionId && (
+                  <button
+                    type="button"
+                    className="clear-selection-btn"
+                    onClick={() => handleInputChange('transactionId', '')}
+                    title="Clear Selection"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="form-row">
@@ -388,24 +446,16 @@ const IssueReceipt = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Receipt Number *</label>
-                <div className="receipt-number-input">
-                  <input
-                    type="text"
-                    placeholder="Enter receipt number"
-                    value={formData.receiptNumber}
-                    onChange={(e) => handleInputChange('receiptNumber', e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="generate-btn"
-                    onClick={() => handleInputChange('receiptNumber', generateReceiptNumber())}
-                    title="Generate Receipt Number"
-                  >
-                    <i className="fas fa-magic"></i>
-                  </button>
-                </div>
+                <label>Receipt Number</label>
+                <input
+                  type="text"
+                  placeholder=""
+                  value={formData.receiptNumber}
+                  onChange={(e) => handleInputChange('receiptNumber', e.target.value)}
+                  required
+                  readOnly
+                  className="auto-generated-field"
+                />
               </div>
             </div>
 
@@ -489,77 +539,102 @@ const IssueReceipt = () => {
         </div>
       </div>
 
-      {/* Filters Section */}
-      <div className="ir-filters-section">
-        <div className="filters-header">
-          <h3><i className="fas fa-filter"></i> Filter Receipts</h3>
-          <button className="clear-filters-btn" onClick={clearFilters}>
-            <i className="fas fa-times"></i> Clear Filters
-          </button>
-        </div>
-        
-        <div className="filters-grid">
-          <div className="filter-group">
-            <label>Status</label>
+      {/* Modern Filters Section */}
+      <div className="modern-filters-section">
+        <div className="filters-container">
+          <div className="filter-dropdown">
             <select 
               value={filters.status} 
               onChange={(e) => handleFilterChange('status', e.target.value)}
+              className="modern-select"
             >
-              <option value="all">All Receipts</option>
+              <option value="all">Status</option>
               <option value="recent">Recent (Last 7 days)</option>
             </select>
+            <i className="fas fa-chevron-down dropdown-icon"></i>
           </div>
 
-          <div className="filter-group">
-            <label>Date From</label>
+          <div className="filter-dropdown">
             <input 
               type="date" 
               value={filters.dateFrom}
               onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+              className="modern-date-input"
+              placeholder="Date From"
             />
+            <i className="fas fa-chevron-down dropdown-icon"></i>
           </div>
 
-          <div className="filter-group">
-            <label>Date To</label>
+          <div className="filter-dropdown">
             <input 
               type="date" 
               value={filters.dateTo}
               onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+              className="modern-date-input"
+              placeholder="Date To"
             />
+            <i className="fas fa-chevron-down dropdown-icon"></i>
           </div>
 
-          <div className="filter-group">
-            <label>Search</label>
+          <div className="filter-dropdown search-filter">
             <input 
               type="text" 
-              placeholder="Search receipts..."
+              placeholder="Search"
               value={filters.searchTerm}
               onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+              className="modern-search-input"
             />
+            <i className="fas fa-search search-icon"></i>
           </div>
+
+          <button className="export-btn">
+            <i className="fas fa-download"></i>
+            Export
+          </button>
         </div>
       </div>
 
-      {/* Receipts Table */}
-      <div className="ir-receipts-section">
-        <div className="receipts-header">
-          <h3><i className="fas fa-table"></i> Receipt Records</h3>
-          <div className="receipts-count">
-            Showing {filteredReceipts.length} of {receipts.length} receipts
-          </div>
-        </div>
-
-        <div className="receipts-table-container">
-          <table className="receipts-table">
+      {/* Modern Receipts Table */}
+      <div className="modern-receipts-section">
+        <div className="modern-table-container">
+          <table className="modern-receipts-table">
             <thead>
               <tr>
-                <th><i className="fas fa-hashtag"></i> Receipt ID</th>
-                <th><i className="fas fa-receipt"></i> Receipt Number</th>
-                <th><i className="fas fa-exchange-alt"></i> Transaction</th>
-                <th><i className="fas fa-user"></i> Payer Name</th>
-                <th><i className="fas fa-money-bill"></i> Amount</th>
-                <th><i className="fas fa-calendar"></i> Issue Date</th>
-                <th><i className="fas fa-cogs"></i> Actions</th>
+                <th>
+                  <div className="table-header">
+                    <span>Receipt ID</span>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header">
+                    <span>Receipt Number</span>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header">
+                    <span>Transaction</span>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header">
+                    <span>Payer Name</span>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header">
+                    <span>Amount</span>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header">
+                    <span>Issue Date</span>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header">
+                    <span>Actions</span>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -567,34 +642,67 @@ const IssueReceipt = () => {
                 filteredReceipts.map((receipt) => {
                   const transaction = transactions.find(tx => tx.id === receipt.transaction_id);
                   return (
-                    <tr key={receipt.id}>
-                      <td>#{receipt.id}</td>
-                      <td className="receipt-number">{receipt.receipt_number}</td>
-                      <td>#{receipt.transaction_id}</td>
-                      <td>{receipt.payer_name}</td>
-                      <td className="amount-positive">
-                        ₱{transaction ? parseFloat(transaction.amount || 0).toLocaleString() : 'N/A'}
-                      </td>
-                      <td>{new Date(receipt.issued_at || receipt.created_at).toLocaleDateString()}</td>
+                    <tr key={receipt.id} className="table-row">
                       <td>
-                        <div className="action-buttons">
-                          <button 
-                            className="view-btn"
-                            onClick={() => viewReceiptDetails(receipt)}
-                            title="View Details"
-                          >
-                            <i className="fas fa-eye"></i>
-                          </button>
-                          <button 
-                            className="print-btn"
-                            onClick={() => {
-                              viewReceiptDetails(receipt);
-                              setTimeout(() => printReceipt(), 500);
-                            }}
-                            title="Print Receipt"
-                          >
-                            <i className="fas fa-print"></i>
-                          </button>
+                        <div className="cell-content">
+                          <span className="receipt-id">#{receipt.id}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="cell-content">
+                          <span className="receipt-number">{receipt.receipt_number}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="cell-content">
+                          <span className="transaction-ref">#{receipt.transaction_id}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="cell-content">
+                          <div className="payer-info">
+                            <div className="payer-avatar">
+                              <i className="fas fa-user"></i>
+                            </div>
+                            <span className="payer-name">{receipt.payer_name}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="cell-content">
+                          <span className="amount">
+                            ₱{transaction ? parseFloat(transaction.amount || 0).toLocaleString() : 'N/A'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="cell-content">
+                          <span className="issue-date">
+                            {new Date(receipt.issued_at || receipt.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="cell-content">
+                          <div className="action-buttons">
+                            <button 
+                              className="view-btn"
+                              onClick={() => viewReceiptDetails(receipt)}
+                              title="View Details"
+                            >
+                              <i className="fas fa-eye"></i>
+                            </button>
+                            <button 
+                              className="print-btn"
+                              onClick={() => {
+                                viewReceiptDetails(receipt);
+                                setTimeout(() => printReceipt(), 500);
+                              }}
+                              title="Print Receipt"
+                            >
+                              <i className="fas fa-print"></i>
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -819,6 +927,127 @@ const IssueReceipt = () => {
                   <span>IGCFMS - OFFICIAL RECEIPT</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transaction Selection Modal */}
+      {showTransactionModal && (
+        <div className="modal-overlay" onClick={() => setShowTransactionModal(false)}>
+          <div className="transaction-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><i className="fas fa-search"></i> Select Collection Transaction</h3>
+              <button className="modal-close" onClick={() => setShowTransactionModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="modal-search-section">
+              <div className="search-input-container">
+                <i className="fas fa-search search-icon"></i>
+                <input
+                  type="text"
+                  placeholder="Search by ID, description, recipient, amount, department..."
+                  value={transactionSearch}
+                  onChange={(e) => setTransactionSearch(e.target.value)}
+                  className="transaction-search-input"
+                  autoFocus
+                />
+                {transactionSearch && (
+                  <button
+                    type="button"
+                    className="clear-search-btn"
+                    onClick={() => setTransactionSearch("")}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-body">
+              <div className="transaction-list">
+                {filteredTransactions.length > 0 ? (
+                  filteredTransactions.map((transaction) => (
+                    <div
+                      key={transaction.id}
+                      className={`transaction-item ${formData.transactionId === transaction.id.toString() ? 'selected' : ''}`}
+                      onClick={() => selectTransaction(transaction)}
+                    >
+                      <div className="transaction-main-info">
+                        <div className="transaction-id">
+                          <i className="fas fa-hashtag"></i>
+                          <span>#{transaction.id}</span>
+                        </div>
+                        <div className="transaction-amount">
+                          <i className="fas fa-peso-sign"></i>
+                          <span>₱{parseFloat(transaction.amount || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="transaction-details">
+                        <div className="transaction-description">
+                          <i className="fas fa-file-alt"></i>
+                          <span>{transaction.description || 'Collection Transaction'}</span>
+                        </div>
+                        <div className="transaction-recipient">
+                          <i className="fas fa-user"></i>
+                          <span>{transaction.recipient || 'N/A'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="transaction-meta">
+                        <div className="transaction-department">
+                          <i className="fas fa-building"></i>
+                          <span>{transaction.department || 'N/A'}</span>
+                        </div>
+                        <div className="transaction-category">
+                          <i className="fas fa-tag"></i>
+                          <span>{transaction.category || 'N/A'}</span>
+                        </div>
+                        <div className="transaction-date">
+                          <i className="fas fa-calendar"></i>
+                          <span>{new Date(transaction.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      
+                      {formData.transactionId === transaction.id.toString() && (
+                        <div className="selected-indicator">
+                          <i className="fas fa-check-circle"></i>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="no-transactions">
+                    <i className="fas fa-search"></i>
+                    <p>No transactions found matching your search.</p>
+                    {transactionSearch && (
+                      <button
+                        type="button"
+                        className="clear-search-link"
+                        onClick={() => setTransactionSearch("")}
+                      >
+                        Clear search to see all transactions
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <div className="transaction-count">
+                Showing {filteredTransactions.length} of {transactions.length} transactions
+              </div>
+              <button
+                type="button"
+                className="close-modal-btn"
+                onClick={() => setShowTransactionModal(false)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

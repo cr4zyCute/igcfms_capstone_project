@@ -13,6 +13,7 @@ import OverrideTransactions from "./OverrideTransactions";
 import SystemSettings from "./SystemSettings";
 import TransactionManagement from "./TransactionManagement";
 import ActivityDashboard from "./ActivityDashboard";
+import NotificationBar from "./NotificationBar";
 import '../pages/css/Dashboard.css';
 
 const AdminDashboard = ({ user, activeTab }) => {
@@ -20,6 +21,8 @@ const AdminDashboard = ({ user, activeTab }) => {
     switch (activeTab) {
       case "dashboard":
         return <DashboardHome user={user} />;
+      case "notifications":
+        return <NotificationBar />;
       case "receive-money":
         return <ReceiveMoney />;
       case "issue-receipt":
