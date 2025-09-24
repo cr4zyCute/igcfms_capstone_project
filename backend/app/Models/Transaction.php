@@ -11,6 +11,8 @@ class Transaction extends Model
         'amount',
         'description',
         'recipient',
+        'recipient_account_id',
+        'purpose',
         'department',
         'category',
         'reference',

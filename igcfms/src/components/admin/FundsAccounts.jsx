@@ -30,7 +30,6 @@ const FundsAccounts = () => {
     code: "",
     description: "",
     initial_balance: 0,
-    account_type: "Revenue",
     department: "",
   });
 
@@ -87,7 +86,18 @@ const FundsAccounts = () => {
       setTransactionsLoading(true);
       const response = await getFundAccount(accountId);
 
-      setTransactions(response);
+      // The backend show() now returns the full account with 'transactions' and computed 'current_balance'
+      const accountData = Array.isArray(response)
+        ? { transactions: response }
+        : (response?.data || response);
+
+      // Update selectedAccount with fresh data if available
+      if (accountData && accountData.id) {
+        setSelectedAccount(accountData);
+      }
+
+      const related = accountData?.transactions || [];
+      setTransactions(Array.isArray(related) ? related : []);
     } catch (err) {
       console.error("Error fetching transactions:", err);
       setTransactions([]);
@@ -121,7 +131,6 @@ const FundsAccounts = () => {
         code: "",
         description: "",
         initial_balance: 0,
-        account_type: "Revenue",
         department: "",
       });
       setShowAddAccount(false);
@@ -150,7 +159,6 @@ const FundsAccounts = () => {
       code: editAccount.code,
       description: editAccount.description,
       initial_balance: Number(editAccount.initial_balance),
-      account_type: editAccount.account_type,
       department: editAccount.department,
     });
         showPopupMessage("success", "Fund account updated successfully!");
@@ -294,25 +302,6 @@ const handleDeleteAccount = async (accountId) => {
                 />
               </div>
               <div className="form-group">
-                <label>Account Type</label>
-                <select
-                  value={newAccount.account_type}
-                  onChange={(e) =>
-                    setNewAccount({
-                      ...newAccount,
-                      account_type: e.target.value,
-                    })
-                  }
-                  disabled={loading}
-                >
-                  <option value="Revenue">Revenue</option>
-                  <option value="Expense">Expense</option>
-                  <option value="Asset">Asset</option>
-                  <option value="Liability">Liability</option>
-                  <option value="Equity">Equity</option>
-                </select>
-              </div>
-              <div className="form-group">
                 <label>Department</label>
                 {/* <select
                   value={newAccount.department}
@@ -429,25 +418,6 @@ const handleDeleteAccount = async (accountId) => {
                 />
               </div>
               <div className="form-group">
-                <label>Account Type</label>
-                <select
-                  value={editAccount.account_type}
-                  onChange={(e) =>
-                    setEditAccount({
-                      ...editAccount,
-                      account_type: e.target.value,
-                    })
-                  }
-                  disabled={loading}
-                >
-                  <option value="Revenue">Revenue</option>
-                  <option value="Expense">Expense</option>
-                  <option value="Asset">Asset</option>
-                  <option value="Liability">Liability</option>
-                  <option value="Equity">Equity</option>
-                </select>
-              </div>
-              <div className="form-group">
                 <label>Department</label>
                 {/* <select
                   value={editAccount.department}
@@ -502,19 +472,12 @@ const handleDeleteAccount = async (accountId) => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                 <h5>{account.name}</h5>
                 <div style={{ fontSize: '20px', color: '#666666' }}>
-                  {account.account_type === 'Revenue' && <i className="fas fa-arrow-up"></i>}
-                  {account.account_type === 'Expense' && <i className="fas fa-arrow-down"></i>}
-                  {account.account_type === 'Asset' && <i className="fas fa-building"></i>}
-                  {account.account_type === 'Liability' && <i className="fas fa-exclamation-triangle"></i>}
-                  {account.account_type === 'Equity' && <i className="fas fa-balance-scale"></i>}
+                  <i className="fas fa-wallet"></i>
                 </div>
               </div>
               <p className="code">CODE: {account.code}</p>
               <p className="balance">
                 ₱{account.current_balance?.toLocaleString() || "0.00"}
-              </p>
-              <p className="type">
-                <i className="fas fa-tag"></i> {account.account_type}
               </p>
               <p className="department">
                 <i className="fas fa-building"></i> {account.department || 'No Department'}
@@ -609,10 +572,6 @@ const handleDeleteAccount = async (accountId) => {
                 <div style={{ fontSize: '20px', fontWeight: '700', color: '#16a34a' }}>₱{selectedAccount.current_balance?.toLocaleString() || "0.00"}</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#666666', marginBottom: '5px' }}>Account Type</div>
-                <div style={{ fontSize: '16px', fontWeight: '600', color: '#000000' }}>{selectedAccount.account_type}</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '12px', color: '#666666', marginBottom: '5px' }}>Department</div>
                 <div style={{ fontSize: '16px', fontWeight: '600', color: '#000000' }}>{selectedAccount.department || 'No Department'}</div>
               </div>
@@ -658,7 +617,7 @@ const handleDeleteAccount = async (accountId) => {
                           }
                         >
                           {transaction.type === "Collection" ? "+" : "-"}₱
-                          {transaction.amount?.toLocaleString()}
+                          {Number(Math.abs(transaction.amount || 0)).toLocaleString()}
                         </td>
                         <td>
                           {transaction.reference ||

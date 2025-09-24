@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\RecipientAccount;
 use App\Models\FundAccount;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 
 class RecipientAccountController extends Controller
 {
@@ -39,6 +41,17 @@ class RecipientAccountController extends Controller
 
         $recipients = $query->orderBy('created_at', 'desc')->get();
 
+        // Compute disbursement totals per recipient
+        $recipients->transform(function ($recipient) {
+            $txQuery = Transaction::where('recipient_account_id', $recipient->id)
+                ->where('type', 'Disbursement');
+
+            $recipient->total_transactions = (int) $txQuery->count();
+            // Use ABS to present positive totals for paid-out amounts
+            $recipient->total_amount = (float) $txQuery->sum(DB::raw('ABS(amount)'));
+            return $recipient;
+        });
+
         return response()->json([
             'success' => true,
             'data' => $recipients
@@ -61,8 +74,9 @@ class RecipientAccountController extends Controller
 
         // Add conditional validation based on type
         if ($request->type === 'disbursement') {
-            $rules['tax_id'] = 'required|string|max:50';
-            $rules['bank_account'] = 'required|string|max:100';
+            // Frontend currently provides bank_name and account_number; make tax_id and bank_account optional
+            $rules['tax_id'] = 'nullable|string|max:50';
+            $rules['bank_account'] = 'nullable|string|max:100';
         } else {
             $rules['fund_code'] = 'required|string|max:20';
             $rules['description'] = 'required|string';
@@ -70,6 +84,11 @@ class RecipientAccountController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        // Map account_number -> bank_account if provided
+        if (empty($validated['bank_account']) && $request->filled('account_number')) {
+            $validated['bank_account'] = $request->input('account_number');
+        }
 
         try {
             $recipient = RecipientAccount::create($validated);
@@ -95,6 +114,12 @@ class RecipientAccountController extends Controller
     public function show(RecipientAccount $recipientAccount): JsonResponse
     {
         $recipientAccount->load('fundAccount');
+
+        // Include computed totals
+        $txQuery = Transaction::where('recipient_account_id', $recipientAccount->id)
+            ->where('type', 'Disbursement');
+        $recipientAccount->total_transactions = (int) $txQuery->count();
+        $recipientAccount->total_amount = (float) $txQuery->sum(DB::raw('ABS(amount)'));
 
         return response()->json([
             'success' => true,
@@ -122,8 +147,9 @@ class RecipientAccountController extends Controller
 
         // Add conditional validation based on type
         if ($request->type === 'disbursement') {
-            $rules['tax_id'] = 'required|string|max:50';
-            $rules['bank_account'] = 'required|string|max:100';
+            // Make optional to match current frontend fields
+            $rules['tax_id'] = 'nullable|string|max:50';
+            $rules['bank_account'] = 'nullable|string|max:100';
         } else {
             $rules['fund_code'] = 'required|string|max:20';
             $rules['description'] = 'required|string';
@@ -131,6 +157,11 @@ class RecipientAccountController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        // Map account_number -> bank_account if provided
+        if (empty($validated['bank_account']) && $request->filled('account_number')) {
+            $validated['bank_account'] = $request->input('account_number');
+        }
 
         try {
             $recipientAccount->update($validated);

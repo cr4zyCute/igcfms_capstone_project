@@ -8,7 +8,7 @@ const api = axios.create({
 });
 
     api.interceptors.request.use((config) => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -19,10 +19,9 @@ const api = axios.create({
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          window.location.href = '/login';
+          // Optionally clear invalid tokens, but no redirect to avoid page refresh during login
+          // localStorage.removeItem('auth_token');
+          // localStorage.removeItem('token');
         }
         return Promise.reject(error);
       }

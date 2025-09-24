@@ -14,14 +14,15 @@ const IssueMoney = () => {
   
   // Form states
   const [formData, setFormData] = useState({
+    transactionType: "Disbursement", // New field: Collection or Disbursement
     amount: "",
     recipientAccountId: "",
     referenceNo: "",
     fundAccountId: "",
-    description: "",
     modeOfPayment: "Cash",
     chequeNumber: "",
-    purpose: "",
+    description: "",
+    purpose: ""
   });
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -51,33 +52,39 @@ const IssueMoney = () => {
       // Fetch fund accounts, recipient accounts, and recent disbursements
       const [fundsRes, recipientsRes, transactionsRes] = await Promise.all([
         axios.get(`${API_BASE}/fund-accounts`, { headers }),
-        axios.get(`${API_BASE}/recipient-accounts`, { headers }).catch((err) => {
+        axios.get(`${API_BASE}/recipient-accounts`, { headers }).then(response => {
+          console.log('Recipient accounts response:', response.data);
+          return response;
+        }).catch((err) => {
           console.warn('Failed to fetch recipient accounts:', err);
           // Return mock data if API endpoint doesn't exist
           return { 
-            data: [
-              {
-                id: 1,
-                name: "Boy Bawang Supplier",
-                fund_code: "SUP001",
-                contact_person: "Juan Dela Cruz",
-                status: "active"
-              },
-              {
-                id: 2,
-                name: "Office Equipment Supplier",
-                fund_code: "SUP002", 
-                contact_person: "Maria Santos",
-                status: "active"
-              },
-              {
-                id: 3,
-                name: "John Doe Employee",
-                fund_code: "EMP001",
-                contact_person: "John Doe",
-                status: "active"
-              }
-            ]
+            data: {
+              success: true,
+              data: [
+                {
+                  id: 1,
+                  name: "Boy Bawang Supplier",
+                  fund_code: "SUP001",
+                  contact_person: "Juan Dela Cruz",
+                  status: "active"
+                },
+                {
+                  id: 2,
+                  name: "Office Equipment Supplier",
+                  fund_code: "SUP002", 
+                  contact_person: "Maria Santos",
+                  status: "active"
+                },
+                {
+                  id: 3,
+                  name: "John Doe Employee",
+                  fund_code: "EMP001",
+                  contact_person: "John Doe",
+                  status: "active"
+                }
+              ]
+            }
           };
         }),
         axios.get(`${API_BASE}/transactions`, { headers })
@@ -85,7 +92,18 @@ const IssueMoney = () => {
 
       // Ensure data is always an array
       const fundAccountsData = Array.isArray(fundsRes.data) ? fundsRes.data : (fundsRes.data?.data || []);
-      const recipientAccountsData = Array.isArray(recipientsRes.data) ? recipientsRes.data : (recipientsRes.data?.data || []);
+      
+      // Handle recipient accounts response format
+      let recipientAccountsData = [];
+      if (recipientsRes.data?.success && Array.isArray(recipientsRes.data.data)) {
+        recipientAccountsData = recipientsRes.data.data;
+      } else if (Array.isArray(recipientsRes.data)) {
+        recipientAccountsData = recipientsRes.data;
+      } else if (recipientsRes.data?.data && Array.isArray(recipientsRes.data.data)) {
+        recipientAccountsData = recipientsRes.data.data;
+      }
+      
+      console.log('Processed recipient accounts:', recipientAccountsData);
       
       setFundAccounts(fundAccountsData);
       setRecipientAccounts(recipientAccountsData);
@@ -234,33 +252,35 @@ const IssueMoney = () => {
 
       // Create transaction with enhanced audit trail
       const transactionPayload = {
-        type: "Disbursement",
-        amount: parseFloat(formData.amount),
-        description: formData.description.trim() || `${formData.purpose} - Payment to ${selectedRecipient?.name || 'Recipient'}`,
+        type: formData.transactionType, // Collection or Disbursement
+        amount: formData.transactionType === "Collection" 
+          ? parseFloat(formData.amount)  // Positive for collections
+          : -parseFloat(formData.amount), // Negative for disbursements
+        description: formData.description.trim() || `${formData.purpose} - ${formData.transactionType} ${formData.transactionType === "Collection" ? "from" : "to"} ${selectedRecipient?.name || 'Recipient'}`,
         recipient: selectedRecipient?.name || 'Unknown Recipient',
         recipient_account_id: parseInt(formData.recipientAccountId),
         department: "General", // Default value since field is required
-        category: "Disbursement", // Default value since field is required
+        category: formData.transactionType === "Collection" ? "Collection" : "Disbursement", // Default value since field is required
         reference: formData.referenceNo.trim(),
         reference_no: formData.referenceNo.trim(),
         fund_account_id: parseInt(formData.fundAccountId),
-        mode_of_payment: formData.modeOfPayment,
+      mode_of_payment: formData.modeOfPayment,
+      purpose: formData.purpose.trim(),
+      cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
+      issued_by: parseInt(userId),
+      created_by: parseInt(userId),
+      audit_trail: {
+        action: formData.transactionType === "Collection" ? "MONEY_RECEIVED" : "MONEY_ISSUED",
+        fund_account: selectedFund?.name || `Fund #${formData.fundAccountId}`,
+        recipient_account: selectedRecipient?.name || `Recipient #${formData.recipientAccountId}`,
+        amount: parseFloat(formData.amount),
         purpose: formData.purpose.trim(),
-        cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
-        issued_by: parseInt(userId),
-        created_by: parseInt(userId),
-        audit_trail: {
-          action: "MONEY_ISSUED",
-          fund_account: selectedFund?.name || `Fund #${formData.fundAccountId}`,
-          recipient_account: selectedRecipient?.name || `Recipient #${formData.recipientAccountId}`,
-          amount: parseFloat(formData.amount),
-          purpose: formData.purpose.trim(),
-          payment_method: formData.modeOfPayment,
-          reference: formData.referenceNo.trim(),
-          timestamp: new Date().toISOString(),
-          user_id: parseInt(userId)
-        }
-      };
+        payment_method: formData.modeOfPayment,
+        reference: formData.referenceNo.trim(),
+        timestamp: new Date().toISOString(),
+        user_id: parseInt(userId)
+      }
+    };
 
       const transactionRes = await axios.post(
         `${API_BASE}/transactions`,
@@ -372,6 +392,7 @@ const IssueMoney = () => {
 
       // Reset form
       setFormData({
+        transactionType: "Disbursement",
         amount: "",
         recipientAccountId: "",
         referenceNo: "",
@@ -455,6 +476,17 @@ const IssueMoney = () => {
           <form onSubmit={handleSubmit} className="disbursement-form">
             <div className="form-row">
               <div className="form-group">
+                <label>Transaction Type *</label>
+                <select
+                  value={formData.transactionType}
+                  onChange={(e) => handleInputChange('transactionType', e.target.value)}
+                  required
+                >
+                  <option value="Collection">Collection (Add Money)</option>
+                  <option value="Disbursement">Disbursement (Deduct Money)</option>
+                </select>
+              </div>
+              <div className="form-group">
                 <label>Recipient Account *</label>
                 <select
                   value={formData.recipientAccountId}
@@ -486,6 +518,18 @@ const IssueMoney = () => {
             </div>
 
             <div className="form-row">
+              <div className="form-group">
+                <label>Amount *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="Enter amount (e.g., 1000.00)"
+                  value={formData.amount}
+                  onChange={(e) => handleInputChange('amount', e.target.value)}
+                  required
+                />
+              </div>
               <div className="form-group">
                 <label>Purpose of Payment *</label>
                 <select
