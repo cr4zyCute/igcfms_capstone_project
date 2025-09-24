@@ -100,7 +100,7 @@ const ReceiveMoney = () => {
 
   return (
     <form onSubmit={handleSubmit} className="p-4 bg-white rounded shadow">
-      <h2 className="text-lg font-bold mb-4">Receive Money / Issue Receipt</h2>
+      <h2 className="text-lg font-bold mb-4">Receive Money</h2>
       {message && <p className="mb-2 text-red-600">{message}</p>}
 
       <input

@@ -17,6 +17,7 @@ const IssueMoney = () => {
     transactionType: "Disbursement", // New field: Collection or Disbursement
     amount: "",
     recipientAccountId: "",
+    payeeName: "", // Manual payee name input
     referenceNo: "",
     fundAccountId: "",
     modeOfPayment: "Cash",
@@ -146,14 +147,14 @@ const IssueMoney = () => {
   };
 
   const validateForm = async () => {
-    const { amount, recipientAccountId, referenceNo, fundAccountId, modeOfPayment, chequeNumber, purpose } = formData;
+    const { amount, recipientAccountId, payeeName, referenceNo, fundAccountId, modeOfPayment, chequeNumber, purpose } = formData;
 
     if (!amount || parseFloat(amount) <= 0) {
       showMessage("Please enter a valid amount.", 'error');
       return false;
     }
-    if (!recipientAccountId) {
-      showMessage("Please select a recipient account.", 'error');
+    if (!recipientAccountId && !payeeName.trim()) {
+      showMessage("Please either select a recipient account or enter a payee name.", 'error');
       return false;
     }
     if (!referenceNo.trim()) {
@@ -250,15 +251,17 @@ const IssueMoney = () => {
         ? fundAccounts.find(fund => fund.id === parseInt(formData.fundAccountId))
         : null;
 
+      // Determine the payee name (manual input takes priority over selected recipient)
+      const payeeName = formData.payeeName.trim() || selectedRecipient?.name || 'Unknown Recipient';
+
       // Create transaction with enhanced audit trail
       const transactionPayload = {
         type: formData.transactionType, // Collection or Disbursement
-        amount: formData.transactionType === "Collection" 
-          ? parseFloat(formData.amount)  // Positive for collections
-          : -parseFloat(formData.amount), // Negative for disbursements
-        description: formData.description.trim() || `${formData.purpose} - ${formData.transactionType} ${formData.transactionType === "Collection" ? "from" : "to"} ${selectedRecipient?.name || 'Recipient'}`,
-        recipient: selectedRecipient?.name || 'Unknown Recipient',
-        recipient_account_id: parseInt(formData.recipientAccountId),
+        amount: parseFloat(formData.amount), // Always send positive amount, backend handles sign
+        description: formData.description.trim() || `${formData.purpose} - ${formData.transactionType} ${formData.transactionType === "Collection" ? "from" : "to"} ${payeeName}`,
+        recipient: payeeName,
+        payer_name: formData.transactionType === "Collection" ? payeeName : null, // Required for Collections
+        recipient_account_id: formData.recipientAccountId ? parseInt(formData.recipientAccountId) : null,
         department: "General", // Default value since field is required
         category: formData.transactionType === "Collection" ? "Collection" : "Disbursement", // Default value since field is required
         reference: formData.referenceNo.trim(),
@@ -293,8 +296,8 @@ const IssueMoney = () => {
       // Create disbursement record
       const disbursementPayload = {
         transaction_id: transactionId,
-        payee_name: selectedRecipient?.name || 'Unknown Recipient',
-        recipient_account_id: parseInt(formData.recipientAccountId),
+        payee_name: payeeName,
+        recipient_account_id: formData.recipientAccountId ? parseInt(formData.recipientAccountId) : null,
         method: formData.modeOfPayment,
         purpose: formData.purpose.trim(),
         cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
@@ -381,7 +384,7 @@ const IssueMoney = () => {
       setDisbursementResult({
         transactionId,
         amount: formData.amount,
-        recipientName: selectedRecipient?.name || 'Unknown Recipient',
+        recipientName: payeeName,
         recipientAccount: selectedRecipient?.fund_code || 'N/A',
         referenceNo: formData.referenceNo,
         purpose: formData.purpose,
@@ -395,6 +398,7 @@ const IssueMoney = () => {
         transactionType: "Disbursement",
         amount: "",
         recipientAccountId: "",
+        payeeName: "",
         referenceNo: "",
         fundAccountId: "",
         description: "",
@@ -587,7 +591,17 @@ const IssueMoney = () => {
 
             <div className="form-row">
               <div className="form-group">
- 
+                <label>Payee Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter payee name (optional if recipient account selected)"
+                  value={formData.payeeName}
+                  onChange={(e) => handleInputChange('payeeName', e.target.value)}
+                />
+                <small className="field-hint">
+                  <i className="fas fa-info-circle"></i> 
+                  Leave blank to use selected recipient account name, or enter custom payee name
+                </small>
               </div>
               <div className="form-group">
                 <label>Payment Mode *</label>
@@ -708,6 +722,12 @@ const IssueMoney = () => {
                   <label>Recipient Account:</label>
                   <span>{Array.isArray(recipientAccounts) ? recipientAccounts.find(r => r.id === parseInt(formData.recipientAccountId))?.name || 'Unknown' : 'Loading...'}</span>
                 </div>
+                {formData.payeeName && (
+                  <div className="detail-item">
+                    <label>Payee Name:</label>
+                    <span>{formData.payeeName}</span>
+                  </div>
+                )}
                 <div className="detail-item">
                   <label>Fund Account (Source):</label>
                   <span>{Array.isArray(fundAccounts) ? fundAccounts.find(f => f.id === parseInt(formData.fundAccountId))?.name || 'Unknown' : 'Loading...'}</span>

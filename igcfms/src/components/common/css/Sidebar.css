@@ -14,68 +14,57 @@
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e5e5e5;
-  transition: all 0.3s ease;
   z-index: 1000;
   font-family: 'Inter', sans-serif;
+  overflow: hidden;
 }
 
 
 .sidebar-header {
-  width: 102.5%;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 24px 20px;
   border-bottom: 1px solid #e5e5e5;
-  background: #000000;
+  background: #f8f9fa;
 }
 
-.sidebar-header .logo {
-  width: 40px;
-  height: 40px;
-  background: #ffffff;
-  border-radius: 8px;
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.logo-circle {
+  width: 48px;
+  height: 48px;
+  background: #6b7280;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 16px;
-  color: #000000;
-}
-
-.sidebar-header .logo::before {
-  content: '\f0c9';
-  font-family: 'Font Awesome 6 Free';
-  font-weight: 900;
-}
-
-.sidebar-header .brand-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-header .brand-text h1,
-.sidebar-header .navbar-title {
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0;
+  font-size: 10px;
   color: #ffffff;
-}
-
-.sidebar-header .brand-text span,
-.sidebar-header .navbar-subtitle {
-  font-size: 11px;
-  color: #cccccc;
-  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.system-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  color: #111827;
+  letter-spacing: -0.5px;
 }
 
 .sidebar-close {
   margin-left: auto;
   background: transparent;
   border: none;
-  color: #ffffff;
+  color: #6b7280;
   font-size: 16px;
   cursor: pointer;
   width: 32px;
@@ -280,6 +269,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  height: 100%;
 }
 
 /* Section Dividers */
