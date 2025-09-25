@@ -830,12 +830,6 @@ td:last-child .btn {
     border-radius: 8px;
 }
 
-.hover\:bg-blue-700 {}
-
-.hover\:bg-green-700 {}
-
-.hover\:bg-red-700 {}
-
 .disabled\:opacity-50:disabled {
     opacity: 0.5;
 }

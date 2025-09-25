@@ -17,6 +17,8 @@ const FundsAccounts = () => {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showEditAccount, setShowEditAccount] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingAccountId, setDeletingAccountId] = useState(null);
   const [showTransactionHistory, setShowTransactionHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
@@ -34,6 +36,16 @@ const FundsAccounts = () => {
   });
 
   const [editAccount, setEditAccount] = useState({});
+
+  const openDeleteModal = (accountId) => {
+    setDeletingAccountId(accountId);
+    setShowDeleteModal(true);
+  };
+
+  const closeDeleteModal = () => {
+    setDeletingAccountId(null);
+    setShowDeleteModal(false);
+  };
 
   useEffect(() => {
     fetchAccounts();
@@ -379,7 +391,7 @@ const handleDeleteAccount = async (accountId) => {
 
       {showEditAccount && (
         <div className="modal-overlay" onClick={() => setShowEditAccount(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal wide" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
               <h4><i className="fas fa-edit"></i> Edit Fund Account</h4>
               <button 
@@ -486,6 +498,32 @@ const handleDeleteAccount = async (accountId) => {
         </div>
       )}
 
+      {showDeleteModal && (
+        <div className="modal-overlay">
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h4><i className="fas fa-exclamation-triangle"></i> Confirm Deletion</h4>
+              <button onClick={closeDeleteModal} className="close-button">×</button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete this fund account? This action cannot be undone.</p>
+            </div>
+            <div className="modal-footer">
+              <button onClick={closeDeleteModal} className="btn btn-secondary">Cancel</button>
+              <button 
+                onClick={async () => {
+                  await handleDeleteAccount(deletingAccountId);
+                  closeDeleteModal();
+                }}
+                className="btn btn-danger"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="accounts-overview">
         <h4><i className="fas fa-credit-card"></i> Fund Accounts ({accounts.length})</h4>
         <div className="account-cards">
@@ -522,15 +560,9 @@ const handleDeleteAccount = async (accountId) => {
                 </button>
                 <button
                   className="btn btn-sm btn-danger"
-                  onClick={async (e) => {
+                  onClick={(e) => {
                     e.stopPropagation();
-                    if (
-                      window.confirm(
-                        "Are you sure you want to delete this fund account?"
-                      )
-                    ) {
-                      await handleDeleteAccount(account.id);
-                    }
+                    openDeleteModal(account.id);
                   }}
                 >
                   <i className="fas fa-trash"></i> Delete
