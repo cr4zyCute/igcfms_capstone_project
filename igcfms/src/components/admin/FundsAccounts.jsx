@@ -81,6 +81,22 @@ const FundsAccounts = () => {
     }
   };
 
+  // Extract a readable error message from API errors
+  const extractErrorMessage = (err) => {
+    const fallback = "Request failed. Please try again.";
+    if (!err) return fallback;
+    const data = err.response?.data;
+    if (typeof data === 'string') return data;
+    if (data?.message) return data.message;
+    if (data?.errors) {
+      const firstKey = Object.keys(data.errors)[0];
+      if (firstKey && Array.isArray(data.errors[firstKey]) && data.errors[firstKey].length) {
+        return data.errors[firstKey][0];
+      }
+    }
+    return err.message || fallback;
+  };
+
   const fetchAccountTransactions = async (accountId) => {
     try {
       setTransactionsLoading(true);
@@ -113,6 +129,17 @@ const FundsAccounts = () => {
 
     try {
       setLoading(true);
+      // Basic client-side validation to avoid server roundtrip
+      if (!newAccount.name?.trim()) {
+        throw new Error('Account name is required');
+      }
+      if (!newAccount.account_type) {
+        throw new Error('Account type is required');
+      }
+      const ib = Number(newAccount.initial_balance);
+      if (Number.isNaN(ib) || ib < 0) {
+        throw new Error('Initial balance must be a non-negative number');
+      }
       const createdAccount = await createFundAccount({
         ...newAccount,
         initial_balance: Number(newAccount.initial_balance) || 0,
@@ -136,7 +163,8 @@ const FundsAccounts = () => {
       setShowAddAccount(false);
       fetchAccounts();
     } catch (err) {
-      showPopupMessage("error", "Failed to create fund account. Please try again.");
+      const msg = extractErrorMessage(err);
+      showPopupMessage("error", msg || "Failed to create fund account. Please try again.");
       console.error("Error creating account:", err.response?.data || err);
     } finally {
       setLoading(false);
@@ -154,6 +182,20 @@ const FundsAccounts = () => {
 
     try {
       setLoading(true);
+      // Client-side checks
+      if (!editAccount.name?.trim()) {
+        throw new Error('Account name is required');
+      }
+      if (!editAccount.code?.trim()) {
+        throw new Error('Account code is required');
+      }
+      if (!editAccount.account_type) {
+        throw new Error('Account type is required');
+      }
+      const ib = Number(editAccount.initial_balance);
+      if (Number.isNaN(ib) || ib < 0) {
+        throw new Error('Initial balance must be a non-negative number');
+      }
       await updateFundAccount(editAccount.id, {
       name: editAccount.name,
       code: editAccount.code,
@@ -166,7 +208,8 @@ const FundsAccounts = () => {
         fetchAccounts(); // refresh the list
         setSelectedAccount(null);
     } catch (err) {
-      showPopupMessage("error", "Failed to update fund account. Please try again.");
+      const msg = extractErrorMessage(err);
+      showPopupMessage("error", msg || "Failed to update fund account. Please try again.");
       console.error("Error updating account:", err);
     } finally {
       setLoading(false);
