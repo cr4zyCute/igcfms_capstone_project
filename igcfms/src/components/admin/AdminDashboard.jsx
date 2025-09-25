@@ -14,6 +14,7 @@ import SystemSettings from "./SystemSettings";
 import TransactionManagement from "./TransactionManagement";
 import ActivityDashboard from "./ActivityDashboard";
 import NotificationBar from "./NotificationBar";
+import ProfileSettings from "./ProfileSettings";
 import '../pages/css/Dashboard.css';
 
 const AdminDashboard = ({ user, activeTab }) => {
@@ -49,6 +50,8 @@ const AdminDashboard = ({ user, activeTab }) => {
         return <TransactionManagement />;
       case "activity-dashboard":
         return <ActivityDashboard />;
+      case "profile-settings":
+        return <ProfileSettings />;
       default:
         return <DashboardHome user={user} />;
     }

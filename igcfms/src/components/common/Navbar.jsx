@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../common/NotificationBell';
 
-const Navbar = ({ userRole, user, onToggleSidebar }) => {
+const Navbar = ({ userRole, user, onToggleSidebar, onNavigate }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -24,6 +24,13 @@ const Navbar = ({ userRole, user, onToggleSidebar }) => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+    setIsProfileOpen(false);
+  };
+
+  const handleNavigation = (tab) => {
+    if (onNavigate) {
+      onNavigate(tab);
+    }
     setIsProfileOpen(false);
   };
 
@@ -84,11 +91,19 @@ const Navbar = ({ userRole, user, onToggleSidebar }) => {
               <div className="dropdown-section">
                 <h4 className="section-title">menu</h4>
                 <div className="section-items">
-                  <a href="/help" className="dropdown-item">
+                  <a 
+                    href="#" 
+                    onClick={(e) => { e.preventDefault(); handleNavigation('profile-settings'); }} 
+                    className="dropdown-item"
+                  >
                     <span className="item-icon"></span>
                     <span className="item-text">Profile</span>
                   </a>
-                  <a href="/settings" className="dropdown-item">
+                  <a 
+                    href="#" 
+                    onClick={(e) => { e.preventDefault(); handleNavigation('profile-settings'); }} 
+                    className="dropdown-item"
+                  >
                     <span className="item-icon"></span>
                     <span className="item-text">Settings</span>
                   </a>

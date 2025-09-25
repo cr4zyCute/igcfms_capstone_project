@@ -30,7 +30,7 @@ const FundsAccounts = () => {
     code: "",
     description: "",
     initial_balance: 0,
-    department: "",
+    account_type: "Revenue",
   });
 
   const [editAccount, setEditAccount] = useState({});
@@ -159,7 +159,7 @@ const FundsAccounts = () => {
       code: editAccount.code,
       description: editAccount.description,
       initial_balance: Number(editAccount.initial_balance),
-      department: editAccount.department,
+      account_type: editAccount.account_type,
     });
         showPopupMessage("success", "Fund account updated successfully!");
         setShowEditAccount(false);
@@ -256,6 +256,21 @@ const handleDeleteAccount = async (accountId) => {
                 />
               </div>
               <div className="form-group">
+                <label>Account Type</label>
+                <select
+                  value={newAccount.account_type}
+                  onChange={(e) => setNewAccount({ ...newAccount, account_type: e.target.value })}
+                  disabled={loading}
+                  required
+                >
+                  <option value="Revenue">Revenue</option>
+                  <option value="Expense">Expense</option>
+                  <option value="Asset">Asset</option>
+                  <option value="Liability">Liability</option>
+                  <option value="Equity">Equity</option>
+                </select>
+              </div>
+              <div className="form-group">
                 <label>Account Code</label>
                 <input
                   type="text"
@@ -301,30 +316,7 @@ const handleDeleteAccount = async (accountId) => {
                   disabled={loading}
                 />
               </div>
-              <div className="form-group">
-                <label>Department</label>
-                {/* <select
-                  value={newAccount.department}
-                  onChange={(e) =>
-                    setNewAccount({ ...newAccount, department: e.target.value })
-                  }
-                  disabled={loading}
-                >
-                  <option value="">Select Department</option>
-                  <option value="Finance">Finance</option>
-                  <option value="Administration">Administration</option>
-                  <option value="Operations">Operations</option>
-                  <option value="Human Resources">Human Resources</option>
-                  <option value="Information Technology">Information Technology</option>
-                  <option value="Legal">Legal</option>
-                  <option value="Procurement">Procurement</option>
-                  <option value="Public Works">Public Works</option>
-                  <option value="Health Services">Health Services</option>
-                  <option value="Education">Education</option>
-                  <option value="Social Services">Social Services</option>
-                  <option value="Revenue">Revenue</option>
-                </select> */}
-              </div>
+              
               <div className="form-actions">
                 <button
                   type="button"
@@ -376,6 +368,22 @@ const handleDeleteAccount = async (accountId) => {
                 />
               </div>
               <div className="form-group">
+                <label>Account Type</label>
+                <select
+                  value={editAccount.account_type || ''}
+                  onChange={(e) => setEditAccount({ ...editAccount, account_type: e.target.value })}
+                  disabled={loading}
+                  required
+                >
+                  <option value="">Select Type</option>
+                  <option value="Revenue">Revenue</option>
+                  <option value="Expense">Expense</option>
+                  <option value="Asset">Asset</option>
+                  <option value="Liability">Liability</option>
+                  <option value="Equity">Equity</option>
+                </select>
+              </div>
+              <div className="form-group">
                 <label>Account Code</label>
                 <input
                   type="text"
@@ -417,30 +425,7 @@ const handleDeleteAccount = async (accountId) => {
                   disabled={loading}
                 />
               </div>
-              <div className="form-group">
-                <label>Department</label>
-                {/* <select
-                  value={editAccount.department}
-                  onChange={(e) =>
-                    setEditAccount({ ...editAccount, department: e.target.value })
-                  }
-                  disabled={loading}
-                >
-                  <option value="">Select Department</option>
-                  <option value="Finance">Finance</option>
-                  <option value="Administration">Administration</option>
-                  <option value="Operations">Operations</option>
-                  <option value="Human Resources">Human Resources</option>
-                  <option value="Information Technology">Information Technology</option>
-                  <option value="Legal">Legal</option>
-                  <option value="Procurement">Procurement</option>
-                  <option value="Public Works">Public Works</option>
-                  <option value="Health Services">Health Services</option>
-                  <option value="Education">Education</option>
-                  <option value="Social Services">Social Services</option>
-                  <option value="Revenue">Revenue</option>
-                </select> */}
-              </div>
+              
               <div className="form-actions">
                 <button
                   type="button"
@@ -479,9 +464,7 @@ const handleDeleteAccount = async (accountId) => {
               <p className="balance">
                 ₱{account.current_balance?.toLocaleString() || "0.00"}
               </p>
-              <p className="department">
-                <i className="fas fa-building"></i> {account.department || 'No Department'}
-              </p>
+              
               <div className="account-actions">
                 <button
                   className="btn btn-sm btn-warning"
@@ -571,10 +554,7 @@ const handleDeleteAccount = async (accountId) => {
                 <div style={{ fontSize: '12px', color: '#666666', marginBottom: '5px' }}>Current Balance</div>
                 <div style={{ fontSize: '20px', fontWeight: '700', color: '#16a34a' }}>₱{selectedAccount.current_balance?.toLocaleString() || "0.00"}</div>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#666666', marginBottom: '5px' }}>Department</div>
-                <div style={{ fontSize: '16px', fontWeight: '600', color: '#000000' }}>{selectedAccount.department || 'No Department'}</div>
-              </div>
+              
             </div>
             
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>

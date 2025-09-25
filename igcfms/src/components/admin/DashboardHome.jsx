@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "../admin/css/home.css";
 import axios from "axios";
 import LoadingSpinner, { StatsSkeleton, CardSkeleton, TableSkeleton } from "../common/LoadingSpinner";
@@ -35,6 +35,11 @@ const DashboardHome = () => {
     tables: true
   });
   const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [viewMode, setViewMode] = useState('daily'); // daily | weekly
+  const [streaming, setStreaming] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef(null);
 
   const API_BASE = "http://localhost:8000/api";
 
@@ -252,13 +257,145 @@ const DashboardHome = () => {
         setError(err.response?.data?.message || err.message || 'Failed to load dashboard data');
       } finally {
         setLoading({ stats: false, charts: false, tables: false });
+        setLastUpdated(new Date());
       }
     };
 
     fetchDashboardData();
+
+    // Auto-refresh every 30s
+    const intervalId = setInterval(() => {
+      fetchDashboardData();
+    }, 30000);
+
+    // WebSocket streaming (best-effort)
+    try {
+      const ws = new WebSocket('ws://localhost:8000/ws');
+      wsRef.current = ws;
+      ws.onopen = () => setWsConnected(true);
+      ws.onclose = () => setWsConnected(false);
+      ws.onerror = () => setWsConnected(false);
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          // expected shapes: {type:'transaction', data:{...}} or {type:'stats', data:{...}}
+          if (msg.type === 'transaction' && msg.data) {
+            setStreaming(true);
+            setRecentTransactions(prev => [msg.data, ...prev].slice(0, 10));
+            // lightweight updates
+            setDailyRevenue(prev => {
+              const dateStr = new Date(msg.data.created_at).toLocaleDateString();
+              const copy = [...prev];
+              const idx = copy.findIndex(d => d.date === dateStr);
+              if (idx >= 0) {
+                if (msg.data.type === 'Collection') copy[idx].collections += parseFloat(msg.data.amount || 0);
+                if (msg.data.type === 'Disbursement') copy[idx].disbursements += parseFloat(msg.data.amount || 0);
+                copy[idx].amount = copy[idx].collections;
+              }
+              return copy;
+            });
+            setLastUpdated(new Date());
+            setTimeout(() => setStreaming(false), 1500);
+          }
+          if (msg.type === 'override' && msg.data) {
+            setOverrideRequests(prev => [msg.data, ...prev].slice(0, 5));
+          }
+        } catch {}
+      };
+    } catch {}
+
+    return () => {
+      clearInterval(intervalId);
+      if (wsRef.current) {
+        try { wsRef.current.close(); } catch {}
+      }
+    };
   }, []);
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AA00FF", "#FF4444"];
+  const GRAYS = ["#111111", "#333333", "#555555", "#777777", "#999999", "#BBBBBB"];
+
+  // Helpers for trends
+  const formatPeso = (num) => `₱${(num || 0).toLocaleString()}`;
+  const computeChange = (current, previous) => {
+    const prev = previous || 0;
+    if (prev === 0) return { pct: current ? 100 : 0, dir: current >= 0 ? 'up' : 'down' };
+    const diff = current - prev;
+    const pct = Math.round((diff / prev) * 100);
+    return { pct: Math.abs(pct), dir: diff >= 0 ? 'up' : 'down' };
+  };
+
+  // Build previous period comparisons (simple heuristic)
+  const last7Collections = dailyRevenue.reduce((s, d) => s + (d.collections || 0), 0);
+  const last7Disb = dailyRevenue.reduce((s, d) => s + (d.disbursements || 0), 0);
+  const prev7Collections = dailyRevenue.slice(0, Math.max(0, dailyRevenue.length - 7)).reduce((s, d) => s + (d.collections || 0), 0);
+  const prev7Disb = dailyRevenue.slice(0, Math.max(0, dailyRevenue.length - 7)).reduce((s, d) => s + (d.disbursements || 0), 0);
+  const collectionsTrend = computeChange(last7Collections, prev7Collections);
+  const disbTrend = computeChange(last7Disb, prev7Disb);
+  const netTrend = computeChange(stats.netBalance, stats.netBalance - (last7Collections - last7Disb));
+
+  // 30-day cash flow with moving average
+  const buildLastNDays = (n) => {
+    const days = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toDateString();
+      days.push({ key: dateStr, label: date.toLocaleDateString() });
+    }
+    return days;
+  };
+
+  const last30Template = buildLastNDays(30);
+  const last30 = last30Template.map(t => {
+    const collections = recentTransactions
+      .filter(tx => tx.type === 'Collection' && new Date(tx.created_at).toDateString() === t.key)
+      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+    const disbursements = recentTransactions
+      .filter(tx => tx.type === 'Disbursement' && new Date(tx.created_at).toDateString() === t.key)
+      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+    const net = collections - disbursements;
+    return { date: t.label, collections, disbursements, net };
+  });
+
+  const movingAverage = (arr, windowSize = 7) => {
+    const out = [];
+    for (let i = 0; i < arr.length; i++) {
+      const from = Math.max(0, i - windowSize + 1);
+      const slice = arr.slice(from, i + 1);
+      const avg = slice.reduce((s, d) => s + d.net, 0) / slice.length;
+      out.push({ ...arr[i], ma: avg });
+    }
+    return out;
+  };
+  const cashFlow30 = movingAverage(last30, 7);
+
+  // Weekly aggregation for toggle
+  const aggregateWeekly = (daysData) => {
+    const out = [];
+    for (let i = 0; i < daysData.length; i += 7) {
+      const chunk = daysData.slice(i, i + 7);
+      const collections = chunk.reduce((s, d) => s + (d.collections || 0), 0);
+      const disbursements = chunk.reduce((s, d) => s + (d.disbursements || 0), 0);
+      out.push({ period: `Week ${Math.floor(i / 7) + 1}`, collections, disbursements });
+    }
+    return out;
+  };
+
+  const trendSource = viewMode === 'daily' ? dailyRevenue.map(d => ({ period: d.date, collections: d.collections, disbursements: d.disbursements })) : aggregateWeekly(dailyRevenue);
+
+  // Heatmap 7x24
+  const heatmap = (() => {
+    const grid = Array.from({ length: 7 }, (_, day) => ({ day, hours: Array.from({ length: 24 }, (_, h) => 0) }));
+    recentTransactions.forEach(tx => {
+      const dt = new Date(tx.created_at);
+      const day = dt.getDay();
+      const hour = dt.getHours();
+      grid[day].hours[hour] += 1;
+    });
+    const max = Math.max(1, ...grid.flatMap(g => g.hours));
+    return { grid, max };
+  })();
 
   if (error) {
     return (
@@ -272,16 +409,27 @@ const DashboardHome = () => {
 
   return (
     <div className="admin-page" style={{ padding: '20px', background: '#ffffff', minHeight: '100vh' }}>
-      <div style={{ marginBottom: '30px', paddingBottom: '20px', borderBottom: '2px solid #f0f0f0' }}>
+      <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '2px solid #f0f0f0' }}>
         <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#000000', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <i className="fas fa-chart-line"></i> IGCFMS Admin Dashboard
         </h2>
-        <p style={{ fontSize: '14px', color: '#666666', margin: '0' }}>
-          Comprehensive financial management system overview and analytics
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p style={{ fontSize: '14px', color: '#666666', margin: 0 }}>
+            Comprehensive financial management system overview and analytics
+          </p>
+          <div className="realtime-indicator">
+            <span className="realtime-dot"></span>
+            {wsConnected ? 'Live' : 'Auto-refresh 30s'}
+            <span className="last-updated" style={{ marginLeft: 8 }}>
+              {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : ''}
+            </span>
+          </div>
+        </div>
       </div>
 
+      <div className="dashboard-grid">
       {/* Enhanced KPI Cards */}
+      <section className="area-metrics">
       {loading.stats ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
@@ -318,32 +466,32 @@ const DashboardHome = () => {
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-            <StatCard label="Active Users" value={stats.totalUsers} icon="👥" color="primary" />
-            <StatCard label="Active Fund Accounts" value={stats.activeFunds} icon="🏦" color="info" />
-            <StatCard label="Total Collections" value={`₱${stats.totalCollections.toLocaleString()}`} icon="📈" color="success" />
-            <StatCard label="Total Disbursements" value={`₱${stats.totalDisbursements.toLocaleString()}`} icon="📉" color="danger" />
-            <StatCard label="Net Balance" value={`₱${stats.netBalance.toLocaleString()}`} icon="💰" color="warning" />
-          </div>
-
-          {/* Secondary KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-            <StatCard label="Today's Transactions" value={stats.todayTransactions} icon="📅" color="secondary" />
-            <StatCard label="Pending Overrides" value={stats.pendingOverrides} icon="⚠️" color="secondary" />
-            <StatCard label="Revenue Accounts" value={`₱${stats.totalRevenue.toLocaleString()}`} icon="💹" color="secondary" />
-            <StatCard label="Expense Accounts" value={`₱${stats.totalExpense.toLocaleString()}`} icon="💸" color="secondary" />
+          <div className="kpi-grid" style={{ marginBottom: '0' }}>
+            <MetricCard label="Active Users" value={stats.totalUsers} trend={{ pct: 0, dir: 'up' }} streaming={streaming} />
+            <MetricCard label="Active Fund Accounts" value={stats.activeFunds} trend={{ pct: 0, dir: 'up' }} />
+            <MetricCard label="Total Collections" value={formatPeso(stats.totalCollections)} trend={collectionsTrend} />
+            <MetricCard label="Total Disbursements" value={formatPeso(stats.totalDisbursements)} trend={disbTrend} />
+            <MetricCard label="Net Balance" value={formatPeso(stats.netBalance)} trend={netTrend} />
+            <MetricCard label="System Health" value={wsConnected ? 'Operational' : 'Degraded'} health={wsConnected ? 'ok' : 'warn'} />
           </div>
         </>
       )}
+      </section>
 
       {/* Enhanced Charts Section */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px', marginBottom: '30px' }}>
+      <section className="area-charts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px', marginBottom: '0' }}>
         
         {/* Collections vs Disbursements Trend */}
-        <div style={{ background: '#ffffff', border: '2px solid #f0f0f0', borderRadius: '12px', padding: '25px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <i className="fas fa-chart-area"></i> Collections vs Disbursements (7 Days)
-          </h3>
+        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+          <div className="section-header">
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fas fa-chart-area"></i> Collections vs Disbursements
+            </h3>
+            <div className="toggle-group">
+              <button className={`toggle-btn ${viewMode === 'daily' ? 'active' : ''}`} onClick={() => setViewMode('daily')}>Daily</button>
+              <button className={`toggle-btn ${viewMode === 'weekly' ? 'active' : ''}`} onClick={() => setViewMode('weekly')}>Weekly</button>
+            </div>
+          </div>
           {loading.charts ? (
             <div style={{
               height: '300px',
@@ -362,9 +510,9 @@ const DashboardHome = () => {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={dailyRevenue}>
+              <ComposedChart data={trendSource}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" />
+                <XAxis dataKey="period" />
                 <YAxis />
                 <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, '']} />
                 <Legend />
@@ -378,7 +526,7 @@ const DashboardHome = () => {
         </div>
 
         {/* Fund Distribution by Account Type */}
-        <div style={{ background: '#ffffff', border: '2px solid #f0f0f0', borderRadius: '12px', padding: '25px' }}>
+        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-chart-pie"></i> Fund Distribution by Account Type
           </h3>
@@ -406,23 +554,32 @@ const DashboardHome = () => {
                   data={fundDistribution}
                   cx="50%"
                   cy="50%"
+                  innerRadius={60}
                   outerRadius={100}
-                  label={({ name, value }) => `${name}: ₱${value.toLocaleString()}`}
+                  label={({ name, value, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
                 >
                   {fundDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell key={`cell-${index}`} fill={GRAYS[index % GRAYS.length]} />
                   ))}
                 </Pie>
                 <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, 'Balance']} />
               </PieChart>
             </ResponsiveContainer>
           )}
+          <div className="legend-row" style={{ marginTop: 8 }}>
+            {fundDistribution.map((entry, idx) => (
+              <span key={entry.name} className="legend-item">
+                <span className="legend-swatch" style={{ background: GRAYS[idx % GRAYS.length] }}></span>
+                {entry.name} ({formatPeso(entry.value)})
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Monthly Revenue Trend */}
-        <div style={{ background: '#ffffff', border: '2px solid #f0f0f0', borderRadius: '12px', padding: '25px' }}>
+        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <i className="fas fa-chart-line"></i> Monthly Revenue Trend (6 Months)
+            <i className="fas fa-chart-line"></i> Cash Flow Trend (30 Days)
           </h3>
           {loading.charts ? (
             <div style={{
@@ -442,22 +599,21 @@ const DashboardHome = () => {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyRevenue}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => [`₱${value.toLocaleString()}`, '']} />
-              <Legend />
-              <Line type="monotone" dataKey="collections" stroke="#16a34a" strokeWidth={3} name="Collections" />
-              <Line type="monotone" dataKey="disbursements" stroke="#dc2626" strokeWidth={3} name="Disbursements" />
-              <Line type="monotone" dataKey="net" stroke="#2563eb" strokeWidth={3} name="Net Balance" strokeDasharray="5 5" />
-            </LineChart>
-          </ResponsiveContainer>
+              <LineChart data={cashFlow30}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(value) => [`₱${Number(value).toLocaleString()}`, '']} />
+                <Legend />
+                <Area type="monotone" dataKey="net" stroke="#111827" fill="#111827" fillOpacity={0.15} name="Daily Net" />
+                <Line type="monotone" dataKey="ma" stroke="#000000" strokeWidth={2} name="7D Moving Avg" />
+              </LineChart>
+            </ResponsiveContainer>
           )}
         </div>
 
         {/* Department Performance */}
-        <div style={{ background: '#ffffff', border: '2px solid #f0f0f0', borderRadius: '12px', padding: '25px' }}>
+        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-building"></i> Department Transaction Volume
           </h3>
@@ -493,10 +649,30 @@ const DashboardHome = () => {
           
         </div>
 
-      </div>
+        {/* Transaction Volume Heatmap */}
+        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+          <div className="section-header">
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fas fa-th"></i> Transaction Volume Heatmap (7x24)
+            </h3>
+          </div>
+          <div className="heatmap-grid">
+            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((label, idx) => (
+              <React.Fragment key={label}>
+                <div style={{ fontSize: '11px', color: '#6b7280', display: 'flex', alignItems: 'center' }}>{label}</div>
+                {heatmap.grid[idx].hours.map((val, hIdx) => {
+                  const level = Math.min(5, Math.ceil((val / heatmap.max) * 5)) || 1;
+                  return <div key={`${idx}-${hIdx}`} className={`heatmap-cell level-${level}`} title={`${label} ${hIdx}:00 - ${val} tx`}></div>;
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+      </section>
 
       {/* Admin Data Tables */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px', marginBottom: '30px' }}>
+      <section className="area-tables" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px', marginBottom: '0' }}>
         
         {/* Recent Transactions */}
         <div style={{ background: '#ffffff', border: '2px solid #f0f0f0', borderRadius: '12px', padding: '25px' }}>
@@ -685,6 +861,48 @@ const DashboardHome = () => {
           </div>
         </div>
 
+      </section>
+
+      {/* Bottom Analytics Row */}
+      <section className="area-analytics">
+        <div className="analytics-grid">
+          <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: 8 }}><i className="fas fa-coins"></i> Revenue Analysis</h3>
+            <div style={{ fontSize: 12, color: '#6b7280' }}>Top revenue sources coming soon.</div>
+          </div>
+          <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: 8 }}><i className="fas fa-receipt"></i> Expense Tracking</h3>
+            <div style={{ fontSize: 12, color: '#6b7280' }}>Expense categories with trends coming soon.</div>
+          </div>
+          <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: 8 }}><i className="fas fa-gauge"></i> Collection Rate</h3>
+            <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#111827', fontWeight: 700 }}>36%</div>
+          </div>
+          <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: 8 }}><i className="fas fa-user-clock"></i> User Activity</h3>
+            <div style={{ maxHeight: 140, overflowY: 'auto', fontSize: 12 }}>
+              {userActivity.slice(0, 5).map(u => (
+                <div key={u.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f3f4f6' }}>
+                  <span>{u.name} ({u.role})</span>
+                  <span style={{ color: '#6b7280' }}>{u.transactions} tx</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: 8 }}><i className="fas fa-bell"></i> System Alerts</h3>
+            <div style={{ maxHeight: 140, overflowY: 'auto', fontSize: 12 }}>
+              {auditLogs.slice(0, 6).map((log) => (
+                <div key={log.id || log.created_at} style={{ padding: '6px 0', borderBottom: '1px solid #f3f4f6' }}>
+                  <div style={{ fontWeight: 600 }}>{log.action || 'Activity'}</div>
+                  <div style={{ color: '#6b7280' }}>{new Date(log.created_at).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       </div>
 
     </div>
@@ -749,6 +967,35 @@ const StatCard = ({ label, value, icon, color = 'primary' }) => {
           {value}
         </div>
       </div>
+    </div>
+  );
+};
+
+// New Metric Card with trends and health indicator
+const MetricCard = ({ label, value, trend, health, streaming }) => {
+  const trendDir = trend?.dir === 'down' ? 'down' : 'up';
+  const trendColor = trendDir === 'up' ? '#16a34a' : '#dc2626';
+  const trendArrow = trendDir === 'up' ? '↑' : '↓';
+  const healthText = health === 'ok' ? 'Operational' : health === 'warn' ? 'Degraded' : '';
+  const healthColor = health === 'ok' ? '#16a34a' : '#f59e0b';
+
+  return (
+    <div className="metric-card">
+      <div className="metric-header">
+        <span className="metric-label">{label}</span>
+        <span className="last-updated" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {streaming && <span className="realtime-dot" />}
+        </span>
+      </div>
+      <div className="metric-value">{value}</div>
+      {typeof trend?.pct === 'number' ? (
+        <div className={`metric-trend ${trendDir}`} style={{ color: trendColor }}>
+          {trendArrow} {trend.pct}%
+        </div>
+      ) : null}
+      {healthText ? (
+        <div className="metric-trend" style={{ color: healthColor }}>{healthText}</div>
+      ) : null}
     </div>
   );
 };

@@ -105,7 +105,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #64748b;
+  color: #565656;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -142,10 +142,10 @@
 }
 
 .filter-tab.active {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #454545 0%, #6b6b6b 100%);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 16px rgba(116, 116, 116, 0.3);
   transform: translateY(-1px);
 }
 
@@ -229,7 +229,7 @@
 }
 
 .search-input:focus {
-  border-color: #3b82f6;
+  border-color: #191919;
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), 0 4px 16px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
 }
@@ -251,7 +251,7 @@
 }
 
 .search-input:focus + .search-icon {
-  color: #3b82f6;
+  color: #585858;
 }
 
 .notification-items {
@@ -273,7 +273,7 @@
 .loading-state i {
   font-size: 24px;
   margin-bottom: 12px;
-  color: #3b82f6;
+  color: #7e7e7e;
 }
 
 .loading-state p {
@@ -336,7 +336,7 @@
 
 .notification-item.selected {
   background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border: 2px solid #3b82f6;
+  border: 2px solid #3a3a3a;
   transform: translateY(-2px);
   box-shadow: 0 8px 30px rgba(59, 130, 246, 0.15);
 }
@@ -563,7 +563,7 @@
   width: 48px;
   height: 48px;
   border-radius: 8px;
-  background: #3b82f6;
+  background: #292929;
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -663,7 +663,7 @@
 }
 
 .primary-action-btn {
-  background: #3b82f6;
+  background: #000000;
   color: #ffffff;
   border: 1px solid #3b82f6;
 }
@@ -741,7 +741,7 @@
 }
 
 .suggestion-item:hover {
-  border-color: #3b82f6;
+  border-color: #262626;
   box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
   transform: translateY(-2px);
 }

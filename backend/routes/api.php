@@ -16,6 +16,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\RecipientAccountController;
+use App\Http\Controllers\SystemSettingsController;
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
@@ -38,6 +39,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus']);
+    
+    // User profile routes
+    Route::get('/user/profile', [UserController::class, 'getProfile']);
+    Route::put('/user/profile', [UserController::class, 'updateProfile']);
+    
+    // System settings routes
+    Route::get('/system/settings', [SystemSettingsController::class, 'index']);
+    Route::put('/system/settings', [SystemSettingsController::class, 'update']);
+    Route::get('/system/settings/{key}', [SystemSettingsController::class, 'getSetting']);
+    Route::put('/system/settings/{key}', [SystemSettingsController::class, 'updateSetting']);
 });
 //Fund Accouts routes
 Route::middleware('auth:sanctum')->group(function () {
