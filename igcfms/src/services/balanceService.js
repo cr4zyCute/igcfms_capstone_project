@@ -31,9 +31,9 @@ class BalanceService {
   }
 
   // Notify balance listeners
-  notifyBalanceListeners(fundAccountId, newBalance, oldBalance) {
+  notifyBalanceListeners(fundAccountId, newBalance, oldBalance, latestTransaction) {
     this.balanceListeners.forEach(callback => 
-      callback({ fundAccountId, newBalance, oldBalance })
+      callback({ fundAccountId, newBalance, oldBalance, latestTransaction })
     );
   }
 
@@ -80,7 +80,11 @@ class BalanceService {
       this.fundBalances.set(fundAccountId, newBalance);
 
       // Notify listeners
-      this.notifyBalanceListeners(fundAccountId, newBalance, currentBalance);
+      const transactionType = operation === 'ADD' ? 'Collection' : 'Disbursement';
+      this.notifyBalanceListeners(fundAccountId, newBalance, currentBalance, { 
+        type: transactionType, 
+        amount: parseFloat(amount) 
+      });
 
       // Check for low balance warning
       if (newBalance < 10000 && operation === 'SUBTRACT') {

@@ -3,6 +3,7 @@ import "../../assets/admin.css";
 import "./css/fundsaccount.css";
 import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
+import MiniLineGraph from './MiniLineGraph'; // Import the new graph component
 import {
   getFundAccounts,
   createFundAccount,
@@ -36,6 +37,8 @@ const FundsAccounts = () => {
   });
 
   const [editAccount, setEditAccount] = useState({});
+  const [accountGraphData, setAccountGraphData] = useState({});
+  const [openMenuId, setOpenMenuId] = useState(null); // State for dropdown menu
 
   const openDeleteModal = (accountId) => {
     setDeletingAccountId(accountId);
@@ -47,19 +50,41 @@ const FundsAccounts = () => {
     setShowDeleteModal(false);
   };
 
+  const toggleMenu = (e, accountId) => {
+    e.stopPropagation();
+    setOpenMenuId(prevId => (prevId === accountId ? null : accountId));
+  };
+
   useEffect(() => {
     fetchAccounts();
     //loadAccounts();
     
     // Set up real-time balance updates
-    const handleBalanceUpdate = ({ fundAccountId, newBalance, oldBalance }) => {
-      setAccounts(prevAccounts => 
-        prevAccounts.map(account => 
-          account.id === fundAccountId 
-            ? { ...account, current_balance: newBalance }
+    const handleBalanceUpdate = ({ fundAccountId, newBalance, latestTransaction }) => {
+      setAccounts(prevAccounts =>
+        prevAccounts.map(account =>
+          account.id === fundAccountId
+            ? { ...account, current_balance: newBalance, latest_transaction: latestTransaction }
             : account
         )
       );
+
+      // Update graph data
+      if (latestTransaction) {
+        setAccountGraphData(prevData => {
+          const existingData = prevData[fundAccountId] || [];
+          const newDataPoint = {
+            date: new Date().toISOString(),
+            balance: newBalance,
+            amount: latestTransaction.amount,
+            type: latestTransaction.type,
+          };
+          return {
+            ...prevData,
+            [fundAccountId]: [...existingData, newDataPoint].slice(-20), // Keep last 20 points
+          };
+        });
+      }
     };
 
     balanceService.addBalanceListener(handleBalanceUpdate);
@@ -83,7 +108,20 @@ const FundsAccounts = () => {
     try {
       setLoading(true);
       const response = await getFundAccounts();
-      setAccounts(response);
+      setAccounts(response.map(acc => ({ ...acc, latest_transaction: null })));
+
+      // Initialize graph data
+      const initialGraphData = {};
+      response.forEach(account => {
+        initialGraphData[account.id] = account.transactions.map(t => ({
+          date: t.created_at,
+          balance: t.balance_after_transaction, // Assuming this field exists
+          amount: t.amount,
+          type: t.type,
+        })).slice(-20);
+      });
+      setAccountGraphData(initialGraphData);
+
       setError("");
     } catch (err) {
       setError("Failed to fetch fund accounts. Please try again.");
@@ -392,63 +430,71 @@ const handleDeleteAccount = async (accountId) => {
       {showEditAccount && (
         <div className="modal-overlay" onClick={() => setShowEditAccount(false)}>
           <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+            <div className="modal-header">
               <h4><i className="fas fa-edit"></i> Edit Fund Account</h4>
-              <button 
-                type="button" 
-                onClick={() => setShowEditAccount(false)}
-                style={{ 
-                  background: 'none', 
-                  border: 'none', 
-                  fontSize: '24px', 
-                  cursor: 'pointer',
-                  color: '#666666',
-                  padding: '4px'
-                }}
-              >
-                ×
-              </button>
+              <button type="button" onClick={() => setShowEditAccount(false)} className="close-button">×</button>
             </div>
-            <form onSubmit={handleEditAccount}>
-              <div className="form-group">
-                <label>Account Name</label>
-                <input
-                  type="text"
-                  value={editAccount.name}
-                  onChange={(e) =>
-                    setEditAccount({ ...editAccount, name: e.target.value })
-                  }
-                  required
-                  disabled={loading}
-                />
+            <form onSubmit={handleEditAccount} className="modal-body">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Account Name</label>
+                  <input
+                    type="text"
+                    value={editAccount.name}
+                    onChange={(e) =>
+                      setEditAccount({ ...editAccount, name: e.target.value })
+                    }
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Account Type</label>
+                  <select
+                    value={editAccount.account_type || ''}
+                    onChange={(e) => setEditAccount({ ...editAccount, account_type: e.target.value })}
+                    disabled={loading}
+                    required
+                  >
+                    <option value="">Select Type</option>
+                    <option value="Revenue">Revenue</option>
+                    <option value="Expense">Expense</option>
+                    <option value="Asset">Asset</option>
+                    <option value="Liability">Liability</option>
+                    <option value="Equity">Equity</option>
+                  </select>
+                </div>
               </div>
-              <div className="form-group">
-                <label>Account Type</label>
-                <select
-                  value={editAccount.account_type || ''}
-                  onChange={(e) => setEditAccount({ ...editAccount, account_type: e.target.value })}
-                  disabled={loading}
-                  required
-                >
-                  <option value="">Select Type</option>
-                  <option value="Revenue">Revenue</option>
-                  <option value="Expense">Expense</option>
-                  <option value="Asset">Asset</option>
-                  <option value="Liability">Liability</option>
-                  <option value="Equity">Equity</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Account Code</label>
-                <input
-                  type="text"
-                  value={editAccount.code}
-                  onChange={(e) =>
-                    setEditAccount({ ...editAccount, code: e.target.value })
-                  }
-                  required
-                  disabled={loading}
-                />
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Account Code</label>
+                  <input
+                    type="text"
+                    value={editAccount.code}
+                    onChange={(e) =>
+                      setEditAccount({ ...editAccount, code: e.target.value })
+                    }
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Initial Balance</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editAccount.initial_balance}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setEditAccount({
+                        ...editAccount,
+                        initial_balance: value === "" ? "" : parseFloat(value),
+                      });
+                    }}
+                    required
+                    disabled={loading}
+                  />
+                </div>
               </div>
               <div className="form-group">
                 <label>Description</label>
@@ -463,34 +509,17 @@ const handleDeleteAccount = async (accountId) => {
                   disabled={loading}
                 />
               </div>
-              <div className="form-group">
-                <label>Initial Balance</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editAccount.initial_balance}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setEditAccount({
-                      ...editAccount,
-                      initial_balance: value === "" ? "" : parseFloat(value),
-                    });
-                  }}
-                  required
-                  disabled={loading}
-                />
-              </div>
               
               <div className="form-actions">
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setShowEditAccount(false)}
                   disabled={loading}
                 >
-                  Cancel
-                </button>
+                  <i className="fas fa-times"></i> Cancel
+                </button> */}
                 <button type="submit" disabled={loading}>
-                  {loading ? "Updating..." : "Update Account"}
+                  {loading ? "Updating..." : <><i className="fas fa-save"></i> Update Account</>}
                 </button>
               </div>
             </form>
@@ -527,49 +556,76 @@ const handleDeleteAccount = async (accountId) => {
       <div className="accounts-overview">
         <h4><i className="fas fa-credit-card"></i> Fund Accounts ({accounts.length})</h4>
         <div className="account-cards">
-          {accounts.map((account) => (
-            <div
-              key={account.id}
-              className={`account-card ${
-                selectedAccount?.id === account.id ? "selected" : ""
-              }`}
-              onClick={() => handleAccountSelect(account)}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                <h5>{account.name}</h5>
-                <div style={{ fontSize: '20px', color: '#666666' }}>
-                  <i className="fas fa-wallet"></i>
+          {accounts.map((account) => {
+            const latestTransaction = account.latest_transaction;
+            return (
+              <div key={account.id} className="account-card-new" onClick={() => openMenuId && setOpenMenuId(null)}>
+                <div className="card-header">
+                  <div className="card-title">
+                    <div className="title-line">
+                      <h5>{account.name}</h5>
+                      <p className="account-code">{account.code}</p>
+                    </div>
+                    <span>Created: {new Date(account.created_at).toLocaleString()}</span>
+                  </div>
+                  <div className="card-menu">
+                    <i className="fas fa-wallet"></i>
+                    <button className="menu-btn" onClick={(e) => toggleMenu(e, account.id)}>
+                      <i className="fas fa-ellipsis-v"></i>
+                    </button>
+                    {openMenuId === account.id && (
+                      <div className="dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAccount(account);
+                            setShowEditAccount(true);
+                            setEditAccount({ ...account });
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          <i className="fas fa-edit"></i> Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteModal(account.id);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          <i className="fas fa-trash"></i> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="card-balance">
+                  <h2>₱{account.current_balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0.00"}</h2>
+                </div>
+
+                <div className="card-graph">
+                  <MiniLineGraph data={accountGraphData[account.id] || []} />
+                </div>
+
+                <div className="card-actions-new">
+                  <button 
+                    className={`history-btn ${latestTransaction ? (latestTransaction.type === 'Collection' ? 'income' : 'expense') : ''}`}
+                    onClick={() => handleAccountSelect(account)}
+                  >
+                    {latestTransaction ? (
+                      <>
+                        <span>Latest: {latestTransaction.type === 'Collection' ? '+' : '-'} ₱{latestTransaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className='history-btn-subtitle'>Click to see all</span>
+                      </>
+                    ) : (
+                      'See transaction history'
+                    )}
+                  </button>
                 </div>
               </div>
-              <p className="code">CODE: {account.code}</p>
-              <p className="balance">
-                ₱{account.current_balance?.toLocaleString() || "0.00"}
-              </p>
-              
-              <div className="account-actions">
-                <button
-                  className="btn btn-sm btn-warning"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedAccount(account);
-                    setShowEditAccount(true);
-                    setEditAccount({ ...account });
-                  }}
-                >
-                  <i className="fas fa-edit"></i> Edit
-                </button>
-                <button
-                  className="btn btn-sm btn-danger"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openDeleteModal(account.id);
-                  }}
-                >
-                  <i className="fas fa-trash"></i> Delete
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         
         {accounts.length === 0 && (
