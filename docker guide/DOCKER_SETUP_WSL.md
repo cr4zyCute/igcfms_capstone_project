@@ -15,6 +15,7 @@ If you have XAMPP installed, you need to stop XAMPP services before running Dock
    - Stop **MySQL** (uses port 3306)
    - You can keep other services running
 
+<!-- ayaw lang ni gamita  -->
 2. **Alternative - Change Docker Ports (Optional):**
    If you want to keep XAMPP running, you can modify the ports in `docker-compose.yml`:
    ```yaml
