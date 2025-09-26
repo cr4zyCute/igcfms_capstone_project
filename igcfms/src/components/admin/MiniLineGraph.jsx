@@ -64,10 +64,9 @@ const MiniLineGraph = ({ data, accountId, accountName }) => {
     const normalizedValue = (logAmount - logMin) / (logMax - logMin);
     const scaledValue = Math.max(normalizedValue * maxAmount, maxAmount * 0.05); // 5% minimum
     
-    // Color intensity based on amount (darker = larger)
-    const intensity = Math.max(0.3, normalizedValue); // 30% minimum opacity
-    const baseColor = isCollection ? '34, 197, 94' : '239, 68, 68'; // RGB values
-    const colorWithIntensity = `rgba(${baseColor}, ${intensity})`;
+    // Solid colors - green for collections, red for disbursements
+    const color = isCollection ? '#22c55e' : '#ef4444'; // Solid green and red
+    const baseColor = isCollection ? '#22c55e' : '#ef4444'; // Same for tooltip
     
     // Format amount for display
     const formattedAmount = absAmount >= 1000 
@@ -82,8 +81,8 @@ const MiniLineGraph = ({ data, accountId, accountName }) => {
       amount: amount,
       absAmount: absAmount,
       isCollection: isCollection,
-      color: colorWithIntensity, // Color with intensity
-      baseColor: isCollection ? '#22c55e' : '#ef4444', // Original color for labels
+      color: color, // Solid color
+      baseColor: baseColor, // Same solid color for labels
       dateFormatted: new Date(point.date).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -91,7 +90,7 @@ const MiniLineGraph = ({ data, accountId, accountName }) => {
       }),
       formattedAmount: formattedAmount,
       description: point.description || point.type,
-      intensity: intensity
+      intensity: normalizedValue // Keep for reference
     };
   });
   

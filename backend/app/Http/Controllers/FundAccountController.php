@@ -61,7 +61,7 @@ class FundAccountController extends Controller
             'code' => $accountCode,
             'description' => $request->description,
             'initial_balance' => $request->initial_balance,
-            'current_balance' => $request->initial_balance, // Set current balance to initial balance
+            'current_balance' => $request->initial_balance, 
             'account_type' => $request->account_type,
             'department' => $request->department,
             'created_by' => Auth::id(),

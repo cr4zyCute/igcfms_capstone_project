@@ -421,7 +421,7 @@ const handleDeleteAccount = async (accountId) => {
           <p></p>
         </div>
         <button
-          className="btn btn-primary"
+          className="btn btn-primary add-account-btn"
           onClick={() => setShowAddAccount(true)}
           disabled={loading}
         >   
@@ -433,108 +433,129 @@ const handleDeleteAccount = async (accountId) => {
 
       {showAddAccount && (
         <div className="modal-overlay" onClick={() => setShowAddAccount(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+          <div className="modal wide create-account-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="modal-header">
               <h4><i className="fas fa-plus-circle"></i> Create New Fund Account</h4>
               <button 
                 type="button" 
                 onClick={() => setShowAddAccount(false)}
-                style={{ 
-                  background: 'none', 
-                  border: 'none', 
-                  fontSize: '24px', 
-                  cursor: 'pointer',
-                  color: '#666666',
-                  padding: '4px'
-                }}
+                className="close-button"
               >
                 ×
               </button>
             </div>
-            <form onSubmit={handleAddAccount}>
-              <div className="form-group">
-                <label>Account Name</label>
-                <input
-                  type="text"
-                  value={newAccount.name}
-                  onChange={(e) =>
-                    setNewAccount({ ...newAccount, name: e.target.value })
-                  }
-                  required
-                  disabled={loading}
-                />
+
+            <form onSubmit={handleAddAccount} className="enhanced-form">
+              {/* Account Information Section */}
+              <div className="form-section">
+                <div className="section-header">
+                  <h5><i className="fas fa-info-circle"></i> Account Information</h5>
+                </div>
+                
+                {/* Two Column Layout: Account Name | Account Code */}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Account Name</label>
+                    <input
+                      type="text"
+                      value={newAccount.name}
+                      onChange={(e) =>
+                        setNewAccount({ ...newAccount, name: e.target.value })
+                      }
+                      placeholder="Enter account name"
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Account Code</label>
+                    <input
+                      type="text"
+                      value="Auto-generated"
+                      disabled
+                      className="auto-generated-field"
+                    />
+                  </div>
+                </div>
+
+                {/* Two Column Layout: Account Type | Initial Balance */}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Account Type</label>
+                    <select
+                      value={newAccount.account_type}
+                      onChange={(e) => setNewAccount({ ...newAccount, account_type: e.target.value })}
+                      disabled={loading}
+                      required
+                    >
+                      <option value="">Select Type</option>
+                      <option value="Revenue">Revenue</option>
+                      <option value="Expense">Expense</option>
+                      <option value="Asset">Asset</option>
+                      <option value="Liability">Liability</option>
+                      <option value="Equity">Equity</option>
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Initial Balance</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newAccount.initial_balance}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewAccount({
+                          ...newAccount,
+                          initial_balance: value === "" ? "" : parseFloat(value),
+                        });
+                      }}
+                      placeholder="0.00"
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="form-group">
-                <label>Account Type</label>
-                <select
-                  value={newAccount.account_type}
-                  onChange={(e) => setNewAccount({ ...newAccount, account_type: e.target.value })}
-                  disabled={loading}
-                  required
-                >
-                  <option value="Revenue">Revenue</option>
-                  <option value="Expense">Expense</option>
-                  <option value="Asset">Asset</option>
-                  <option value="Liability">Liability</option>
-                  <option value="Equity">Equity</option>
-                </select>
+
+              {/* Description Section - Compact */}
+              <div className="form-section compact">
+                <div className="form-group full-width">
+                  <label>Description</label>
+                  <textarea
+                    value={newAccount.description}
+                    onChange={(e) =>
+                      setNewAccount({
+                        ...newAccount,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Enter a detailed description of this account's purpose"
+                    disabled={loading}
+                    rows="1"
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Account Code</label>
-                <input
-                  type="text"
-                  value="Auto-generated based on account type"
-                  disabled
-                  style={{ 
-                    backgroundColor: '#f5f5f5', 
-                    color: '#666',
-                    fontStyle: 'italic'
-                  }}
-                />
-                <small style={{ color: '#666', fontSize: '12px' }}>
-                  Account code will be automatically generated (e.g., REV001, EXP002)
-                </small>
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea
-                  value={newAccount.description}
-                  onChange={(e) =>
-                    setNewAccount({
-                      ...newAccount,
-                      description: e.target.value,
-                    })
-                  }
-                  disabled={loading}
-                />
-              </div>
-              <div className="form-group">
-                <label>Initial Balance</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={newAccount.initial_balance}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setNewAccount({
-                      ...newAccount,
-                      initial_balance: value === "" ? "" : parseFloat(value),
-                    });
-                  }}
-                  required
-                  disabled={loading}
-                />
-              </div>
-              
-              <div className="form-actions">
+
+              {/* Actions Section */}
+              <div className="form-actions enhanced-actions">
                 <button
                   type="button"
                   onClick={() => setShowAddAccount(false)}
                   disabled={loading}
+                  className="btn-cancel"
                 >
+                  <i className="fas fa-times"></i>
                   Cancel
                 </button>
-                <button type="submit" disabled={loading}>
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="btn-create"
+                >
+                  <i className="fas fa-plus"></i>
                   {loading ? "Creating..." : "Create Account"}
                 </button>
               </div>
