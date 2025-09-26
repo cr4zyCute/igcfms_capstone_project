@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../common/NotificationBell';
 
-const Navbar = ({ userRole, user, onToggleSidebar, onNavigate }) => {
+const Navbar = ({ userRole, user, onNavigate }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
