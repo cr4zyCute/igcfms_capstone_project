@@ -18,12 +18,31 @@ const RecipientAccount = () => {
   const [activeFilter, setActiveFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   
+  // Generate unique fund code function (moved up for initialization)
+  const generateFundCode = (accountType, fundAccount = null) => {
+    const prefixes = {
+      'collection': 'CF',
+      'disbursement': 'DF', 
+      'trust': 'TF'
+    };
+    
+    const prefix = prefixes[accountType.toLowerCase()] || 'GF';
+    const timestamp = Date.now().toString().slice(-4);
+    const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+    
+    if (fundAccount) {
+      return `${prefix}-${fundAccount.code}-${timestamp}`;
+    }
+    
+    return `${prefix}-${timestamp}${random}`;
+  };
+
   // Form data state
   const [formData, setFormData] = useState({
     name: "",
     type: "disbursement",
     fund_account_id: "",
-    fund_code: "",
+    fund_code: generateFundCode("disbursement"),
     contact_person: "",
     email: "",
     phone: "",
@@ -154,25 +173,6 @@ const RecipientAccount = () => {
     }
   };
 
-  // Generate unique fund code
-  const generateFundCode = (accountType, fundAccount = null) => {
-    const prefixes = {
-      'collection': 'CF',
-      'disbursement': 'DF', 
-      'trust': 'TF'
-    };
-    
-    const prefix = prefixes[accountType.toLowerCase()] || 'GF';
-    const timestamp = Date.now().toString().slice(-4);
-    const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
-    
-    if (fundAccount) {
-      return `${prefix}-${fundAccount.code}-${timestamp}`;
-    }
-    
-    return `${prefix}-${timestamp}${random}`;
-  };
-
   // Handle fund account selection and auto-fill
   const handleFundAccountSelect = (fundAccountId) => {
     const selectedFund = fundAccounts.find(fund => fund.id === parseInt(fundAccountId));
@@ -204,10 +204,20 @@ const RecipientAccount = () => {
 
   // Handle account type change
   const handleAccountTypeChange = (type) => {
-    const newFundCode = generateFundCode(type);
+    // Map new account types to existing backend types
+    const typeMapping = {
+      'vendor': 'disbursement',
+      'customer': 'collection', 
+      'employee': 'disbursement',
+      'other': 'disbursement'
+    };
+    
+    const backendType = typeMapping[type] || type;
+    const newFundCode = generateFundCode(backendType);
+    
     setFormData(prev => ({
       ...prev,
-      type: type,
+      type: backendType,
       fund_code: newFundCode,
       // Reset fund account selection when type changes
       fund_account_id: "",
@@ -222,11 +232,12 @@ const RecipientAccount = () => {
   };
 
   const resetForm = () => {
+    const defaultType = "disbursement";
     setFormData({
       name: "",
-      type: "disbursement",
+      type: defaultType,
       fund_account_id: "",
-      fund_code: generateFundCode("disbursement"),
+      fund_code: generateFundCode(defaultType),
       contact_person: "",
       email: "",
       phone: "",
@@ -275,15 +286,28 @@ const RecipientAccount = () => {
   const handleAddRecipient = async (e) => {
     e.preventDefault();
     
-    // Validation
+    // Enhanced validation
     const newErrors = {};
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
-    if (formData.type === 'collection' && !formData.fund_account_id) {
-      newErrors.fund_account_id = 'Fund account is required for collection type';
+    if (!formData.name.trim()) newErrors.name = 'Account name is required';
+    if (!formData.contact_person.trim()) newErrors.contact_person = 'Contact person is required';
+    if (!formData.email.trim()) newErrors.email = 'Email address is required';
+    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
+    if (!formData.address.trim()) newErrors.address = 'Address is required';
+    if (!formData.description.trim()) newErrors.description = 'Description/Purpose is required';
+    
+    // Email validation
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    
+    // Phone validation (basic)
+    if (formData.phone && !/^[\d\s\-\+\(\)]+$/.test(formData.phone)) {
+      newErrors.phone = 'Please enter a valid phone number';
     }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      showNotification('error', 'Validation Error', 'Please fill in all required fields correctly');
       return;
     }
     
@@ -291,56 +315,80 @@ const RecipientAccount = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      // For now, simulate successful creation since API might not exist
-      console.log('Creating recipient account:', formData);
-      
-      // Add to local state for demonstration
-      const newRecipient = {
-        id: Date.now(), // Temporary ID
-        ...formData,
-        status: 'active',
-        total_transactions: 0,
-        total_amount: 0,
-        created_at: new Date().toISOString()
+      // Prepare data for API
+      const apiData = {
+        name: formData.name.trim(),
+        type: formData.type,
+        contact_person: formData.contact_person.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        address: formData.address.trim(),
+        description: formData.description.trim(),
+        status: formData.status,
+        fund_account_id: formData.fund_account_id || null,
+        fund_code: formData.fund_code || null,
+        bank_name: formData.bank_name?.trim() || null,
+        account_number: formData.account_number?.trim() || null,
+        branch: formData.branch?.trim() || null
       };
       
-      setRecipients(prev => [...prev, newRecipient]);
+      console.log('Creating recipient account with data:', apiData);
       
-      // Send notification for new recipient account
-      const selectedFund = fundAccounts.find(fund => fund.id === parseInt(formData.fund_account_id));
-      await notificationService.notifyTransaction('RECIPIENT_ACCOUNT_CREATED', {
-        name: formData.name,
-        fund_account: selectedFund?.name || `Fund Account #${formData.fund_account_id}`,
-        fund_account_id: formData.fund_account_id
+      // Make API call to create recipient account
+      const response = await fetch('http://localhost:8000/api/recipient-accounts', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(apiData)
       });
       
-      showNotification('success', 'Success', 'Recipient account created successfully');
-      resetForm();
-      setShowAddModal(false);
+      const responseData = await response.json();
+      console.log('API Response:', responseData);
       
-      // Try to create via API (optional)
-      try {
-        const response = await fetch('http://localhost:8000/api/recipient-accounts', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(formData)
-        });
+      if (!response.ok) {
+        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      if (responseData.success) {
+        // Success - reload recipients from server
+        await loadRecipients();
         
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Recipient created via API:', data);
-          loadRecipients(); // Refresh from server
+        // Send notification for new recipient account
+        const selectedFund = fundAccounts.find(fund => fund.id === parseInt(formData.fund_account_id));
+        try {
+          await notificationService.notifyTransaction('RECIPIENT_ACCOUNT_CREATED', {
+            name: formData.name,
+            fund_account: selectedFund?.name || `Fund Account #${formData.fund_account_id}`,
+            fund_account_id: formData.fund_account_id
+          });
+        } catch (notificationError) {
+          console.log('Notification failed:', notificationError);
+          // Continue even if notification fails
         }
-      } catch (apiError) {
-        console.log('API creation failed, using local state:', apiError);
+        
+        showNotification('success', 'Success', 'Recipient account created successfully');
+        resetForm();
+        setShowAddModal(false);
+      } else {
+        throw new Error(responseData.message || 'Failed to create recipient account');
       }
       
     } catch (error) {
       console.error('Error creating recipient:', error);
-      showNotification('error', 'Error', 'Failed to create recipient account');
+      
+      // Show specific error message
+      let errorMessage = 'Failed to create recipient account';
+      if (error.message.includes('duplicate') || error.message.includes('unique')) {
+        errorMessage = 'An account with this email already exists';
+      } else if (error.message.includes('validation')) {
+        errorMessage = 'Please check your input data';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showNotification('error', 'Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -705,184 +753,218 @@ const RecipientAccount = () => {
             </div>
             <form onSubmit={handleAddRecipient}>
               <div className="modal-body">
-                <div className="form-grid">
-                  {/* Account Name */}
-                  <div className="form-group full-width">
-                    <label className="form-label">Account Name *</label>
-                    <input
-                      type="text"
-                      className={`form-input ${errors.name ? 'error' : ''}`}
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      placeholder="e.g., Boy Bawang Expense Account"
-                    />
-                    {errors.name && <div className="form-error">{errors.name}</div>}
+                <div className="form-container">
+                  
+                  {/* Basic Information Section */}
+                  <div className="form-section">
+                    <div className="form-section-header">
+                      <i className="fas fa-info-circle form-section-icon"></i>
+                      <h4 className="form-section-title">Basic Information</h4>
+                    </div>
+                    <div className="form-grid">
+                      <div className="form-group full-width">
+                        <label className="form-label">
+                          Account Name <span className="required">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className={`form-input ${errors.name ? 'error' : ''}`}
+                          value={formData.name}
+                          onChange={(e) => setFormData({...formData, name: e.target.value})}
+                          placeholder="e.g., ABC Corporation, John Doe"
+                        />
+                        {errors.name && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.name}</div>}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">
+                          Account Type <span className="required">*</span>
+                        </label>
+                        <select
+                          className="form-select"
+                          value={formData.type}
+                          onChange={(e) => handleAccountTypeChange(e.target.value)}
+                        >
+                          <option value="disbursement">Vendor</option>
+                          <option value="collection">Customer</option>
+                          <option value="employee">Employee</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Recipient Code</label>
+                        <input
+                          type="text"
+                          className="form-input auto-generated"
+                          value={formData.fund_code}
+                          readOnly
+                          placeholder="Auto-generated"
+                        />
+                        <div className="form-help">Automatically generated based on account type</div>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Fund Account (Optional)</label>
+                        <select
+                          className={`form-select ${errors.fund_account_id ? 'error' : ''}`}
+                          value={formData.fund_account_id}
+                          onChange={(e) => handleFundAccountSelect(e.target.value)}
+                        >
+                          <option value="">Select Fund Account ({fundAccounts.length} available)</option>
+                          {fundAccounts.map((fund) => (
+                            <option key={fund.id} value={fund.id}>
+                              {fund.name} - {fund.code} (₱{parseFloat(fund.current_balance || 0).toLocaleString()})
+                            </option>
+                          ))}
+                        </select>
+                        {errors.fund_account_id && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.fund_account_id}</div>}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Account Type */}
-                  <div className="form-group">
-                    <label className="form-label">Account Type *</label>
-                    <select
-                      className="form-select"
-                      value={formData.type}
-                      onChange={(e) => handleAccountTypeChange(e.target.value)}
-                    >
-                      <option value="collection">Collection Fund</option>
-                      <option value="disbursement">Disbursement Fund</option>
-                      <option value="trust">Trust Fund</option>
-                    </select>
+                  {/* Contact Information Section */}
+                  <div className="form-section">
+                    <div className="form-section-header">
+                      <i className="fas fa-address-book form-section-icon"></i>
+                      <h4 className="form-section-title">Contact Information</h4>
+                    </div>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label className="form-label">
+                          Contact Person <span className="required">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className={`form-input ${errors.contact_person ? 'error' : ''}`}
+                          value={formData.contact_person}
+                          onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
+                          placeholder="Enter contact person name"
+                        />
+                        {errors.contact_person && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.contact_person}</div>}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">
+                          Email Address <span className="required">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          className={`form-input ${errors.email ? 'error' : ''}`}
+                          value={formData.email}
+                          onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          placeholder="Enter email address"
+                        />
+                        {errors.email && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.email}</div>}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">
+                          Phone Number <span className="required">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          className={`form-input ${errors.phone ? 'error' : ''}`}
+                          value={formData.phone}
+                          onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                          placeholder="Enter phone number"
+                        />
+                        {errors.phone && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.phone}</div>}
+                      </div>
+
+                      <div className="form-group full-width">
+                        <label className="form-label">
+                          Address <span className="required">*</span>
+                        </label>
+                        <textarea
+                          className={`form-textarea ${errors.address ? 'error' : ''}`}
+                          value={formData.address}
+                          onChange={(e) => setFormData({...formData, address: e.target.value})}
+                          placeholder="Enter complete address"
+                          rows="3"
+                        />
+                        {errors.address && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.address}</div>}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Fund Account Selection */}
-                  <div className="form-group">
-                    <label className="form-label">Fund Account *</label>
-                    <select
-                      className={`form-select ${errors.fund_account_id ? 'error' : ''}`}
-                      value={formData.fund_account_id}
-                      onChange={(e) => handleFundAccountSelect(e.target.value)}
-                    >
-                      <option value="">Select Fund Account ({fundAccounts.length} available)</option>
-                      {fundAccounts.map((fund) => (
-                        <option key={fund.id} value={fund.id}>
-                          {fund.name} - {fund.code} (₱{parseFloat(fund.current_balance || 0).toLocaleString()})
-                        </option>
-                      ))}
-                    </select>
-                    {errors.fund_account_id && <div className="form-error">{errors.fund_account_id}</div>}
-                    {formData.fund_account_id && (
-                      <small style={{ color: '#16a34a', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-                        <i className="fas fa-check-circle"></i> Fund details auto-filled from selected account
-                      </small>
-                    )}
+                  {/* Bank Information Section */}
+                  <div className="form-section">
+                    <div className="form-section-header">
+                      <i className="fas fa-university form-section-icon"></i>
+                      <h4 className="form-section-title">Bank Information (Optional)</h4>
+                    </div>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label className="form-label">Bank Name</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={formData.bank_name}
+                          onChange={(e) => setFormData({...formData, bank_name: e.target.value})}
+                          placeholder="Enter bank name"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Account Number</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={formData.account_number}
+                          onChange={(e) => setFormData({...formData, account_number: e.target.value})}
+                          placeholder="Enter account number"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Branch</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={formData.branch}
+                          onChange={(e) => setFormData({...formData, branch: e.target.value})}
+                          placeholder="Enter branch name"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Fund Code - Auto-generated */}
-                  <div className="form-group">
-                    <label className="form-label">Fund Code *</label>
-                    <input
-                      type="text"
-                      className={`form-input ${errors.fund_code ? 'error' : ''} auto-filled`}
-                      value={formData.fund_code}
-                      onChange={(e) => setFormData({...formData, fund_code: e.target.value})}
-                      placeholder="Auto-generated (e.g., CF-001)"
-                    />
-                    {errors.fund_code && <div className="form-error">{errors.fund_code}</div>}
-                    <small style={{ color: '#666', fontSize: '12px' }}>
-                      Auto-generated based on account type
-                    </small>
+                  {/* Status and Description Section */}
+                  <div className="form-section">
+                    <div className="form-section-header">
+                      <i className="fas fa-cog form-section-icon"></i>
+                      <h4 className="form-section-title">Status & Description</h4>
+                    </div>
+                    
+                    <div className="status-toggle">
+                      <div 
+                        className={`toggle-switch ${formData.status === 'active' ? 'active' : ''}`}
+                        onClick={() => setFormData({...formData, status: formData.status === 'active' ? 'inactive' : 'active'})}
+                      ></div>
+                      <div className="toggle-label">Account Status</div>
+                      <div className={`toggle-status ${formData.status}`}>
+                        {formData.status}
+                      </div>
+                    </div>
+
+                    <div className="form-grid single-column" style={{marginTop: '24px'}}>
+                      <div className="form-group">
+                        <label className="form-label">
+                          Description / Purpose <span className="required">*</span>
+                        </label>
+                        <textarea
+                          className={`form-textarea ${errors.description ? 'error' : ''}`}
+                          value={formData.description}
+                          onChange={(e) => setFormData({...formData, description: e.target.value})}
+                          placeholder="Explain the use and purpose of this recipient account"
+                          rows="4"
+                        />
+                        {errors.description && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.description}</div>}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Contact Person */}
-                  <div className="form-group">
-                    <label className="form-label">Contact Person *</label>
-                    <input
-                      type="text"
-                      className={`form-input ${errors.contact_person ? 'error' : ''}`}
-                      value={formData.contact_person}
-                      onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
-                      placeholder="Enter contact person name"
-                    />
-                    {errors.contact_person && <div className="form-error">{errors.contact_person}</div>}
-                  </div>
-
-                  {/* Email Address */}
-                  <div className="form-group">
-                    <label className="form-label">Email Address *</label>
-                    <input
-                      type="email"
-                      className={`form-input ${errors.email ? 'error' : ''}`}
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      placeholder="Enter email address"
-                    />
-                    {errors.email && <div className="form-error">{errors.email}</div>}
-                  </div>
-
-                  {/* Phone Number */}
-                  <div className="form-group">
-                    <label className="form-label">Phone Number *</label>
-                    <input
-                      type="tel"
-                      className={`form-input ${errors.phone ? 'error' : ''}`}
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      placeholder="Enter phone number"
-                    />
-                    {errors.phone && <div className="form-error">{errors.phone}</div>}
-                  </div>
-
-                  {/* Address */}
-                  <div className="form-group full-width">
-                    <label className="form-label">Address *</label>
-                    <textarea
-                      className={`form-textarea ${errors.address ? 'error' : ''}`}
-                      value={formData.address}
-                      onChange={(e) => setFormData({...formData, address: e.target.value})}
-                      placeholder="Enter complete address"
-                      rows="3"
-                    />
-                    {errors.address && <div className="form-error">{errors.address}</div>}
-                  </div>
-
-                  {/* Banking Information */}
-                  <div className="form-group">
-                    <label className="form-label">Bank Name</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={formData.bank_name}
-                      onChange={(e) => setFormData({...formData, bank_name: e.target.value})}
-                      placeholder="Enter bank name (optional)"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Account Number</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={formData.account_number}
-                      onChange={(e) => setFormData({...formData, account_number: e.target.value})}
-                      placeholder="Enter account number (optional)"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Branch</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={formData.branch}
-                      onChange={(e) => setFormData({...formData, branch: e.target.value})}
-                      placeholder="Enter branch name (optional)"
-                    />
-                  </div>
-
-                  {/* Status */}
-                  <div className="form-group">
-                    <label className="form-label">Status</label>
-                    <select
-                      className="form-select"
-                      value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value})}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-
-                  {/* Description/Purpose */}
-                  <div className="form-group full-width">
-                    <label className="form-label">Description/Purpose *</label>
-                    <textarea
-                      className={`form-textarea ${errors.description ? 'error' : ''}`}
-                      value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      placeholder="Explain the use and purpose of this recipient account"
-                      rows="3"
-                    />
-                    {errors.description && <div className="form-error">{errors.description}</div>}
-                  </div>
                 </div>
               </div>
               <div className="modal-footer">

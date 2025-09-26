@@ -39,6 +39,7 @@ const FundsAccounts = () => {
   const [editAccount, setEditAccount] = useState({});
   const [accountGraphData, setAccountGraphData] = useState({});
   const [openMenuId, setOpenMenuId] = useState(null); // State for dropdown menu
+  const [searchTerm, setSearchTerm] = useState(''); // State for transaction search
 
   const openDeleteModal = (accountId) => {
     setDeletingAccountId(accountId);
@@ -108,24 +109,80 @@ const FundsAccounts = () => {
     try {
       setLoading(true);
       const response = await getFundAccounts();
+      console.log('📊 Fund accounts API response:', response);
+      
       setAccounts(response.map(acc => ({ ...acc, latest_transaction: null })));
 
-      // Initialize graph data
+      // Initialize graph data with proper error handling
       const initialGraphData = {};
-      response.forEach(account => {
-        initialGraphData[account.id] = account.transactions.map(t => ({
-          date: t.created_at,
-          balance: t.balance_after_transaction, // Assuming this field exists
-          amount: t.amount,
-          type: t.type,
-        })).slice(-20);
-      });
+      
+      // Also try to fetch transactions for each account if not included
+      const accountsWithTransactions = await Promise.all(
+        response.map(async (account) => {
+          console.log(`📈 Processing graph data for account ${account.id}:`, account);
+          
+          let transactions = account.transactions;
+          
+          // Check if account has transactions
+          if (transactions && Array.isArray(transactions) && transactions.length > 0) {
+            console.log(`✅ Found ${transactions.length} transactions for account ${account.id}`);
+          } else {
+            console.log(`⚠️ No transactions in account data for ${account.id}, trying to fetch separately...`);
+            
+            // Try to fetch transactions separately
+            try {
+              const token = localStorage.getItem('token');
+              const txResponse = await fetch(`http://localhost:8000/api/transactions?fund_account_id=${account.id}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (txResponse.ok) {
+                const txData = await txResponse.json();
+                transactions = Array.isArray(txData) ? txData : (txData?.data || []);
+                console.log(`📊 Fetched ${transactions.length} transactions separately for account ${account.id}`);
+              }
+            } catch (txError) {
+              console.warn(`⚠️ Failed to fetch transactions for account ${account.id}:`, txError);
+              transactions = [];
+            }
+          }
+          
+          // Create graph data
+          if (transactions && Array.isArray(transactions) && transactions.length > 0) {
+            initialGraphData[account.id] = transactions.map(t => ({
+              date: t.created_at,
+              balance: t.balance_after_transaction || account.current_balance,
+              amount: parseFloat(t.amount) || 0,
+              type: t.type || 'Unknown',
+            })).slice(-20); // Last 20 transactions
+          } else {
+            console.log(`⚠️ Creating sample data for account ${account.id}`);
+            
+            // Create sample data point if no transactions exist
+            initialGraphData[account.id] = [{
+              date: new Date().toISOString(),
+              balance: parseFloat(account.current_balance) || 0,
+              amount: parseFloat(account.current_balance) || 0,
+              type: 'Initial Balance'
+            }];
+          }
+          
+          console.log(`📊 Graph data for account ${account.id}:`, initialGraphData[account.id]);
+          
+          return { ...account, transactions };
+        })
+      );
+      
+      console.log('📊 Final graph data:', initialGraphData);
       setAccountGraphData(initialGraphData);
 
       setError("");
     } catch (err) {
       setError("Failed to fetch fund accounts. Please try again.");
-      console.error("Error fetching accounts:", err);
+      console.error("❌ Error fetching accounts:", err);
     } finally {
       setLoading(false);
     }
@@ -150,22 +207,81 @@ const FundsAccounts = () => {
   const fetchAccountTransactions = async (accountId) => {
     try {
       setTransactionsLoading(true);
+      
+      // Try multiple API endpoints to get transactions
+      console.log(`📊 Fetching transactions for account ${accountId}...`);
+      
+      // First try: Get specific fund account details
       const response = await getFundAccount(accountId);
+      console.log(`📊 getFundAccount(${accountId}) response:`, response);
 
       // The backend show() now returns the full account with 'transactions' and computed 'current_balance'
       const accountData = Array.isArray(response)
         ? { transactions: response }
         : (response?.data || response);
 
+      console.log(`📊 Processed account data:`, accountData);
+
       // Update selectedAccount with fresh data if available
       if (accountData && accountData.id) {
         setSelectedAccount(accountData);
       }
 
-      const related = accountData?.transactions || [];
+      let related = accountData?.transactions || [];
+      console.log(`📊 Found ${related.length} transactions in account data`);
+
+      // If no transactions in account data, try fetching from transactions API directly
+      if (related.length === 0) {
+        try {
+          console.log(`🔄 No transactions in account data, trying direct API call...`);
+          const token = localStorage.getItem('token');
+          const transactionsResponse = await fetch(`http://localhost:8000/api/transactions?fund_account_id=${accountId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (transactionsResponse.ok) {
+            const transactionsData = await transactionsResponse.json();
+            console.log(`📊 Direct transactions API response:`, transactionsData);
+            
+            related = Array.isArray(transactionsData) ? transactionsData : 
+                     (transactionsData?.data || transactionsData?.transactions || []);
+            console.log(`📊 Found ${related.length} transactions from direct API`);
+          }
+        } catch (directApiError) {
+          console.warn(`⚠️ Direct transactions API failed:`, directApiError);
+        }
+      }
+
       setTransactions(Array.isArray(related) ? related : []);
+      
+      // Update graph data for this specific account
+      if (related.length > 0) {
+        console.log(`📈 Updating graph data for account ${accountId} with ${related.length} transactions`);
+        
+        const graphData = related.map(t => ({
+          date: t.created_at,
+          balance: t.balance_after_transaction || accountData.current_balance,
+          amount: parseFloat(t.amount) || 0,
+          type: t.type || 'Unknown',
+        })).slice(-20);
+        
+        setAccountGraphData(prevData => ({
+          ...prevData,
+          [accountId]: graphData
+        }));
+        
+        console.log(`📊 Updated graph data for account ${accountId}:`, graphData);
+      } else {
+        console.log(`⚠️ Still no transactions found for account ${accountId} after all attempts`);
+        console.log(`🔍 Account data structure:`, Object.keys(accountData || {}));
+        console.log(`🔍 Available properties:`, accountData);
+      }
     } catch (err) {
-      console.error("Error fetching transactions:", err);
+      console.error("❌ Error fetching transactions:", err);
+      console.error("❌ Error details:", err.response?.data);
       setTransactions([]);
     } finally {
       setTransactionsLoading(false);
@@ -479,21 +595,22 @@ const handleDeleteAccount = async (accountId) => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Initial Balance</label>
+                  <label>Current Balance (Read-only)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={editAccount.initial_balance}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setEditAccount({
-                        ...editAccount,
-                        initial_balance: value === "" ? "" : parseFloat(value),
-                      });
+                    readOnly
+                    disabled
+                    style={{
+                      backgroundColor: '#f5f5f5',
+                      color: '#666666',
+                      cursor: 'not-allowed'
                     }}
-                    required
-                    disabled={loading}
                   />
+                  <small style={{ color: '#666666', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    This shows the current balance and cannot be edited
+                  </small>
                 </div>
               </div>
               <div className="form-group">
@@ -580,7 +697,10 @@ const handleDeleteAccount = async (accountId) => {
                             e.stopPropagation();
                             setSelectedAccount(account);
                             setShowEditAccount(true);
-                            setEditAccount({ ...account });
+                            setEditAccount({ 
+                              ...account, 
+                              initial_balance: account.current_balance // Set initial balance to current balance
+                            });
                             setOpenMenuId(null);
                           }}
                         >
@@ -605,23 +725,103 @@ const handleDeleteAccount = async (accountId) => {
                 </div>
 
                 <div className="card-graph">
-                  <MiniLineGraph data={accountGraphData[account.id] || []} />
+                  <MiniLineGraph 
+                    data={accountGraphData[account.id] || []} 
+                    accountId={account.id}
+                    accountName={account.name}
+                  />
                 </div>
 
                 <div className="card-actions-new">
-                  <button 
-                    className={`history-btn ${latestTransaction ? (latestTransaction.type === 'Collection' ? 'income' : 'expense') : ''}`}
-                    onClick={() => handleAccountSelect(account)}
-                  >
-                    {latestTransaction ? (
-                      <>
-                        <span>Latest: {latestTransaction.type === 'Collection' ? '+' : '-'} ₱{latestTransaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        <span className='history-btn-subtitle'>Click to see all</span>
-                      </>
+                  {(() => {
+                    // Get the latest transaction for this account - real-time data
+                    let displayTransaction = null;
+                    
+                    // First try to get from the transactions array (same as history modal)
+                    if (transactions && transactions.length > 0) {
+                      // Get all transactions for this account and sort by date (newest first)
+                      const accountTransactions = transactions
+                        .filter(t => t.fund_account_id === account.id)
+                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                      
+                      if (accountTransactions.length > 0) {
+                        displayTransaction = accountTransactions[0]; // Get the most recent
+                        console.log('🎯 Latest transaction from history data:', displayTransaction);
+                        console.log('📅 Transaction date:', displayTransaction.created_at);
+                      }
+                    }
+                    
+                    // Fallback to graph data if no transaction history available
+                    if (!displayTransaction) {
+                      const graphTransactions = accountGraphData[account.id] || [];
+                      if (graphTransactions.length > 0) {
+                        // Sort graph data by date too
+                        const sortedGraphData = graphTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        displayTransaction = sortedGraphData[0];
+                        console.log('📊 Latest transaction from graph data:', displayTransaction);
+                      }
+                    }
+                    
+                    // Debug: Log the transaction data to see what fields are available
+                    if (displayTransaction) {
+                      console.log('🔍 Final latest transaction:', displayTransaction);
+                      console.log('👤 Payer name:', displayTransaction.payer_name);
+                      console.log('👤 Recipient:', displayTransaction.recipient);
+                      console.log('💰 Amount:', displayTransaction.amount);
+                      console.log('📝 Type:', displayTransaction.type);
+                    }
+                    
+                    return displayTransaction ? (
+                      <div className="latest-transaction-card">
+                        <div className="transaction-header">
+                          <span className="transaction-pill">LATEST TRANSACTION</span>
+                        </div>
+                        
+                        <div className="single-line-details">
+                          <span className="payee-text">
+                            {displayTransaction.type === "Collection" 
+                              ? (displayTransaction.payer_name || displayTransaction.recipient || 'Unknown Payer')
+                              : (displayTransaction.recipient || displayTransaction.payer_name || 'Unknown Payee')
+                            }
+                          </span>
+                          
+                          <span className="type-pill">{displayTransaction.type}</span>
+                          
+                          <span className={`amount-text ${displayTransaction.type === 'Collection' ? 'positive' : 'negative'}`}>
+                            {displayTransaction.type === 'Collection' ? '+' : '-'}₱{(displayTransaction.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        
+                        <button 
+                          className="view-all-button"
+                          onClick={() => handleAccountSelect(account)}
+                        >
+                          <i className="fas fa-list"></i> View All Transactions
+                        </button>
+                      </div>
                     ) : (
-                      'See transaction history'
-                    )}
-                  </button>
+                      <div className="latest-transaction-preview">
+                        <div className="transaction-preview-header">
+                          <span className="preview-label">No Transactions Yet</span>
+                          <span className="preview-amount" style={{ color: '#666' }}>
+                            ₱0.00
+                          </span>
+                        </div>
+                        <div className="transaction-preview-details">
+                          <div className="preview-row">
+                            <span className="preview-field">Status:</span>
+                            <span className="preview-value">No activity</span>
+                          </div>
+                        </div>
+                        <button 
+                          className="view-all-btn"
+                          onClick={() => handleAccountSelect(account)}
+                        >
+                          <i className="fas fa-plus"></i> Add First Transaction
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -639,10 +839,36 @@ const handleDeleteAccount = async (accountId) => {
       {/* Transaction History Popup */}
       {showTransactionHistory && selectedAccount && (
         <div className="modal-overlay" onClick={() => setShowTransactionHistory(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '900px' }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1200px', width: '95vw' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
               <h4><i className="fas fa-history"></i> Transaction History: {selectedAccount.name}</h4>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Search transactions..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{
+                      padding: '8px 35px 8px 12px',
+                      border: '2px solid #e5e5e5',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      width: '200px',
+                      outline: 'none'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#000000'}
+                    onBlur={(e) => e.target.style.borderColor = '#e5e5e5'}
+                  />
+                  <i className="fas fa-search" style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#666',
+                    fontSize: '12px'
+                  }}></i>
+                </div>
                 <button 
                   className="btn btn-secondary"
                   onClick={() => fetchAccountTransactions(selectedAccount.id)}
@@ -688,29 +914,61 @@ const handleDeleteAccount = async (accountId) => {
               
             </div>
             
-            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <div style={{ minHeight: '400px', maxHeight: '400px', overflowY: 'auto' }}>
               {transactionsLoading ? (
                 <div className="spinner-container">
                   <div className="spinner" aria-label="Loading transactions" />
                 </div>
-              ) : transactions.length > 0 ? (
+              ) : (() => {
+                // Filter transactions based on search term
+                const filteredTransactions = transactions.filter(transaction => {
+                  if (!searchTerm) return true;
+                  
+                  const searchLower = searchTerm.toLowerCase();
+                  return (
+                    transaction.description?.toLowerCase().includes(searchLower) ||
+                    transaction.type?.toLowerCase().includes(searchLower) ||
+                    transaction.recipient?.toLowerCase().includes(searchLower) ||
+                    transaction.payer_name?.toLowerCase().includes(searchLower) ||
+                    transaction.reference?.toLowerCase().includes(searchLower) ||
+                    transaction.reference_no?.toLowerCase().includes(searchLower) ||
+                    transaction.receipt_no?.toLowerCase().includes(searchLower) ||
+                    transaction.amount?.toString().includes(searchTerm) ||
+                    new Date(transaction.created_at).toLocaleDateString().includes(searchTerm)
+                  );
+                });
+                
+                return filteredTransactions.length > 0 ? (
                 <table style={{ marginTop: '0' }}>
                   <thead>
                     <tr>
                       <th><i className="fas fa-calendar"></i> Date</th>
                       <th><i className="fas fa-file-text"></i> Description</th>
+                      <th><i className="fas fa-user"></i> Payee/Payer</th>
                       <th><i className="fas fa-exchange-alt"></i> Type</th>
                       <th><i className="fas fa-money-bill"></i> Amount</th>
                       <th><i className="fas fa-hashtag"></i> Reference</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {transactions.map((transaction) => (
+                    {filteredTransactions.map((transaction) => (
                       <tr key={transaction.id}>
                         <td>
                           {new Date(transaction.created_at).toLocaleDateString()}
                         </td>
                         <td>{transaction.description}</td>
+                        <td>
+                          <span style={{ 
+                            fontSize: '13px', 
+                            color: transaction.type === "Collection" ? '#22c55e' : '#ef4444',
+                            fontWeight: '500'
+                          }}>
+                            {transaction.type === "Collection" 
+                              ? (transaction.payer_name || transaction.recipient || 'Unknown Payer')
+                              : (transaction.recipient || transaction.payer_name || 'Unknown Payee')
+                            }
+                          </span>
+                        </td>
                         <td>
                           <span
                             className={`transaction-type ${transaction.type?.toLowerCase()}`}
@@ -740,12 +998,45 @@ const handleDeleteAccount = async (accountId) => {
                     ))}
                   </tbody>
                 </table>
-              ) : (
-                <div className="empty-state">
-                  <h4>No Transactions Found</h4>
-                  <p>This account has no transaction history yet.</p>
-                </div>
-              )}
+                ) : (
+                  <div className="empty-state" style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    height: '350px',
+                    textAlign: 'center'
+                  }}>
+                    <i className={`fas ${searchTerm ? 'fa-search' : 'fa-inbox'}`} style={{ 
+                      fontSize: '48px', 
+                      color: '#e5e5e5', 
+                      marginBottom: '16px' 
+                    }}></i>
+                    <h4 style={{ margin: '0 0 8px 0', color: '#666' }}>
+                      {searchTerm ? 'No Matching Transactions' : 'No Transactions Found'}
+                    </h4>
+                    <p style={{ margin: '0', color: '#999', fontSize: '14px' }}>
+                      {searchTerm ? `No transactions match "${searchTerm}"` : 'This account has no transaction history yet.'}
+                    </p>
+                    {searchTerm && (
+                      <button 
+                        onClick={() => setSearchTerm('')}
+                        style={{
+                          marginTop: '12px',
+                          padding: '6px 12px',
+                          background: '#f0f0f0',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Clear Search
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

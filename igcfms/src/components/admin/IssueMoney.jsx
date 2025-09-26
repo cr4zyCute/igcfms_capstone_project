@@ -18,13 +18,34 @@ const IssueMoney = () => {
     amount: "",
     recipientAccountId: "",
     payeeName: "", // Manual payee name input
-    referenceNo: "",
+    referenceNo: "", // Will be auto-generated
     fundAccountId: "",
     modeOfPayment: "Cash",
     chequeNumber: "",
     description: "",
     purpose: ""
   });
+
+  // Generate reference number function (moved up for initialization)
+  const generateReferenceNumber = (transactionType) => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const timestamp = now.getTime().toString().slice(-4);
+    
+    const prefix = transactionType === "Collection" ? "COL" : "DISB";
+    return `${prefix}-${year}${month}${day}-${timestamp}`;
+  };
+
+  // Auto-generate reference number when component loads or transaction type changes
+  useEffect(() => {
+    const autoRefNo = generateReferenceNumber(formData.transactionType);
+    setFormData(prev => ({
+      ...prev,
+      referenceNo: autoRefNo
+    }));
+  }, [formData.transactionType]); // Regenerate when transaction type changes
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -53,40 +74,16 @@ const IssueMoney = () => {
       // Fetch fund accounts, recipient accounts, and recent disbursements
       const [fundsRes, recipientsRes, transactionsRes] = await Promise.all([
         axios.get(`${API_BASE}/fund-accounts`, { headers }),
-        axios.get(`${API_BASE}/recipient-accounts`, { headers }).then(response => {
-          console.log('Recipient accounts response:', response.data);
+        axios.get(`${API_BASE}/recipient-accounts?status=active`, { headers }).then(response => {
+          console.log('✅ Recipient accounts API response:', response.data);
+          console.log('✅ Response status:', response.status);
+          console.log('✅ Response headers:', response.headers);
           return response;
         }).catch((err) => {
-          console.warn('Failed to fetch recipient accounts:', err);
-          // Return mock data if API endpoint doesn't exist
-          return { 
-            data: {
-              success: true,
-              data: [
-                {
-                  id: 1,
-                  name: "Boy Bawang Supplier",
-                  fund_code: "SUP001",
-                  contact_person: "Juan Dela Cruz",
-                  status: "active"
-                },
-                {
-                  id: 2,
-                  name: "Office Equipment Supplier",
-                  fund_code: "SUP002", 
-                  contact_person: "Maria Santos",
-                  status: "active"
-                },
-                {
-                  id: 3,
-                  name: "John Doe Employee",
-                  fund_code: "EMP001",
-                  contact_person: "John Doe",
-                  status: "active"
-                }
-              ]
-            }
-          };
+          console.warn('❌ Failed to fetch recipient accounts from API:', err);
+          console.warn('❌ Error response:', err.response?.data);
+          console.warn('❌ Error status:', err.response?.status);
+
         }),
         axios.get(`${API_BASE}/transactions`, { headers })
       ]);
@@ -94,17 +91,26 @@ const IssueMoney = () => {
       // Ensure data is always an array
       const fundAccountsData = Array.isArray(fundsRes.data) ? fundsRes.data : (fundsRes.data?.data || []);
       
-      // Handle recipient accounts response format
+      // Handle recipient accounts response format with detailed logging
       let recipientAccountsData = [];
+      console.log('🔍 Processing recipient accounts response...');
+      console.log('🔍 Raw recipients response:', recipientsRes.data);
+      
       if (recipientsRes.data?.success && Array.isArray(recipientsRes.data.data)) {
         recipientAccountsData = recipientsRes.data.data;
+        console.log('✅ Using recipientsRes.data.data format');
       } else if (Array.isArray(recipientsRes.data)) {
         recipientAccountsData = recipientsRes.data;
+        console.log('✅ Using direct array format');
       } else if (recipientsRes.data?.data && Array.isArray(recipientsRes.data.data)) {
         recipientAccountsData = recipientsRes.data.data;
+        console.log('✅ Using nested data format');
+      } else {
+        console.log('❌ Unknown recipient accounts response format');
       }
       
-      console.log('Processed recipient accounts:', recipientAccountsData);
+      console.log('📋 Final processed recipient accounts:', recipientAccountsData);
+      console.log('📊 Number of recipient accounts:', recipientAccountsData.length);
       
       setFundAccounts(fundAccountsData);
       setRecipientAccounts(recipientAccountsData);
@@ -130,6 +136,60 @@ const IssueMoney = () => {
       ...prev,
       [field]: value
     }));
+  };
+
+
+  // Handle recipient account selection with auto-fill
+  const handleRecipientAccountSelect = (recipientAccountId) => {
+    if (!recipientAccountId) {
+      // Clear all auto-filled fields when no recipient is selected
+      setFormData(prev => ({
+        ...prev,
+        recipientAccountId: '',
+        payeeName: ''
+      }));
+      return;
+    }
+
+    const selectedRecipient = recipientAccounts.find(recipient => recipient.id === parseInt(recipientAccountId));
+    
+    if (selectedRecipient) {
+      console.log('Selected recipient account:', selectedRecipient);
+      
+      // Auto-fill form fields based on selected recipient account
+      setFormData(prev => ({
+        ...prev,
+        recipientAccountId: recipientAccountId,
+        payeeName: selectedRecipient.name || '', // Auto-fill payee name
+        // You can extend this to auto-fill more fields if available in recipient data:
+        // address: selectedRecipient.address || prev.address,
+        // phone: selectedRecipient.phone || prev.phone,
+        // etc.
+      }));
+      
+      // Clear any previous errors
+      setError('');
+      
+      // Show success message for auto-fill with more details
+      const message = `✅ Auto-filled: ${selectedRecipient.name} (${selectedRecipient.fund_code})`;
+      showMessage(message, 'success');
+      
+      console.log('Auto-filled form data:', {
+        recipientId: recipientAccountId,
+        payeeName: selectedRecipient.name,
+        fundCode: selectedRecipient.fund_code,
+        contactPerson: selectedRecipient.contact_person
+      });
+    } else {
+      // Handle case where recipient ID doesn't match any account
+      setFormData(prev => ({
+        ...prev,
+        recipientAccountId: recipientAccountId,
+        payeeName: ''
+      }));
+      
+      showMessage('Recipient account not found. Please select a valid account.', 'error');
+    }
   };
 
   const showMessage = (message, type = 'success') => {
@@ -260,30 +320,30 @@ const IssueMoney = () => {
         amount: parseFloat(formData.amount), // Always send positive amount, backend handles sign
         description: formData.description.trim() || `${formData.purpose} - ${formData.transactionType} ${formData.transactionType === "Collection" ? "from" : "to"} ${payeeName}`,
         recipient: payeeName,
-        payer_name: formData.transactionType === "Collection" ? payeeName : null, // Required for Collections
+        payer_name: formData.transactionType === "Collection" ? payeeName : "System", // For disbursements, use "System" as payer
         recipient_account_id: formData.recipientAccountId ? parseInt(formData.recipientAccountId) : null,
         department: "General", // Default value since field is required
         category: formData.transactionType === "Collection" ? "Collection" : "Disbursement", // Default value since field is required
         reference: formData.referenceNo.trim(),
-        reference_no: formData.referenceNo.trim(),
         fund_account_id: parseInt(formData.fundAccountId),
-      mode_of_payment: formData.modeOfPayment,
-      purpose: formData.purpose.trim(),
-      cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
-      issued_by: parseInt(userId),
-      created_by: parseInt(userId),
-      audit_trail: {
-        action: formData.transactionType === "Collection" ? "MONEY_RECEIVED" : "MONEY_ISSUED",
-        fund_account: selectedFund?.name || `Fund #${formData.fundAccountId}`,
-        recipient_account: selectedRecipient?.name || `Recipient #${formData.recipientAccountId}`,
-        amount: parseFloat(formData.amount),
+        mode_of_payment: formData.modeOfPayment,
+        cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
         purpose: formData.purpose.trim(),
-        payment_method: formData.modeOfPayment,
-        reference: formData.referenceNo.trim(),
-        timestamp: new Date().toISOString(),
-        user_id: parseInt(userId)
-      }
-    };
+        issued_by: parseInt(userId),
+        receipt_no: formData.referenceNo.trim(), // Use reference number as receipt number
+        reference_no: formData.referenceNo.trim(), // Same as reference number for consistency
+        audit_trail: {
+          action: formData.transactionType === "Collection" ? "MONEY_RECEIVED" : "MONEY_ISSUED",
+          fund_account: selectedFund?.name || `Fund #${formData.fundAccountId}`,
+          recipient_account: selectedRecipient?.name || `Recipient #${formData.recipientAccountId}`,
+          amount: parseFloat(formData.amount),
+          purpose: formData.purpose.trim(),
+          payment_method: formData.modeOfPayment,
+          reference: formData.referenceNo.trim(),
+          timestamp: new Date().toISOString(),
+          user_id: parseInt(userId)
+        }
+      };
 
       const transactionRes = await axios.post(
         `${API_BASE}/transactions`,
@@ -393,13 +453,14 @@ const IssueMoney = () => {
         fundAccount: selectedFund?.name || 'Unknown Fund'
       });
 
-      // Reset form
+      // Reset form with new auto-generated reference number
+      const newRefNo = generateReferenceNumber("Disbursement");
       setFormData({
         transactionType: "Disbursement",
         amount: "",
         recipientAccountId: "",
         payeeName: "",
-        referenceNo: "",
+        referenceNo: newRefNo,
         fundAccountId: "",
         description: "",
         modeOfPayment: "Cash",
@@ -494,10 +555,10 @@ const IssueMoney = () => {
                 <label>Recipient Account *</label>
                 <select
                   value={formData.recipientAccountId}
-                  onChange={(e) => handleInputChange('recipientAccountId', e.target.value)}
+                  onChange={(e) => handleRecipientAccountSelect(e.target.value)}
                   required
                 >
-                  <option value="">-- Select Recipient Account --</option>
+                  <option value="">-- Select Recipient Account ({recipientAccounts.length} available) --</option>
                   {Array.isArray(recipientAccounts) && recipientAccounts.length > 0 ? (
                     recipientAccounts.map((recipient) => (
                       <option key={recipient.id} value={recipient.id}>
@@ -508,16 +569,28 @@ const IssueMoney = () => {
                     <option value="" disabled>No recipient accounts available</option>
                   )}
                 </select>
+                <small className="field-hint">
+                  <i className="fas fa-info-circle"></i> 
+                  Selecting a recipient account will auto-fill the payee name below
+                </small>
               </div>
               <div className="form-group">
-                <label>Reference Number *</label>
+                <label>Reference Number * <span style={{color: '#28a745', fontSize: '12px'}}>(Auto-generated)</span></label>
                 <input
                   type="text"
-                  placeholder="Enter reference number"
+                  placeholder="Auto-generated reference number"
                   value={formData.referenceNo}
-                  onChange={(e) => handleInputChange('referenceNo', e.target.value)}
-                  required
+                  readOnly
+                  style={{
+                    backgroundColor: '#f8f9fa',
+                    borderColor: '#28a745',
+                    color: '#495057'
+                  }}
                 />
+                <small className="field-hint">
+                  <i className="fas fa-info-circle"></i> 
+                  Reference number is automatically generated based on transaction type and date
+                </small>
               </div>
             </div>
 
@@ -591,16 +664,23 @@ const IssueMoney = () => {
 
             <div className="form-row">
               <div className="form-group">
-                <label>Payee Name</label>
+                <label>Payee Name {formData.recipientAccountId && formData.payeeName && <span style={{color: '#28a745', fontSize: '12px'}}>(Auto-filled)</span>}</label>
                 <input
                   type="text"
-                  placeholder="Enter payee name (optional if recipient account selected)"
+                  placeholder={formData.recipientAccountId ? "Auto-filled from recipient account" : "Enter payee name (optional if recipient account selected)"}
                   value={formData.payeeName}
                   onChange={(e) => handleInputChange('payeeName', e.target.value)}
+                  style={formData.recipientAccountId && formData.payeeName ? {
+                    backgroundColor: '#f8f9fa',
+                    borderColor: '#28a745',
+                    color: '#495057'
+                  } : {}}
                 />
                 <small className="field-hint">
                   <i className="fas fa-info-circle"></i> 
-                  Leave blank to use selected recipient account name, or enter custom payee name
+                  {formData.recipientAccountId 
+                    ? "Auto-filled from selected recipient account. You can modify if needed." 
+                    : "Leave blank to use selected recipient account name, or enter custom payee name"}
                 </small>
               </div>
               <div className="form-group">
