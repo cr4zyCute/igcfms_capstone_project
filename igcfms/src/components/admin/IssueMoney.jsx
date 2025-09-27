@@ -7,6 +7,7 @@ import { broadcastFundTransaction } from "../../services/fundTransactionChannel"
 
 const IssueMoney = () => {
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [fundAccounts, setFundAccounts] = useState([]);
@@ -55,13 +56,19 @@ const IssueMoney = () => {
   const token = localStorage.getItem("token");
   const userId = localStorage.getItem("userId");
 
+  const normalizeAmount = (value) => {
+    const parsed = Number.parseFloat(value);
+    if (Number.isNaN(parsed)) return 0;
+    return Math.round(parsed * 100) / 100;
+  };
+
   useEffect(() => {
     fetchInitialData();
   }, [token]);
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = async ({ showLoader = true } = {}) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       setError("");
 
       if (!token) {
@@ -118,7 +125,7 @@ const IssueMoney = () => {
       console.error('Issue money error:', err);
       setError(err.response?.data?.message || err.message || 'Failed to load data');
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   };
 
@@ -200,7 +207,9 @@ const IssueMoney = () => {
   const validateForm = async () => {
     const { amount, recipientAccountId, payeeName, referenceNo, fundAccountId, modeOfPayment, chequeNumber, purpose } = formData;
 
-    if (!amount || parseFloat(amount) <= 0) {
+    const requestedAmount = normalizeAmount(amount);
+
+    if (!amount || requestedAmount <= 0) {
       showMessage("Please enter a valid amount.", 'error');
       return false;
     }
@@ -237,8 +246,7 @@ const IssueMoney = () => {
       }
 
       // Use the current_balance from the fund account data
-      const currentBalance = parseFloat(selectedFund.current_balance || 0);
-      const requestedAmount = parseFloat(amount);
+      const currentBalance = normalizeAmount(selectedFund.current_balance || 0);
       
       console.log('Fund Balance Check:', {
         fundName: selectedFund.name,
@@ -255,7 +263,7 @@ const IssueMoney = () => {
       // Also try to get the latest balance from the service as a backup check
       try {
         const serviceBalance = await balanceService.getFundBalance(parseInt(fundAccountId));
-        const latestBalance = parseFloat(serviceBalance || 0);
+        const latestBalance = normalizeAmount(serviceBalance || 0);
         
         // Use the higher of the two balances (in case of sync issues)
         const actualBalance = Math.max(currentBalance, latestBalance);
@@ -288,7 +296,7 @@ const IssueMoney = () => {
   };
 
   const confirmDisbursement = async () => {
-    setLoading(true);
+    setSubmitting(true);
     setShowConfirmModal(false);
     
     try {
@@ -306,10 +314,17 @@ const IssueMoney = () => {
       const payeeName = formData.payeeName.trim() || selectedRecipient?.name || 'Unknown Recipient';
       const transactionDescription = formData.description.trim() || `${formData.purpose} - Disbursement to ${payeeName}`;
 
+      const normalizedAmount = normalizeAmount(formData.amount);
+      if (normalizedAmount <= 0) {
+        showMessage("Please enter a valid amount.", 'error');
+        setLoading(false);
+        return;
+      }
+
       // Create transaction with enhanced audit trail
       const transactionPayload = {
         type: "Disbursement",
-        amount: parseFloat(formData.amount), // Always send positive amount, backend handles sign
+        amount: normalizedAmount, // Always send positive amount, backend handles sign
         description: transactionDescription,
         recipient: payeeName,
         payer_name: "System", // For disbursements, use "System" as payer
@@ -328,7 +343,7 @@ const IssueMoney = () => {
           action: "MONEY_ISSUED",
           fund_account: selectedFund?.name || `Fund #${formData.fundAccountId}`,
           recipient_account: selectedRecipient?.name || `Recipient #${formData.recipientAccountId}`,
-          amount: parseFloat(formData.amount),
+          amount: normalizedAmount,
           purpose: formData.purpose.trim(),
           payment_method: formData.modeOfPayment,
           reference: formData.referenceNo.trim(),
@@ -367,8 +382,8 @@ const IssueMoney = () => {
       
       // Process transaction and update balance
       const currentBalance = parseFloat(selectedFund?.current_balance || 0);
-      const amountToDeduct = parseFloat(formData.amount);
-      const newBalance = currentBalance - amountToDeduct;
+      const amountToDeduct = normalizedAmount;
+      const newBalance = normalizeAmount(currentBalance - amountToDeduct);
       
       console.log('Processing balance update:', {
         fund_account_id: parseInt(formData.fundAccountId),
@@ -451,7 +466,7 @@ const IssueMoney = () => {
 
       setDisbursementResult({
         transactionId,
-        amount: formData.amount,
+        amount: normalizedAmount,
         recipientName: payeeName,
         recipientAccount: selectedRecipient?.fund_code || 'N/A',
         referenceNo: formData.referenceNo,
@@ -476,7 +491,7 @@ const IssueMoney = () => {
       });
 
       setShowSuccessModal(true);
-      fetchInitialData(); // Refresh data
+      fetchInitialData({ showLoader: false }); // Refresh data without blocking UI spinner
 
     } catch (err) {
       console.error("Error creating disbursement:", err);
@@ -489,7 +504,7 @@ const IssueMoney = () => {
         showMessage(err.response?.data?.message || "Failed to create disbursement.", 'error');
       }
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -537,7 +552,7 @@ const IssueMoney = () => {
             <button 
               type="button" 
               className="refresh-btn"
-              onClick={fetchInitialData}
+              onClick={() => fetchInitialData()}
               disabled={loading}
               title="Refresh fund balances"
             >
@@ -720,9 +735,9 @@ const IssueMoney = () => {
               <button
                 type="submit"
                 className="submit-btn"
-                disabled={loading}
+                disabled={loading || submitting}
               >
-                {loading ? (
+                {submitting ? (
                   <>
                     <i className="fas fa-spinner fa-spin"></i> Processing...
                   </>
@@ -808,7 +823,7 @@ const IssueMoney = () => {
                 </div>
                 <div className="detail-item">
                   <label>Amount:</label>
-                  <span>₱{parseFloat(formData.amount || 0).toLocaleString()}</span>
+                  <span>₱{Math.abs(parseFloat(formData.amount || 0)).toLocaleString()}</span>
                 </div>
                 <div className="detail-item">
                   <label>Purpose:</label>
@@ -845,9 +860,9 @@ const IssueMoney = () => {
                 type="button"
                 className="confirm-btn"
                 onClick={confirmDisbursement}
-                disabled={loading}
+                disabled={submitting}
               >
-                {loading ? (
+                {submitting ? (
                   <i className="fas fa-spinner fa-spin"></i>
                 ) : (
                   <>

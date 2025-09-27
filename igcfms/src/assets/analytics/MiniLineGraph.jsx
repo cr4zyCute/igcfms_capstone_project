@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 
-const MiniLineGraph = ({ data, accountId, accountName }) => {
+const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
   const processedData = useMemo(() => {
     if (!Array.isArray(data) || data.length === 0) {
       return [];
@@ -21,16 +21,18 @@ const MiniLineGraph = ({ data, accountId, accountName }) => {
 
     const allAmounts = sortedData.map((point) => Math.abs(parseFloat(point.amount) || 0));
     const positiveAmounts = allAmounts.filter((value) => value > 0);
-    const maxAmount = positiveAmounts.length > 0 ? Math.max(...positiveAmounts) : 1;
-    const minAmount = positiveAmounts.length > 0 ? Math.min(...positiveAmounts) : 1;
+    const localMaxAmount = positiveAmounts.length > 0 ? Math.max(...positiveAmounts) : 1;
+    const localMinAmount = positiveAmounts.length > 0 ? Math.min(...positiveAmounts) : 1;
+    const scalingMax = Math.max(Number.parseFloat(globalMaxAmount) || 0, localMaxAmount);
+    const scalingMin = Math.min(localMinAmount, scalingMax);
 
     return sortedData.map((point, index) => {
       const amount = parseFloat(point.amount) || 0;
       const absAmount = Math.abs(amount);
       const isCollection = (point.type || '').toLowerCase() === 'collection';
 
-      const logMax = Math.log10(Math.max(maxAmount, 1));
-      const logMin = Math.log10(Math.max(minAmount, 1));
+      const logMax = Math.log10(Math.max(scalingMax, 1));
+      const logMin = Math.log10(Math.max(scalingMin, 1));
       const logAmount = Math.log10(Math.max(absAmount, 1));
       const logRange = logMax - logMin;
 
@@ -40,7 +42,7 @@ const MiniLineGraph = ({ data, accountId, accountName }) => {
           ? 1
           : (logAmount - logMin) / logRange;
 
-      const scaledValue = Math.max(normalizedValue * maxAmount, maxAmount * 0.08);
+      const scaledValue = Math.max(normalizedValue * scalingMax, scalingMax * 0.08);
 
       return {
         ...point,

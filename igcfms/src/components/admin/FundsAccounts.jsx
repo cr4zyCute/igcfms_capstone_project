@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from 'react';
 import "../../assets/admin.css";
 import "./css/fundsaccount.css";
 import notificationService from "../../services/notificationService";
@@ -12,6 +12,86 @@ import {
   updateFundAccount,
   deleteFundAccount,
 } from "../../services/api";
+
+const SkeletonLine = ({ width = '100%', height = 12, style = {} }) => (
+  <span
+    className="skeleton skeleton-line"
+    style={{ width, height: typeof height === 'number' ? `${height}px` : height, ...style }}
+  />
+);
+
+const SkeletonCircle = ({ size = 40, style = {} }) => (
+  <span
+    className="skeleton skeleton-circle"
+    style={{ width: typeof size === 'number' ? `${size}px` : size, height: typeof size === 'number' ? `${size}px` : size, ...style }}
+  />
+);
+
+const SkeletonSectionHeader = () => (
+  <div className="section-header skeleton-section">
+    <div className="section-title-group">
+      <SkeletonLine width="280px" height={32} />
+    </div>
+    <div className="header-controls">
+      <SkeletonLine width="260px" height={44} />
+      <SkeletonLine width="180px" height={44} />
+    </div>
+  </div>
+);
+
+const SkeletonAccountCard = () => (
+  <div className="account-card-new skeleton-card">
+    <div className="card-header">
+      <div className="card-header-left">
+        <SkeletonLine width="70%" height={20} />
+        <SkeletonLine width="45%" height={14} />
+      </div>
+      <div className="card-header-center">
+        <SkeletonLine width="90px" height={18} />
+      </div>
+      <div className="card-header-right">
+        <SkeletonCircle size={32} />
+      </div>
+    </div>
+    <div className="card-balance">
+      <SkeletonLine width="55%" height={28} />
+      <SkeletonLine width="34%" height={14} />
+    </div>
+    <div className="card-graph skeleton-graph">
+      <SkeletonLine height="100%" />
+    </div>
+    <div className="card-actions-new">
+      <SkeletonLine height={42} />
+    </div>
+  </div>
+);
+
+const SkeletonAccountGrid = ({ count = 4 }) => (
+  <div className="account-cards skeleton-account-grid">
+    {Array.from({ length: count }).map((_, index) => (
+      <SkeletonAccountCard key={index} />
+    ))}
+  </div>
+);
+
+const SkeletonTransactionTable = () => (
+  <div className="transaction-history-table-container skeleton-transaction-table">
+    <div className="skeleton-table-head">
+      {Array.from({ length: 6 }).map((_, idx) => (
+        <SkeletonLine key={`head-${idx}`} height={18} />
+      ))}
+    </div>
+    <div className="skeleton-table-body">
+      {Array.from({ length: 6 }).map((_, rowIdx) => (
+        <div className="skeleton-table-row" key={`row-${rowIdx}`}>
+          {Array.from({ length: 6 }).map((_, colIdx) => (
+            <SkeletonLine key={`cell-${rowIdx}-${colIdx}`} height={16} />
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 const FundsAccounts = () => {
   const [accounts, setAccounts] = useState([]);
@@ -189,6 +269,8 @@ const FundsAccounts = () => {
     printWindow.print();
   };
 
+  const [globalMaxAmount, setGlobalMaxAmount] = useState(0);
+
   const fetchAccounts = useCallback(async ({ showLoader = true } = {}) => {
     try {
       if (showLoader) setLoading(true);
@@ -196,6 +278,7 @@ const FundsAccounts = () => {
       setAccounts(response.map(acc => ({ ...acc, latest_transaction: null })));
 
       const initialGraphData = {};
+      let overallMaxAmount = 0;
 
       await Promise.all(
         response.map(async (account) => {
@@ -231,22 +314,31 @@ const FundsAccounts = () => {
           }
 
           initialGraphData[account.id] = accountTransactions.length
-            ? accountTransactions.slice(-20).map(t => ({
-                date: t.created_at,
-                balance: t.balance_after_transaction ?? account.current_balance,
-                amount: parseFloat(t.amount) || 0,
-                type: t.type || 'Unknown',
-                recipient: t.recipient || t.payee_name || null,
-                payer_name: t.payer_name || null,
-                payee_name: t.payee_name || t.recipient || null,
-                description: t.description || '',
-                reference: t.reference || t.reference_no || '',
-              }))
+            ? accountTransactions.slice(-20).map(t => {
+                const rawAmount = parseFloat(t.amount) || 0;
+                const absAmount = Math.abs(rawAmount);
+                if (absAmount > overallMaxAmount) {
+                  overallMaxAmount = absAmount;
+                }
+
+                return {
+                  date: t.created_at,
+                  balance: t.balance_after_transaction ?? account.current_balance,
+                  amount: rawAmount,
+                  type: t.type || 'Unknown',
+                  recipient: t.recipient || t.payee_name || null,
+                  payer_name: t.payer_name || null,
+                  payee_name: t.payee_name || t.recipient || null,
+                  description: t.description || '',
+                  reference: t.reference || t.reference_no || '',
+                };
+              })
             : [];
         }),
       );
 
       setAccountGraphData(initialGraphData);
+      setGlobalMaxAmount(overallMaxAmount);
       setError('');
     } catch (err) {
       setError('Failed to fetch fund accounts. Please try again.');
@@ -317,10 +409,16 @@ const FundsAccounts = () => {
           }))
           .slice(-20);
 
+        const localMax = graphData.reduce(
+          (max, point) => Math.max(max, Math.abs(point.amount || 0)),
+          0,
+        );
+
         setAccountGraphData(prev => ({
           ...prev,
           [accountId]: graphData,
         }));
+        setGlobalMaxAmount(prev => Math.max(prev, localMax));
       }
     } catch (err) {
       console.error('❌ Error fetching transactions:', err);
@@ -333,6 +431,14 @@ const FundsAccounts = () => {
   const handleTransactionClick = (transaction) => {
     setSelectedTransaction(transaction);
     setShowTransactionPreview(true);
+  };
+
+  const formatCurrency = (value) => {
+    const numeric = Number(value) || 0;
+    return `₱${numeric.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   useEffect(() => {
@@ -361,7 +467,14 @@ const FundsAccounts = () => {
             description: latestTransaction.description || '',
             reference: latestTransaction.reference || latestTransaction.reference_no || '',
           };
-          return { ...prev, [fundAccountId]: [...existing, newPoint].slice(-20) };
+          const updatedPoints = [...existing, newPoint].slice(-20);
+          const updatedMax = updatedPoints.reduce(
+            (max, point) => Math.max(max, Math.abs(parseFloat(point.amount) || 0)),
+            0,
+          );
+          setGlobalMaxAmount(prev => Math.max(prev, updatedMax));
+
+          return { ...prev, [fundAccountId]: updatedPoints };
         });
       }
     };
@@ -562,13 +675,11 @@ const handleDeleteAccount = async (accountId) => {
     setLoading(false);
   }
 };
-
-
-
   if (loading) {
     return (
-      <div className="spinner-container">
-        <div className="spinner" aria-label="Loading fund accounts" />
+      <div className="funds-accounts">
+        <SkeletonSectionHeader />
+        <SkeletonAccountGrid />
       </div>
     );
   }
@@ -740,99 +851,171 @@ const handleDeleteAccount = async (accountId) => {
 
       {showEditAccount && (
         <div className="modal-overlay" onClick={() => setShowEditAccount(false)}>
-          <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h4><i className="fas fa-edit"></i> Edit Fund Account</h4>
-              <button type="button" onClick={() => setShowEditAccount(false)} className="close-button">×</button>
+          <div className="modal edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="edit-modal-header">
+              <div className="edit-modal-title">
+                <span className="icon-badge">
+                
+                <i className="fas fa-university"></i>
+                </span>
+                <div>
+                  <h4>Update Fund Account</h4>
+                  <p>
+                    {editAccount.code ? `Code: ${editAccount.code}` : 'Edit the account configuration and description.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditAccount(false)}
+                className="close-button"
+                aria-label="Close edit fund account modal"
+              >
+                ×
+              </button>
             </div>
-            <form onSubmit={handleEditAccount} className="modal-body">
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Account Name</label>
-                  <input
-                    type="text"
-                    value={editAccount.name}
-                    onChange={(e) =>
-                      setEditAccount({ ...editAccount, name: e.target.value })
-                    }
-                    required
-                    disabled={loading}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Account Type</label>
-                  <select
-                    value={editAccount.account_type || ''}
-                    onChange={(e) => setEditAccount({ ...editAccount, account_type: e.target.value })}
-                    disabled={loading}
-                    required
-                  >
-                    <option value="">Select Type</option>
-                    <option value="Revenue">Revenue</option>
-                    <option value="Expense">Expense</option>
-                    <option value="Asset">Asset</option>
-                    <option value="Liability">Liability</option>
-                    <option value="Equity">Equity</option>
-                  </select>
+
+            <form onSubmit={handleEditAccount} className="edit-modal-form">
+              <div className="edit-modal-body">
+                <div className="edit-form-grid">
+                  <div className="form-card">
+                    <div className="form-card-header">
+                      <h5><i className="fas fa-info-circle"></i> Account Details</h5>
+                      <span className="badge subtle">Required fields</span>
+                    </div>
+
+                    <div className="form-row tight">
+                      <div className="form-group">
+                        <label>Account Name</label>
+                        <input
+                          type="text"
+                          value={editAccount.name}
+                          onChange={(e) =>
+                            setEditAccount({ ...editAccount, name: e.target.value })
+                          }
+                          required
+                          disabled={loading}
+                        />
+                       
+                      </div>
+                      <div className="form-group">
+                        <label>Account Type</label>
+                        <select
+                          value={editAccount.account_type || ''}
+                          onChange={(e) => setEditAccount({ ...editAccount, account_type: e.target.value })}
+                          disabled={loading}
+                          required
+                        >
+                          <option value="">Select Type</option>
+                          <option value="Revenue">Revenue</option>
+                          <option value="Expense">Expense</option>
+                          <option value="Asset">Asset</option>
+                          <option value="Liability">Liability</option>
+                          <option value="Equity">Equity</option>
+                        </select>
+                      
+                      </div>
+                    </div>
+
+                    <div className="form-row tight">
+                      <div className="form-group">
+                        <label>Account Code</label>
+                        <input
+                          type="text"
+                          value={editAccount.code}
+                          readOnly
+                          className="readonly-field"
+                          required
+                          disabled
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Current Balance</label>
+                        <input
+                          type="text"
+                          value={formatCurrency(editAccount.initial_balance)}
+                          readOnly
+                          disabled
+                          className="readonly-field"
+                        />
+                       
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Description</label>
+                      <textarea
+                        value={editAccount.description || ''}
+                        onChange={(e) =>
+                          setEditAccount({
+                            ...editAccount,
+                            description: e.target.value,
+                          })
+                        }
+                        disabled={loading}
+                        rows={3}
+                        placeholder="Describe how this fund account is used."
+                      />
+                    </div>
+
+                    <div className="form-actions-inline">
+                      <button
+                        type="submit"
+                        className="btn-primary filled"
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <>
+                            <i className="fas fa-spinner fa-spin"></i>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fas fa-save"></i>
+                            Update Account
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="summary-card">
+                    <div className="summary-header">
+                      <h5>Account Snapshot</h5>
+                      <span className={`status-chip ${editAccount.is_active === false ? 'status-inactive' : 'status-active'}`}>
+                        <i className={`fas ${editAccount.is_active === false ? 'fa-pause-circle' : 'fa-bolt'}`}></i>
+                        {editAccount.is_active === false ? 'Inactive' : 'Active'}
+                      </span>
+                    </div>
+                    <ul className="summary-list">
+                      <li>
+                        <span>Fund Name</span>
+                        <p>{editAccount.name || '—'}</p>
+                      </li>
+                      <li>
+                        <span>Current Balance</span>
+                        <p>{formatCurrency(editAccount.current_balance ?? editAccount.initial_balance)}</p>
+                      </li>
+                      <li>
+                        <span>Created</span>
+                        <p>{editAccount.created_at ? new Date(editAccount.created_at).toLocaleString() : '—'}</p>
+                      </li>
+                      <li>
+                        <span>Last Updated</span>
+                        <p>{editAccount.updated_at ? new Date(editAccount.updated_at).toLocaleString() : '—'}</p>
+                      </li>
+                    </ul>
+
+                    <div className="summary-cta">
+                      <i className="fas fa-shield-alt"></i>
+                      <p>Changes are logged for audit and instantly visible to other modules.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Account Code</label>
-                  <input
-                    type="text"
-                    value={editAccount.code}
-                    onChange={(e) =>
-                      setEditAccount({ ...editAccount, code: e.target.value })
-                    }
-                    required
-                    disabled={loading}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Current Balance (Read-only)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editAccount.initial_balance}
-                    readOnly
-                    disabled
-                    style={{
-                      backgroundColor: '#f5f5f5',
-                      color: '#666666',
-                      cursor: 'not-allowed'
-                    }}
-                  />
-                  <small style={{ color: '#666666', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-                    This shows the current balance and cannot be edited
-                  </small>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea
-                  value={editAccount.description}
-                  onChange={(e) =>
-                    setEditAccount({
-                      ...editAccount,
-                      description: e.target.value,
-                    })
-                  }
-                  disabled={loading}
-                />
-              </div>
-              
-              <div className="form-actions">
-                {/* <button
-                  type="button"
-                  onClick={() => setShowEditAccount(false)}
-                  disabled={loading}
-                >
-                  <i className="fas fa-times"></i> Cancel
-                </button> */}
-                <button type="submit" disabled={loading}>
-                  {loading ? "Updating..." : <><i className="fas fa-save"></i> Update Account</>}
-                </button>
+
+              <div className="edit-modal-footer">
+                
               </div>
             </form>
           </div>
@@ -969,6 +1152,7 @@ const handleDeleteAccount = async (accountId) => {
                           data={accountGraphData[account.id] || []}
                           accountId={account.id}
                           accountName={account.name}
+                          globalMaxAmount={globalMaxAmount}
                         />
                       </div>
 
@@ -1024,7 +1208,7 @@ const handleDeleteAccount = async (accountId) => {
                                     displayTransaction.type === 'Collection' ? 'positive' : 'negative'
                                   }`}
                                 >
-                                  {displayTransaction.type === 'Collection' ? '+' : '-'}₱
+                                  {displayTransaction.type === 'Collection' ? '+' : ''}₱
                                   {(displayTransaction.amount || 0).toLocaleString('en-US', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
@@ -1179,9 +1363,7 @@ const handleDeleteAccount = async (accountId) => {
 
             
             {transactionsLoading ? (
-              <div className="spinner-container">
-                <div className="spinner" aria-label="Loading transactions" />
-              </div>
+              <SkeletonTransactionTable />
             ) : (() => {
               // Filter transactions based on search term
               const filteredTransactions = transactions.filter(transaction => {
