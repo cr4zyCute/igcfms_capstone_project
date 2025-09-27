@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import "../../assets/admin.css";
 import "./css/fundsaccount.css";
 import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
 import MiniLineGraph from '../../assets/analytics/MiniLineGraph'; 
+import { subscribeToFundTransactions } from '../../services/fundTransactionChannel';
 import {
   getFundAccounts,
   createFundAccount,
@@ -23,22 +24,26 @@ const FundsAccounts = () => {
   const [showTransactionHistory, setShowTransactionHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
-  const [, setError] = useState("");
+  const [error, setError] = useState('');
   const [showMessagePopup, setShowMessagePopup] = useState(false);
   const [messagePopup, setMessagePopup] = useState({ type: '', message: '' });
 
   const [newAccount, setNewAccount] = useState({
-    name: "",
-    code: "",
-    description: "",
+    name: '',
+    code: '',
+    description: '',
     initial_balance: 0,
-    account_type: "Revenue",
+    account_type: 'Revenue',
   });
 
   const [editAccount, setEditAccount] = useState({});
   const [accountGraphData, setAccountGraphData] = useState({});
-  const [openMenuId, setOpenMenuId] = useState(null); // State for dropdown menu
-  const [searchTerm, setSearchTerm] = useState(''); // State for transaction search
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [accountSearchTerm, setAccountSearchTerm] = useState('');
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [showTransactionPreview, setShowTransactionPreview] = useState(false);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   const openDeleteModal = (accountId) => {
     setDeletingAccountId(accountId);
@@ -55,34 +60,308 @@ const FundsAccounts = () => {
     setOpenMenuId(prevId => (prevId === accountId ? null : accountId));
   };
 
-  useEffect(() => {
-    fetchAccounts();
-    //loadAccounts();
-    
-    // Set up real-time balance updates
-    const handleBalanceUpdate = ({ fundAccountId, newBalance, latestTransaction }) => {
-      setAccounts(prevAccounts =>
-        prevAccounts.map(account =>
-          account.id === fundAccountId
-            ? { ...account, current_balance: newBalance, latest_transaction: latestTransaction }
-            : account
-        )
+  const exportToCSV = (data, filename) => {
+    const csvContent = [
+      ['Date', 'Description', 'Payee/Payer', 'Type', 'Amount', 'Reference'],
+      ...data.map(transaction => [
+        new Date(transaction.created_at).toLocaleDateString(),
+        transaction.description || '',
+        transaction.type === 'Collection'
+          ? (transaction.payer_name || transaction.recipient || 'Unknown Payer')
+          : (transaction.recipient || transaction.payer_name || 'Unknown Payee'),
+        transaction.type || '',
+        `${transaction.type === 'Collection' ? '+' : '-'}₱${Math.abs(transaction.amount || 0).toLocaleString()}`,
+        transaction.reference || transaction.reference_no || transaction.receipt_no || 'N/A',
+      ]),
+    ]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  };
+
+  const exportToExcel = (data, filename) => {
+    const tableHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Payee/Payer</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Reference</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data
+            .map(
+              transaction => `
+              <tr>
+                <td>${new Date(transaction.created_at).toLocaleDateString()}</td>
+                <td>${transaction.description || ''}</td>
+                <td>${
+                  transaction.type === 'Collection'
+                    ? (transaction.payer_name || transaction.recipient || 'Unknown Payer')
+                    : (transaction.recipient || transaction.payer_name || 'Unknown Payee')
+                }</td>
+                <td>${transaction.type || ''}</td>
+                <td>${transaction.type === 'Collection' ? '+' : '-'}₱${Math.abs(transaction.amount || 0).toLocaleString()}</td>
+                <td>${transaction.reference || transaction.reference_no || transaction.receipt_no || 'N/A'}</td>
+              </tr>
+            `,
+            )
+            .join('')}
+        </tbody>
+      </table>
+    `;
+
+    const blob = new Blob([tableHTML], { type: 'application/vnd.ms-excel' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  };
+
+  const exportToPDF = (data, accountName) => {
+    const printContent = `
+      <html>
+        <head>
+          <title>Transaction History - ${accountName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { color: #333; text-align: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; font-weight: bold; }
+            .amount { text-align: right; }
+            .collection { color: #22c55e; }
+            .disbursement { color: #ef4444; }
+          </style>
+        </head>
+        <body>
+          <h1>Transaction History - ${accountName}</h1>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Payee/Payer</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data
+                .map(
+                  transaction => `
+                  <tr>
+                    <td>${new Date(transaction.created_at).toLocaleDateString()}</td>
+                    <td>${transaction.description || ''}</td>
+                    <td>${
+                      transaction.type === 'Collection'
+                        ? (transaction.payer_name || transaction.recipient || 'Unknown Payer')
+                        : (transaction.recipient || transaction.payer_name || 'Unknown Payee')
+                    }</td>
+                    <td>${transaction.type || ''}</td>
+                    <td class="amount ${transaction.type?.toLowerCase()}">${
+                      transaction.type === 'Collection' ? '+' : '-'
+                    }₱${Math.abs(transaction.amount || 0).toLocaleString()}</td>
+                    <td>${transaction.reference || transaction.reference_no || transaction.receipt_no || 'N/A'}</td>
+                  </tr>
+                `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  const fetchAccounts = useCallback(async ({ showLoader = true } = {}) => {
+    try {
+      if (showLoader) setLoading(true);
+      const response = await getFundAccounts();
+      setAccounts(response.map(acc => ({ ...acc, latest_transaction: null })));
+
+      const initialGraphData = {};
+
+      await Promise.all(
+        response.map(async (account) => {
+          const filterByAccount = (txList = []) =>
+            txList.filter(tx => parseInt(tx.fund_account_id, 10) === parseInt(account.id, 10));
+
+          let accountTransactions = Array.isArray(account.transactions)
+            ? filterByAccount(account.transactions)
+            : [];
+
+          if (accountTransactions.length === 0) {
+            try {
+              const token = localStorage.getItem('token');
+              const txResponse = await fetch(
+                `http://localhost:8000/api/transactions?fund_account_id=${account.id}`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                  },
+                },
+              );
+
+              if (txResponse.ok) {
+                const txData = await txResponse.json();
+                const fetchedTransactions = Array.isArray(txData) ? txData : (txData?.data || []);
+                accountTransactions = filterByAccount(fetchedTransactions);
+              }
+            } catch (txError) {
+              console.warn(`⚠️ Failed to fetch transactions for account ${account.id}:`, txError);
+              accountTransactions = [];
+            }
+          }
+
+          initialGraphData[account.id] = accountTransactions.length
+            ? accountTransactions.slice(-20).map(t => ({
+                date: t.created_at,
+                balance: t.balance_after_transaction ?? account.current_balance,
+                amount: parseFloat(t.amount) || 0,
+                type: t.type || 'Unknown',
+                recipient: t.recipient || t.payee_name || null,
+                payer_name: t.payer_name || null,
+                payee_name: t.payee_name || t.recipient || null,
+                description: t.description || '',
+                reference: t.reference || t.reference_no || '',
+              }))
+            : [];
+        }),
       );
 
-      // Update graph data
-      if (latestTransaction) {
-        setAccountGraphData(prevData => {
-          const existingData = prevData[fundAccountId] || [];
-          const newDataPoint = {
+      setAccountGraphData(initialGraphData);
+      setError('');
+    } catch (err) {
+      setError('Failed to fetch fund accounts. Please try again.');
+      console.error('❌ Error fetching accounts:', err);
+    } finally {
+      if (showLoader) setLoading(false);
+    }
+  }, []);
+
+  const fetchAccountTransactions = useCallback(async (accountId) => {
+    try {
+      setTransactionsLoading(true);
+
+      const response = await getFundAccount(accountId);
+      const accountData = Array.isArray(response)
+        ? { transactions: response }
+        : (response?.data || response);
+
+      if (accountData && accountData.id) {
+        setSelectedAccount(accountData);
+      }
+
+      const filterByAccount = (txList = []) =>
+        txList.filter(tx => parseInt(tx.fund_account_id, 10) === parseInt(accountId, 10));
+
+      let related = filterByAccount(accountData?.transactions || []);
+
+      if (related.length === 0) {
+        try {
+          const token = localStorage.getItem('token');
+          const transactionsResponse = await fetch(
+            `http://localhost:8000/api/transactions?fund_account_id=${accountId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            },
+          );
+
+          if (transactionsResponse.ok) {
+            const transactionsData = await transactionsResponse.json();
+            const fetched = Array.isArray(transactionsData)
+              ? transactionsData
+              : (transactionsData?.data || transactionsData?.transactions || []);
+            related = filterByAccount(fetched);
+          }
+        } catch (directApiError) {
+          console.warn('⚠️ Direct transactions API failed:', directApiError);
+        }
+      }
+
+      setTransactions(Array.isArray(related) ? related : []);
+
+      if (related.length) {
+        const graphData = related
+          .filter(tx => tx.type !== 'INITIAL_BALANCE')
+          .map(t => ({
+            date: t.created_at,
+            balance: t.balance_after_transaction ?? accountData.current_balance,
+            amount: parseFloat(t.amount) || 0,
+            type: t.type || 'Unknown',
+            recipient: t.recipient || t.payee_name || null,
+            payer_name: t.payer_name || null,
+            payee_name: t.payee_name || t.recipient || null,
+            description: t.description || '',
+            reference: t.reference || t.reference_no || '',
+          }))
+          .slice(-20);
+
+        setAccountGraphData(prev => ({
+          ...prev,
+          [accountId]: graphData,
+        }));
+      }
+    } catch (err) {
+      console.error('❌ Error fetching transactions:', err);
+      setTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  }, []);
+
+  const handleTransactionClick = (transaction) => {
+    setSelectedTransaction(transaction);
+    setShowTransactionPreview(true);
+  };
+
+  useEffect(() => {
+    fetchAccounts();
+
+    const handleBalanceUpdate = ({ fundAccountId, newBalance, latestTransaction }) => {
+      setAccounts(prev =>
+        prev.map(account =>
+          account.id === fundAccountId
+            ? { ...account, current_balance: newBalance, latest_transaction: latestTransaction }
+            : account,
+        ),
+      );
+
+      if (latestTransaction && (latestTransaction.type || '').toLowerCase() !== 'initial balance') {
+        setAccountGraphData(prev => {
+          const existing = prev[fundAccountId] || [];
+          const newPoint = {
             date: new Date().toISOString(),
             balance: newBalance,
             amount: latestTransaction.amount,
             type: latestTransaction.type,
+            recipient: latestTransaction.recipient || latestTransaction.payee_name || null,
+            payer_name: latestTransaction.payer_name || null,
+            payee_name: latestTransaction.payee_name || latestTransaction.recipient || null,
+            description: latestTransaction.description || '',
+            reference: latestTransaction.reference || latestTransaction.reference_no || '',
           };
-          return {
-            ...prevData,
-            [fundAccountId]: [...existingData, newDataPoint].slice(-20), // Keep last 20 points
-          };
+          return { ...prev, [fundAccountId]: [...existing, newPoint].slice(-20) };
         });
       }
     };
@@ -92,7 +371,56 @@ const FundsAccounts = () => {
     return () => {
       balanceService.removeBalanceListener(handleBalanceUpdate);
     };
-  }, []);
+  }, [fetchAccounts]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAccounts({ showLoader: false });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchAccounts]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToFundTransactions(({ accountId, balance, amount, type }) => {
+      const parsedId = parseInt(accountId, 10);
+
+      setAccounts(prev =>
+        prev.map(account =>
+          account.id === parsedId
+            ? {
+                ...account,
+                current_balance:
+                  typeof balance === 'number'
+                    ? parseFloat(balance)
+                    : account.current_balance,
+              }
+            : account,
+        ),
+      );
+
+      setAccountGraphData(prev => {
+        const existing = prev[parsedId] || [];
+        const isCollection = (type || '').toLowerCase() === 'collection';
+        const entry = {
+          date: new Date().toISOString(),
+          balance: typeof balance === 'number' ? parseFloat(balance) : undefined,
+          amount: isCollection ? Math.abs(amount || 0) : -Math.abs(amount || 0),
+          type: isCollection ? 'Collection' : 'Disbursement',
+          description: 'Real-time update',
+        };
+        return { ...prev, [parsedId]: [...existing, entry].slice(-20) };
+      });
+
+      if (selectedAccount?.id === parsedId) {
+        fetchAccountTransactions(parsedId);
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [fetchAccounts, fetchAccountTransactions, selectedAccount?.id]);
 
   // Function to show popup messages
   const showPopupMessage = (type, message) => {
@@ -102,89 +430,6 @@ const FundsAccounts = () => {
     setTimeout(() => {
       setShowMessagePopup(false);
     }, 3000);
-  };
-
-  const fetchAccounts = async () => {
-    try {
-      setLoading(true);
-      const response = await getFundAccounts();
-      console.log('📊 Fund accounts API response:', response);
-      
-      setAccounts(response.map(acc => ({ ...acc, latest_transaction: null })));
-
-      // Initialize graph data with proper error handling
-      const initialGraphData = {};
-      
-      // Also try to fetch transactions for each account if not included
-      await Promise.all(
-        response.map(async (account) => {
-          console.log(`📈 Processing graph data for account ${account.id}:`, account);
-          
-          let transactions = account.transactions;
-          
-          // Check if account has transactions
-          if (transactions && Array.isArray(transactions) && transactions.length > 0) {
-            console.log(`✅ Found ${transactions.length} transactions for account ${account.id}`);
-          } else {
-            console.log(`⚠️ No transactions in account data for ${account.id}, trying to fetch separately...`);
-            
-            // Try to fetch transactions separately
-            try {
-              const token = localStorage.getItem('token');
-              const txResponse = await fetch(`http://localhost:8000/api/transactions?fund_account_id=${account.id}`, {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              if (txResponse.ok) {
-                const txData = await txResponse.json();
-                transactions = Array.isArray(txData) ? txData : (txData?.data || []);
-                console.log(`📊 Fetched ${transactions.length} transactions separately for account ${account.id}`);
-              }
-            } catch (txError) {
-              console.warn(`⚠️ Failed to fetch transactions for account ${account.id}:`, txError);
-              transactions = [];
-            }
-          }
-          
-          // Create graph data
-          if (transactions && Array.isArray(transactions) && transactions.length > 0) {
-            initialGraphData[account.id] = transactions.map(t => ({
-              date: t.created_at,
-              balance: t.balance_after_transaction || account.current_balance,
-              amount: parseFloat(t.amount) || 0,
-              type: t.type || 'Unknown',
-            })).slice(-20); // Last 20 transactions
-          } else {
-            console.log(`⚠️ Creating sample data for account ${account.id}`);
-            
-            // Create sample data point if no transactions exist
-            initialGraphData[account.id] = [{
-              date: new Date().toISOString(),
-              balance: parseFloat(account.current_balance) || 0,
-              amount: parseFloat(account.current_balance) || 0,
-              type: 'Initial Balance'
-            }];
-          }
-          
-          console.log(`📊 Graph data for account ${account.id}:`, initialGraphData[account.id]);
-          
-          return { ...account, transactions };
-        })
-      );
-      
-      console.log('📊 Final graph data:', initialGraphData);
-      setAccountGraphData(initialGraphData);
-
-      setError("");
-    } catch (err) {
-      setError("Failed to fetch fund accounts. Please try again.");
-      console.error("❌ Error fetching accounts:", err);
-    } finally {
-      setLoading(false);
-    }
   };
 
   // Extract a readable error message from API errors
@@ -201,90 +446,6 @@ const FundsAccounts = () => {
       }
     }
     return err.message || fallback;
-  };
-
-  const fetchAccountTransactions = async (accountId) => {
-    try {
-      setTransactionsLoading(true);
-      
-      // Try multiple API endpoints to get transactions
-      console.log(`📊 Fetching transactions for account ${accountId}...`);
-      
-      // First try: Get specific fund account details
-      const response = await getFundAccount(accountId);
-      console.log(`📊 getFundAccount(${accountId}) response:`, response);
-
-      // The backend show() now returns the full account with 'transactions' and computed 'current_balance'
-      const accountData = Array.isArray(response)
-        ? { transactions: response }
-        : (response?.data || response);
-
-      console.log(`📊 Processed account data:`, accountData);
-
-      // Update selectedAccount with fresh data if available
-      if (accountData && accountData.id) {
-        setSelectedAccount(accountData);
-      }
-
-      let related = accountData?.transactions || [];
-      console.log(`📊 Found ${related.length} transactions in account data`);
-
-      // If no transactions in account data, try fetching from transactions API directly
-      if (related.length === 0) {
-        try {
-          console.log(`🔄 No transactions in account data, trying direct API call...`);
-          const token = localStorage.getItem('token');
-          const transactionsResponse = await fetch(`http://localhost:8000/api/transactions?fund_account_id=${accountId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          if (transactionsResponse.ok) {
-            const transactionsData = await transactionsResponse.json();
-            console.log(`📊 Direct transactions API response:`, transactionsData);
-            
-            related = Array.isArray(transactionsData) ? transactionsData : 
-                     (transactionsData?.data || transactionsData?.transactions || []);
-            console.log(`📊 Found ${related.length} transactions from direct API`);
-          }
-        } catch (directApiError) {
-          console.warn(`⚠️ Direct transactions API failed:`, directApiError);
-        }
-      }
-
-      setTransactions(Array.isArray(related) ? related : []);
-      
-      // Update graph data for this specific account
-      if (related.length > 0) {
-        console.log(`📈 Updating graph data for account ${accountId} with ${related.length} transactions`);
-        
-        const graphData = related.map(t => ({
-          date: t.created_at,
-          balance: t.balance_after_transaction || accountData.current_balance,
-          amount: parseFloat(t.amount) || 0,
-          type: t.type || 'Unknown',
-        })).slice(-20);
-        
-        setAccountGraphData(prevData => ({
-          ...prevData,
-          [accountId]: graphData
-        }));
-        
-        console.log(`📊 Updated graph data for account ${accountId}:`, graphData);
-      } else {
-        console.log(`⚠️ Still no transactions found for account ${accountId} after all attempts`);
-        console.log(`🔍 Account data structure:`, Object.keys(accountData || {}));
-        console.log(`🔍 Available properties:`, accountData);
-      }
-    } catch (err) {
-      console.error("❌ Error fetching transactions:", err);
-      console.error("❌ Error details:", err.response?.data);
-      setTransactions([]);
-    } finally {
-      setTransactionsLoading(false);
-    }
   };
 
   const handleAddAccount = async (e) => {
@@ -415,20 +576,34 @@ const handleDeleteAccount = async (accountId) => {
   return (
     <div className="funds-accounts">
       <div className="section-header">
-        <div>
-          <h3><i className="fas fa-university"></i> Fund Accounts Management</h3>
-          <p></p>
+        <div className="section-title-group">
+          <h3>
+            <i className="fas fa-university"></i>
+            Fund Accounts Management
+            <span className="section-count">({accounts.length})</span>
+          </h3>
         </div>
-        <button
-          className="btn btn-primary add-account-btn"
-          onClick={() => setShowAddAccount(true)}
-          disabled={loading}
-        >   
-          <i className="fas fa-plus"></i>
-          Add New Account
-        </button>
+        <div className="header-controls">
+          <div className="account-search-container">
+            <input
+              type="text"
+              placeholder="Search accounts..."
+              value={accountSearchTerm}
+              onChange={(e) => setAccountSearchTerm(e.target.value)}
+              className="account-search-input"
+            />
+            <i className="fas fa-search account-search-icon"></i>
+          </div>
+          <button
+            className="btn btn-primary add-account-btn"
+            onClick={() => setShowAddAccount(true)}
+            disabled={loading}
+          >   
+            <i className="fas fa-plus"></i>
+            Add New Account
+          </button>
+        </div>
       </div>
-
 
       {showAddAccount && (
         <div className="modal-overlay" onClick={() => setShowAddAccount(false)}>
@@ -691,161 +866,212 @@ const handleDeleteAccount = async (accountId) => {
       )}
 
       <div className="accounts-overview">
-        <h4><i className="fas fa-credit-card"></i> Fund Accounts ({accounts.length})</h4>
-        <div className="account-cards">
-          {accounts.map((account) => {
+        {(() => {
+          // Filter accounts based on search term
+          const filteredAccounts = accounts.filter(account => {
+            if (!accountSearchTerm) return true;
+            
+            const searchLower = accountSearchTerm.toLowerCase();
             return (
-              <div key={account.id} className="account-card-new" onClick={() => openMenuId && setOpenMenuId(null)}>
-                <div className="card-header">
-                  <div className="card-title">
-                    <div className="title-line">
-                      <h5>{account.name}</h5>
-                      <p className="account-code">{account.code}</p>
-                    </div>
-                    <span>Created: {new Date(account.created_at).toLocaleString()}</span>
-                  </div>
-                  <div className="card-menu">
-                    <i className="fas fa-wallet"></i>
-                    <button className="menu-btn" onClick={(e) => toggleMenu(e, account.id)}>
-                      <i className="fas fa-ellipsis-v"></i>
+              account.name?.toLowerCase().includes(searchLower) ||
+              account.code?.toLowerCase().includes(searchLower) ||
+              account.description?.toLowerCase().includes(searchLower) ||
+              account.account_type?.toLowerCase().includes(searchLower)
+            );
+          });
+
+          return (
+            <>
+              <h4 className="sr-only">Fund Accounts List</h4>
+              {accountSearchTerm && (
+                <div className="search-results-info">
+                  <i className="fas fa-search"></i>
+                  Showing {filteredAccounts.length} of {accounts.length} accounts for "{accountSearchTerm}"
+                  {filteredAccounts.length === 0 && (
+                    <button 
+                      onClick={() => setAccountSearchTerm('')}
+                      className="clear-search-btn"
+                    >
+                      Clear Search
                     </button>
-                    {openMenuId === account.id && (
-                      <div className="dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAccount(account);
-                            setShowEditAccount(true);
-                            setEditAccount({ 
-                              ...account, 
-                              initial_balance: account.current_balance // Set initial balance to current balance
-                            });
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          <i className="fas fa-edit"></i> Edit
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openDeleteModal(account.id);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          <i className="fas fa-trash"></i> Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-
-                <div className="card-balance">
-                  <h2>₱{account.current_balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0.00"}</h2>
-                </div>
-
-                <div className="card-graph">
-                  <MiniLineGraph 
-                    data={accountGraphData[account.id] || []} 
-                    accountId={account.id}
-                    accountName={account.name}
-                  />
-                </div>
-
-                <div className="card-actions-new">
-                  {(() => {
-                    // Get the latest transaction for this account - real-time data
-                    let displayTransaction = null;
-                    
-                    // First try to get from the transactions array (same as history modal)
-                    if (transactions && transactions.length > 0) {
-                      // Get all transactions for this account and sort by date (newest first)
-                      const accountTransactions = transactions
-                        .filter(t => t.fund_account_id === account.id)
-                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                      
-                      if (accountTransactions.length > 0) {
-                        displayTransaction = accountTransactions[0]; // Get the most recent
-                        console.log('🎯 Latest transaction from history data:', displayTransaction);
-                        console.log('📅 Transaction date:', displayTransaction.created_at);
-                      }
-                    }
-                    
-                    // Fallback to graph data if no transaction history available
-                    if (!displayTransaction) {
-                      const graphTransactions = accountGraphData[account.id] || [];
-                      if (graphTransactions.length > 0) {
-                        // Sort graph data by date too
-                        const sortedGraphData = graphTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-                        displayTransaction = sortedGraphData[0];
-                        console.log('📊 Latest transaction from graph data:', displayTransaction);
-                      }
-                    }
-                    
-                    // Debug: Log the transaction data to see what fields are available
-                    if (displayTransaction) {
-                      console.log('🔍 Final latest transaction:', displayTransaction);
-                      console.log('👤 Payer name:', displayTransaction.payer_name);
-                      console.log('👤 Recipient:', displayTransaction.recipient);
-                      console.log('💰 Amount:', displayTransaction.amount);
-                      console.log('📝 Type:', displayTransaction.type);
-                    }
-                    
-                    return displayTransaction ? (
-                      <div className="latest-transaction-card">
-                        <div className="transaction-header">
-                          <span className="transaction-pill">LATEST TRANSACTION</span>
-                        </div>
-                        
-                        <div className="single-line-details">
-                          <span className="payee-text">
-                            {displayTransaction.type === "Collection" 
-                              ? (displayTransaction.payer_name || displayTransaction.recipient || 'Unknown Payer')
-                              : (displayTransaction.recipient || displayTransaction.payer_name || 'Unknown Payee')
-                            }
-                          </span>
-                          
-                          <span className="type-pill">{displayTransaction.type}</span>
-                          
-                          <span className={`amount-text ${displayTransaction.type === 'Collection' ? 'positive' : 'negative'}`}>
-                            {displayTransaction.type === 'Collection' ? '+' : '-'}₱{(displayTransaction.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              )}
+              <div className="account-cards">
+                {filteredAccounts.length > 0 ? (
+                  filteredAccounts.map((account) => (
+                    <div
+                      key={account.id}
+                      className="account-card-new"
+                      onClick={() => openMenuId && setOpenMenuId(null)}
+                    >
+                      <div className="card-header">
+                        <div className="card-header-left">
+                          <h5 className="card-title-text">{account.name}</h5>
+                          <span className="card-created-date">
+                            Created: {new Date(account.created_at).toLocaleString()}
                           </span>
                         </div>
-                        
-                        <button 
-                          className="view-all-button"
-                          onClick={() => handleAccountSelect(account)}
-                        >
-                          <i className="fas fa-list"></i> View All Transactions
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="latest-transaction-preview">
-                        <div className="transaction-preview-header">
-                          <span className="preview-label">No Transactions Yet</span>
-                          <span className="preview-amount" style={{ color: '#666' }}>
-                            ₱0.00
-                          </span>
+                        <div className="card-header-center">
+                          <span className="account-code">{account.code}</span>
                         </div>
-                        <div className="transaction-preview-details">
-                          <div className="preview-row">
-                            <span className="preview-field">Status:</span>
-                            <span className="preview-value">No activity</span>
+                        <div className="card-header-right">
+                          <div className="card-menu">
+                            <button className="menu-btn" onClick={(e) => toggleMenu(e, account.id)}>
+                              <i className="fas fa-ellipsis-v"></i>
+                            </button>
+                            {openMenuId === account.id && (
+                              <div className="dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedAccount(account);
+                                    setShowEditAccount(true);
+                                    setEditAccount({
+                                      ...account,
+                                      initial_balance: account.current_balance // Set initial balance to current balance
+                                    });
+                                    setOpenMenuId(null);
+                                  }}
+                                >
+                                  <i className="fas fa-edit"></i> Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openDeleteModal(account.id);
+                                    setOpenMenuId(null);
+                                  }}
+                                >
+                                  <i className="fas fa-trash"></i> Delete
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <button 
-                          className="view-all-btn"
-                          onClick={() => handleAccountSelect(account)}
-                        >
-                          <i className="fas fa-plus"></i> Add First Transaction
-                        </button>
                       </div>
-                    );
-                  })()}
-                </div>
+
+                      <div className="card-balance">
+                        <h2>
+                          ₱
+                          {account.current_balance?.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          }) || '0.00'}
+                        </h2>
+                        <p className="transaction-count-label">
+                          {accountGraphData[account.id]?.length || 0} transactions
+                        </p>
+                      </div>
+
+                      <div className="card-graph">
+                        <MiniLineGraph
+                          data={accountGraphData[account.id] || []}
+                          accountId={account.id}
+                          accountName={account.name}
+                        />
+                      </div>
+
+                      <div className="card-actions-new">
+                        {(() => {
+                          // Get the latest transaction for this account using account-specific graph data
+                          let displayTransaction = null;
+
+                          // Use account-specific graph data (this ensures each account shows its own data)
+                          const graphTransactions = accountGraphData[account.id] || [];
+                          if (graphTransactions.length > 0) {
+                            // Sort graph data by date (newest first) and get the most recent
+                            const sortedGraphData = [...graphTransactions].sort(
+                              (a, b) => new Date(b.date) - new Date(a.date)
+                            );
+                            displayTransaction = sortedGraphData[0];
+                            console.log(
+                              `📊 Latest transaction for account ${account.id} (${account.name}):`,
+                              displayTransaction
+                            );
+                          }
+
+                          // Debug: Log the transaction data to see what fields are available
+                          if (displayTransaction) {
+                            console.log('🔍 Final latest transaction:', displayTransaction);
+                            console.log('👤 Payer name:', displayTransaction.payer_name);
+                            console.log('👤 Recipient:', displayTransaction.recipient);
+                            console.log('💰 Amount:', displayTransaction.amount);
+                            console.log('📝 Type:', displayTransaction.type);
+                          }
+
+                          return displayTransaction ? (
+                            <div className="latest-transaction-card">
+                              <div className="transaction-header">
+                                <span className="transaction-pill">LATEST TRANSACTION</span>
+                              </div>
+
+                              <div className="single-line-details">
+                                <span className="payee-text">
+                                  {displayTransaction.type === 'Collection'
+                                    ? displayTransaction.payer_name ||
+                                      displayTransaction.recipient ||
+                                      'Unknown Payer'
+                                    : displayTransaction.recipient ||
+                                      displayTransaction.payer_name ||
+                                      'Unknown Payee'}
+                                </span>
+
+                                <span className="type-pill">{displayTransaction.type}</span>
+
+                                <span
+                                  className={`amount-text ${
+                                    displayTransaction.type === 'Collection' ? 'positive' : 'negative'
+                                  }`}
+                                >
+                                  {displayTransaction.type === 'Collection' ? '+' : '-'}₱
+                                  {(displayTransaction.amount || 0).toLocaleString('en-US', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </span>
+                              </div>
+
+                              <button
+                                className="view-all-button"
+                                onClick={() => handleAccountSelect(account)}
+                              >
+                                <i className="fas fa-list"></i> View All Transactions
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="latest-transaction-preview">
+                              <div className="transaction-preview-header">
+                                <span className="preview-label">No Transactions Yet</span>
+                              </div>
+                              <div className="transaction-preview-details">
+                                <div className="preview-row">
+                                  <span className="preview-field">Status:</span>
+                                  <span className="preview-value">No activity</span>
+                                </div>
+                              </div>
+                              <button
+                                className="view-all-btn"
+                                onClick={() => handleAccountSelect(account)}
+                              >
+                                No history of transaction
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <h4>No Matching Accounts Found</h4>
+                    <p>No accounts match your search criteria. Try adjusting your search terms.</p>
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
+            </>
+          );
+        })()}
         
         {accounts.length === 0 && (
           <div className="empty-state">
@@ -858,205 +1084,200 @@ const handleDeleteAccount = async (accountId) => {
       {/* Transaction History Popup */}
       {showTransactionHistory && selectedAccount && (
         <div className="modal-overlay" onClick={() => setShowTransactionHistory(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1200px', width: '95vw' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-              <h4><i className="fas fa-history"></i> Transaction History: {selectedAccount.name}</h4>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <div style={{ position: 'relative' }}>
+          <div className="modal transaction-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="transaction-modal-header-improved">
+              <h4 className="transaction-modal-title-improved">
+                <i className="fas fa-history"></i> 
+                Transaction History: {selectedAccount.name}
+              </h4>
+              <div className="transaction-modal-controls">
+                <div className="transaction-search-improved">
                   <input
                     type="text"
                     placeholder="Search transactions..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{
-                      padding: '8px 35px 8px 12px',
-                      border: '2px solid #e5e5e5',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      width: '200px',
-                      outline: 'none'
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = '#000000'}
-                    onBlur={(e) => e.target.style.borderColor = '#e5e5e5'}
+                    className="transaction-search-input-improved"
                   />
-                  <i className="fas fa-search" style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#666',
-                    fontSize: '12px'
-                  }}></i>
+                  <i className="fas fa-search transaction-search-icon-improved"></i>
                 </div>
+                
+                <div className="export-dropdown-improved">
+                  <button
+                    onClick={() => setShowExportDropdown(!showExportDropdown)}
+                    className="export-btn-improved"
+                  >
+                    <i className="fas fa-download"></i>
+                    Export
+                    <i className={`fas fa-chevron-${showExportDropdown ? 'up' : 'down'}`}></i>
+                  </button>
+                  
+                  <div className={`export-dropdown-menu-improved ${showExportDropdown ? 'show' : ''}`}>
+                    <button
+                      onClick={() => {
+                        exportToPDF(transactions, selectedAccount.name);
+                        setShowExportDropdown(false);
+                      }}
+                      className="export-option-improved"
+                    >
+                      <i className="fas fa-file-pdf export-pdf-icon-improved"></i>
+                      Export as PDF
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportToCSV(transactions, `${selectedAccount.name}_transactions.csv`);
+                        setShowExportDropdown(false);
+                      }}
+                      className="export-option-improved"
+                    >
+                      <i className="fas fa-file-csv export-csv-icon-improved"></i>
+                      Export as CSV
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportToExcel(transactions, `${selectedAccount.name}_transactions.xlsx`);
+                        setShowExportDropdown(false);
+                      }}
+                      className="export-option-improved"
+                    >
+                      <i className="fas fa-file-excel export-excel-icon-improved"></i>
+                      Export as Excel
+                    </button>
+                  </div>
+                </div>
+                <div className="account-info-item-improved">
                 <button 
-                  className="btn btn-secondary"
+                  className="btn btn-secondary refresh-btn-styled"
                   onClick={() => fetchAccountTransactions(selectedAccount.id)}
                   disabled={transactionsLoading}
-                  style={{ padding: '8px 16px', fontSize: '12px' }}
                 >
                   <i className="fas fa-sync-alt"></i> Refresh
                 </button>
+              </div>
+                
                 <button 
-                  type="button" 
                   onClick={() => setShowTransactionHistory(false)}
-                  style={{ 
-                    background: 'none', 
-                    border: 'none', 
-                    fontSize: '24px', 
-                    cursor: 'pointer',
-                    color: '#666666',
-                    padding: '4px'
-                  }}
+                  className="close-btn-styled"
                 >
                   ×
                 </button>
               </div>
             </div>
-            
-            <div style={{ 
-              background: '#f8f9fa', 
-              padding: '20px', 
-              borderRadius: '12px', 
-              marginBottom: '25px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '20px'
-            }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#666666', marginBottom: '5px' }}>Account Code</div>
-                <div style={{ fontSize: '16px', fontWeight: '700', color: '#000000' }}>{selectedAccount.code}</div>
+
+            <div className="account-info-section-improved">
+              <div className="account-info-item-improved">
+                <div className="account-info-label-improved">Account Code</div>
+                <div className="account-code-value-improved">{selectedAccount.code}</div>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#666666', marginBottom: '5px' }}>Current Balance</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: '#16a34a' }}>₱{selectedAccount.current_balance?.toLocaleString() || "0.00"}</div>
+              <div className="account-info-item-improved">
+                <div className="account-info-label-improved">Current Balance</div>
+                <div className="account-balance-value-improved">₱{selectedAccount.current_balance?.toLocaleString() || "0.00"}</div>
               </div>
-              
+
             </div>
+
+
             
-            <div style={{ minHeight: '400px', maxHeight: '400px', overflowY: 'auto' }}>
-              {transactionsLoading ? (
-                <div className="spinner-container">
-                  <div className="spinner" aria-label="Loading transactions" />
-                </div>
-              ) : (() => {
-                // Filter transactions based on search term
-                const filteredTransactions = transactions.filter(transaction => {
-                  if (!searchTerm) return true;
-                  
-                  const searchLower = searchTerm.toLowerCase();
-                  return (
-                    transaction.description?.toLowerCase().includes(searchLower) ||
-                    transaction.type?.toLowerCase().includes(searchLower) ||
-                    transaction.recipient?.toLowerCase().includes(searchLower) ||
-                    transaction.payer_name?.toLowerCase().includes(searchLower) ||
-                    transaction.reference?.toLowerCase().includes(searchLower) ||
-                    transaction.reference_no?.toLowerCase().includes(searchLower) ||
-                    transaction.receipt_no?.toLowerCase().includes(searchLower) ||
-                    transaction.amount?.toString().includes(searchTerm) ||
-                    new Date(transaction.created_at).toLocaleDateString().includes(searchTerm)
-                  );
-                });
+            {transactionsLoading ? (
+              <div className="spinner-container">
+                <div className="spinner" aria-label="Loading transactions" />
+              </div>
+            ) : (() => {
+              // Filter transactions based on search term
+              const filteredTransactions = transactions.filter(transaction => {
+                if (!searchTerm) return true;
                 
-                return filteredTransactions.length > 0 ? (
-                <table style={{ marginTop: '0' }}>
-                  <thead>
-                    <tr>
-                      <th><i className="fas fa-calendar"></i> Date</th>
-                      <th><i className="fas fa-file-text"></i> Description</th>
-                      <th><i className="fas fa-user"></i> Payee/Payer</th>
-                      <th><i className="fas fa-exchange-alt"></i> Type</th>
-                      <th><i className="fas fa-money-bill"></i> Amount</th>
-                      <th><i className="fas fa-hashtag"></i> Reference</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTransactions.map((transaction) => (
-                      <tr key={transaction.id}>
-                        <td>
-                          {new Date(transaction.created_at).toLocaleDateString()}
-                        </td>
-                        <td>{transaction.description}</td>
-                        <td>
-                          <span style={{ 
-                            fontSize: '13px', 
-                            color: transaction.type === "Collection" ? '#22c55e' : '#ef4444',
-                            fontWeight: '500'
-                          }}>
+                const searchLower = searchTerm.toLowerCase();
+                return (
+                  transaction.description?.toLowerCase().includes(searchLower) ||
+                  transaction.type?.toLowerCase().includes(searchLower) ||
+                  transaction.recipient?.toLowerCase().includes(searchLower) ||
+                  transaction.payer_name?.toLowerCase().includes(searchLower) ||
+                  String(transaction.reference ?? '').toLowerCase().includes(searchLower) ||
+                  String(transaction.reference_no ?? '').toLowerCase().includes(searchLower) ||
+                  String(transaction.receipt_no ?? '').toLowerCase().includes(searchLower) ||
+                  transaction.amount?.toString().includes(searchTerm) ||
+                  new Date(transaction.created_at).toLocaleDateString().includes(searchTerm)
+                );
+              });
+              
+              return filteredTransactions.length > 0 ? (
+                <div className="transaction-history-table-container">
+                  <table className="transaction-history-table">
+                    <thead>
+                      <tr>
+                        <th><i className="fas fa-calendar"></i> Date</th>
+                        <th><i className="fas fa-file-text"></i> Description</th>
+                        <th><i className="fas fa-user"></i> Payee/Payer</th>
+                        <th><i className="fas fa-exchange-alt"></i> Type</th>
+                        <th><i className="fas fa-money-bill"></i> Amount</th>
+                        <th><i className="fas fa-hashtag"></i> Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTransactions.map((transaction, index) => (
+                        <tr 
+                          key={transaction.id}
+                          onClick={() => handleTransactionClick(transaction)}
+                        >
+                          <td className="transaction-date-cell">
+                            {new Date(transaction.created_at).toLocaleDateString()}
+                          </td>
+                          
+                          <td className="transaction-description-cell">
+                            {transaction.description}
+                          </td>
+                          
+                          <td className={`transaction-payee-cell ${transaction.type?.toLowerCase()}`}>
                             {transaction.type === "Collection" 
                               ? (transaction.payer_name || transaction.recipient || 'Unknown Payer')
                               : (transaction.recipient || transaction.payer_name || 'Unknown Payee')
                             }
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className={`transaction-type ${transaction.type?.toLowerCase()}`}
-                          >
-                            {transaction.type === "Collection" && <i className="fas fa-arrow-up"></i>}
-                            {transaction.type === "Disbursement" && <i className="fas fa-arrow-down"></i>}
-                            {transaction.type}
-                          </span>
-                        </td>
-                        <td
-                          className={
-                            transaction.type === "Collection"
-                              ? "text-success"
-                              : "text-danger"
-                          }
-                        >
-                          {transaction.type === "Collection" ? "+" : "-"}₱
-                          {Number(Math.abs(transaction.amount || 0)).toLocaleString()}
-                        </td>
-                        <td>
-                          {transaction.reference ||
-                            transaction.reference_no ||
-                            transaction.receipt_no ||
-                            'N/A'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                ) : (
-                  <div className="empty-state" style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    height: '350px',
-                    textAlign: 'center'
-                  }}>
-                    <i className={`fas ${searchTerm ? 'fa-search' : 'fa-inbox'}`} style={{ 
-                      fontSize: '48px', 
-                      color: '#e5e5e5', 
-                      marginBottom: '16px' 
-                    }}></i>
-                    <h4 style={{ margin: '0 0 8px 0', color: '#666' }}>
-                      {searchTerm ? 'No Matching Transactions' : 'No Transactions Found'}
-                    </h4>
-                    <p style={{ margin: '0', color: '#999', fontSize: '14px' }}>
-                      {searchTerm ? `No transactions match "${searchTerm}"` : 'This account has no transaction history yet.'}
-                    </p>
-                    {searchTerm && (
-                      <button 
-                        onClick={() => setSearchTerm('')}
-                        style={{
-                          marginTop: '12px',
-                          padding: '6px 12px',
-                          background: '#f0f0f0',
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Clear Search
-                      </button>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
+                          </td>
+                          
+                          <td className="transaction-type-cell">
+                            <span className={`transaction-type-badge-table ${transaction.type?.toLowerCase()}`}>
+                              {transaction.type === "Collection" && <i className="fas fa-arrow-up"></i>}
+                              {transaction.type === "Disbursement" && <i className="fas fa-arrow-down"></i>}
+                              {transaction.type}
+                            </span>
+                          </td>
+                          
+                          <td className={`transaction-amount-cell ${transaction.type?.toLowerCase()}`}>
+                            {transaction.type === "Collection" ? "+" : "-"}₱{Math.abs(transaction.amount || 0).toLocaleString()}
+                          </td>
+                          
+                          <td className="transaction-reference-cell">
+                            {transaction.reference ||
+                             transaction.reference_no ||
+                             transaction.receipt_no ||
+                             'N/A'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="transaction-empty-state-improved">
+                  <i className={`fas ${searchTerm ? 'fa-search' : 'fa-inbox'} transaction-empty-icon-improved`}></i>
+                  <h4 className="transaction-empty-title-improved">
+                    {searchTerm ? 'No Matching Transactions' : 'No Transactions Found'}
+                  </h4>
+                  <p className="transaction-empty-text-improved">
+                    {searchTerm ? `No transactions match "${searchTerm}"` : 'This account has no transaction history yet.'}
+                  </p>
+                  {searchTerm && (
+                    <button 
+                      onClick={() => setSearchTerm('')}
+                      className="transaction-clear-search-btn-improved"
+                    >
+                      Clear Search
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1099,6 +1320,124 @@ const handleDeleteAccount = async (accountId) => {
             >
               OK
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Transaction Preview Modal */}
+      {showTransactionPreview && selectedTransaction && (
+        <div className="modal-overlay" onClick={() => setShowTransactionPreview(false)} style={{ zIndex: 2001 }}>
+          <div 
+            className="transaction-preview-modal-wide" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="transaction-preview-header">
+              <h3 className="transaction-preview-title">
+                <i className="fas fa-receipt" style={{ color: '#6b7280' }}></i>
+                Transaction Details
+              </h3>
+              <button 
+                onClick={() => setShowTransactionPreview(false)}
+                className="transaction-preview-close-btn"
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="transaction-preview-body">
+              {/* Left Section - Basic Info */}
+              <div className="transaction-preview-section">
+                <h4 className="transaction-preview-section-title">
+                  <i className="fas fa-info-circle"></i>
+                  Basic Information
+                </h4>
+                
+                <div className="transaction-preview-field">
+                  <span className="transaction-preview-label">Transaction Type</span>
+                  <span className={`transaction-preview-type-badge ${selectedTransaction.type?.toLowerCase()}`}>
+                    {selectedTransaction.type === "Collection" && <i className="fas fa-arrow-up"></i>}
+                    {selectedTransaction.type === "Disbursement" && <i className="fas fa-arrow-down"></i>}
+                    {selectedTransaction.type}
+                  </span>
+                </div>
+                
+                <div className="transaction-preview-field">
+                  <span className="transaction-preview-label">Date</span>
+                  <span className="transaction-preview-value">
+                    {new Date(selectedTransaction.created_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </span>
+                </div>
+                
+                <div className="transaction-preview-field">
+                  <span className="transaction-preview-label">Description</span>
+                  <span className="transaction-preview-value">{selectedTransaction.description}</span>
+                </div>
+                
+                <div className="transaction-preview-field">
+                  <span className="transaction-preview-label">Amount</span>
+                  <span className={`transaction-preview-value transaction-preview-amount ${selectedTransaction.type?.toLowerCase()}`}>
+                    {selectedTransaction.type === "Collection" ? "+" : "-"}₱{Math.abs(selectedTransaction.amount || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Right Section - Party & Reference Info */}
+              <div className="transaction-preview-section">
+                <h4 className="transaction-preview-section-title">
+                  <i className="fas fa-users"></i>
+                  Party & Reference Details
+                </h4>
+                
+                <div className="transaction-preview-field">
+                  <span className="transaction-preview-label">
+                    {selectedTransaction.type === "Collection" ? "Payer" : "Payee"}
+                  </span>
+                  <span className="transaction-preview-value">
+                    {selectedTransaction.type === "Collection" 
+                      ? (selectedTransaction.payer_name || selectedTransaction.recipient || 'Unknown Payer')
+                      : (selectedTransaction.recipient || selectedTransaction.payer_name || 'Unknown Payee')
+                    }
+                  </span>
+                </div>
+                
+                <div className="transaction-preview-field">
+                  <span className="transaction-preview-label">Reference</span>
+                  <span className="transaction-preview-value">
+                    {selectedTransaction.reference || 'N/A'}
+                  </span>
+                </div>
+                
+                <div className="transaction-preview-field">
+                  <span className="transaction-preview-label">Reference No.</span>
+                  <span className="transaction-preview-value">
+                    {selectedTransaction.reference_no || 'N/A'}
+                  </span>
+                </div>
+                
+                <div className="transaction-preview-field">
+                  <span className="transaction-preview-label">Receipt No.</span>
+                  <span className="transaction-preview-value">
+                    {selectedTransaction.receipt_no || 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="transaction-preview-footer">
+              <button
+                onClick={() => setShowTransactionPreview(false)}
+                className="transaction-preview-close-footer-btn"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

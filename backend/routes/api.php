@@ -56,6 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/fund-accounts', [FundAccountController::class, 'index']);
     Route::get('/fund-accounts/{id}', [FundAccountController::class, 'show']);
     Route::post('/fund-accounts', [FundAccountController::class, 'store']);
+    Route::put('/fund-accounts/{id}/balance', [FundAccountController::class, 'updateBalance']);
     //transaction
     Route::get('/transactions', [TransactionController::class, 'index']);
     Route::post('/transactions', [TransactionController::class, 'store']);

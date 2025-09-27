@@ -11,18 +11,116 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e5e7eb;
 }
 
-.section-header h3 {
-  font-size: 28px;
-  font-weight: 700;
-  color: #000000;
-  margin: 0 0 8px 0;
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.account-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.account-search-input {
+  padding: 10px 40px 10px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 280px;
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+
+.account-search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.account-search-input::placeholder {
+  color: #9ca3af;
+}
+
+.account-search-icon {
+  position: absolute;
+  right: 12px;
+  color: #6b7280;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.search-results-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.search-results-info i {
+  color: #3b82f6;
+}
+
+.clear-search-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.clear-search-btn:hover {
+  background: #dc2626;
+}
+
+.section-title-group {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.section-header h3 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-header h3 i {
+  font-size: 22px;
+}
+
+.section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  margin-left: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .section-header p {
@@ -63,6 +161,31 @@
   background: #f5f5f5;
   color: #000000;
   border: 1px solid #e5e5e5;
+}
+
+.add-account-btn {
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #000000;
+  padding: 12px 28px;
+  border-radius: 10px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.add-account-btn i {
+  color: #ffffff;
+}
+
+.add-account-btn:hover {
+  background: #ffffff;
+  color: #000000;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.add-account-btn:hover i {
+  color: #000000;
 }
 
 .btn-secondary:hover {
@@ -583,55 +706,81 @@ textarea {
 }
 
 .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.title-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
+  padding: 18px 20px 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.95), rgba(255, 255, 255, 0.92));
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+  gap: 20px;
 }
 
-.title-line h5 {
+.card-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-title-text {
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
+  color: #111827;
   margin: 0;
-  color: #000000;
+}
+
+.card-created-date {
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.card-header-center {
+  display: flex;
+  justify-content: center;
 }
 
 .account-code {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
   font-size: 12px;
-  color: #666666;
   font-weight: 600;
-  background: #f5f5f5;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin: 0;
+  color: #4b5563;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 999px;
+  padding: 4px 14px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  box-shadow: inset 0 1px 2px rgba(59, 130, 246, 0.1);
 }
 
-.card-title span {
-  font-size: 12px;
-  color: #666666;
+.card-header-right {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .card-menu {
-  position: relative; /* For dropdown positioning */
-  display: flex;
-  gap: 15px;
-  color: #666666;
-  font-size: 16px;
+  position: relative;
 }
 
 .menu-btn {
   background: none;
   border: none;
   cursor: pointer;
-  color: #666666;
-  font-size: 16px;
-  padding: 0;
+  color: #6b7280;
+  font-size: 18px;
+  padding: 4px;
+  border-radius: 999px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.menu-btn:hover {
+  color: #374151;
+  background-color: rgba(148, 163, 184, 0.12);
 }
 
 .dropdown-menu {
@@ -670,6 +819,14 @@ textarea {
   font-weight: 700;
   color: #000000;
   margin: 0;
+}
+
+.transaction-count-label {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  letter-spacing: 0.25px;
 }
 
 .card-graph {
@@ -1008,6 +1165,561 @@ textarea {
   justify-content: flex-end;
 }
 
+/* Transaction History Modal Table Styles */
+.transaction-history-table-container {
+  flex: 1;
+  min-height: 300px;
+  max-height: calc(90vh - 300px);
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+  /* Hide scrollbar but keep functionality */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.transaction-history-table-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.transaction-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.transaction-history-table thead {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  z-index: 10;
+}
+
+.transaction-history-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e5e7eb;
+  background: #f8f9fa;
+}
+
+.transaction-history-table th:last-child {
+  text-align: right;
+}
+
+.transaction-history-table tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  min-height: 50px;
+}
+
+.transaction-history-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.transaction-history-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.transaction-history-table td {
+  padding: 14px 16px;
+  vertical-align: middle;
+  color: #374151;
+  min-height: 50px;
+  line-height: 1.4;
+}
+
+.transaction-history-table td:last-child {
+  text-align: right;
+  font-weight: 600;
+}
+
+.transaction-date-cell {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.transaction-description-cell {
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transaction-payee-cell {
+  font-weight: 500;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transaction-payee-cell.collection {
+  color: #059669;
+}
+
+.transaction-payee-cell.disbursement {
+  color: #dc2626;
+}
+
+.transaction-type-cell {
+  text-align: center;
+}
+
+.transaction-type-badge-table {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.transaction-type-badge-table.collection {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.transaction-type-badge-table.disbursement {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.transaction-amount-cell {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.transaction-amount-cell.collection {
+  color: #059669;
+}
+
+.transaction-amount-cell.disbursement {
+  color: #dc2626;
+}
+
+.transaction-reference-cell {
+  color: #6b7280;
+  font-size: 13px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Export Dropdown Improvements */
+.export-dropdown-improved {
+  position: relative;
+  display: inline-block;
+}
+
+.export-btn-improved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background-color: #374151;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.export-btn-improved:hover {
+  background-color: #1f2937;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.export-dropdown-menu-improved {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 180px;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+}
+
+.export-dropdown-menu-improved.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.export-option-improved {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  transition: background-color 0.2s ease;
+}
+
+.export-option-improved:hover {
+  background-color: #f9fafb;
+}
+
+.export-option-improved i {
+  width: 16px;
+  text-align: center;
+}
+
+.export-pdf-icon-improved {
+  color: #dc2626;
+}
+
+.export-csv-icon-improved {
+  color: #059669;
+}
+
+.export-excel-icon-improved {
+  color: #2563eb;
+}
+
+/* Modal Header Improvements */
+.transaction-modal-header-improved {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.transaction-modal-title-improved {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transaction-modal-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Search Input Improvements */
+.transaction-search-improved {
+  position: relative;
+}
+
+.transaction-search-input-improved {
+  padding: 8px 40px 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 250px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.transaction-search-input-improved:focus {
+  border-color: #374151;
+  box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1);
+}
+
+.transaction-search-icon-improved {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* Account Info Section Improvements */
+.account-info-section-improved {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.account-info-item-improved {
+  text-align: center;
+}
+
+.account-info-label-improved {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.account-code-value-improved {
+  font-size: 16px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.account-balance-value-improved {
+  font-size: 20px;
+  font-weight: 700;
+  color: #059669;
+}
+
+/* Empty State Improvements */
+.transaction-empty-state-improved {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.transaction-empty-icon-improved {
+  font-size: 48px;
+  color: #d1d5db;
+  margin-bottom: 16px;
+}
+
+.transaction-empty-title-improved {
+  font-size: 18px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 8px 0;
+}
+
+.transaction-empty-text-improved {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.transaction-clear-search-btn-improved {
+  padding: 8px 16px;
+  background-color: #374151;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.transaction-clear-search-btn-improved:hover {
+  background-color: #1f2937;
+}
+
+/* Enhanced Transaction Preview Modal */
+.transaction-preview-modal-wide {
+  max-width: 900px;
+  width: 95vw;
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.transaction-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 32px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8f9fa;
+}
+
+.transaction-preview-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.transaction-preview-close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.transaction-preview-close-btn:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
+
+.transaction-preview-body {
+  padding: 32px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.transaction-preview-section {
+  background: #f8f9fa;
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.transaction-preview-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transaction-preview-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.transaction-preview-field:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.transaction-preview-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.transaction-preview-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  text-align: right;
+}
+
+.transaction-preview-amount {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.transaction-preview-amount.collection {
+  color: #059669;
+}
+
+.transaction-preview-amount.disbursement {
+  color: #dc2626;
+}
+
+.transaction-preview-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.transaction-preview-type-badge.collection {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.transaction-preview-type-badge.disbursement {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.transaction-preview-footer {
+  padding: 24px 32px;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+  background: #f8f9fa;
+}
+
+.transaction-preview-close-footer-btn {
+  padding: 12px 32px;
+  background-color: #374151;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.transaction-preview-close-footer-btn:hover {
+  background-color: #1f2937;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .transaction-preview-modal-wide {
+    width: 95vw;
+    margin: 20px;
+  }
+  
+  .transaction-preview-body {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 24px;
+  }
+  
+  .transaction-preview-header,
+  .transaction-preview-footer {
+    padding: 20px 24px;
+  }
+}
+
 .btn-icon {
   width: 36px;
   height: 36px;
@@ -1313,12 +2025,280 @@ table tr:last-child td {
   .account-card {
     padding: 15px;
   }
-  
-  .account-card .balance {
-    font-size: 20px;
-  }
-  
-  .modal {
-    padding: 15px;
-  }
+}
+
+/* Additional Transaction Modal Classes */
+.transaction-modal-wide {
+  max-width: 1200px;
+  width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.transaction-modal-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.transaction-modal-title-h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.transaction-controls-flex {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.transaction-search-wrapper {
+  position: relative;
+}
+
+.transaction-search-field {
+  padding: 8px 35px 8px 12px;
+  border: 2px solid #e5e5e5;
+  border-radius: 6px;
+  font-size: 13px;
+  width: 200px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.transaction-search-field:focus {
+  border-color: #000000;
+}
+
+.search-icon-positioned {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  font-size: 12px;
+}
+
+.refresh-btn-styled {
+  padding: 8px 16px;
+  font-size: 12px;
+}
+
+.close-btn-styled {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666666;
+  padding: 4px;
+}
+
+.account-info-grid {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 25px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.account-info-center {
+  text-align: center;
+}
+
+.account-info-small-label {
+  font-size: 12px;
+  color: #666666;
+  margin-bottom: 5px;
+}
+
+.account-code-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.account-balance-large {
+  font-size: 20px;
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.table-container-fixed {
+  height: 500px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Transaction Preview Modal Styles */
+.transaction-preview-overlay {
+  z-index: 2001;
+}
+
+.transaction-preview-modal-content {
+  max-width: 600px;
+  width: 90vw;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid #e5e7eb;
+}
+
+.preview-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.preview-title-styled {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+
+.preview-close-btn:hover {
+  color: #374151;
+}
+
+.preview-body-padding {
+  padding: 24px;
+}
+
+.preview-type-section {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.preview-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.preview-type-badge.collection {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.preview-type-badge.disbursement {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.preview-amount-section {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.preview-amount-large {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.preview-amount-large.collection {
+  color: #22c55e;
+}
+
+.preview-amount-large.disbursement {
+  color: #ef4444;
+}
+
+.preview-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.preview-detail-card {
+  padding: 16px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.preview-detail-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.preview-detail-value {
+  font-size: 14px;
+  color: #1f2937;
+  font-weight: 500;
+}
+
+.preview-description-card {
+  padding: 16px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 20px;
+}
+
+.preview-description-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.preview-description-text {
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.5;
+}
+
+.preview-actions-center {
+  text-align: center;
+}
+
+.preview-close-button {
+  padding: 10px 24px;
+  background-color: #374151;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.preview-close-button:hover {
+  background-color: #1f2937;
 }

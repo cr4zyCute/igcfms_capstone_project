@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import "../../assets/admin.css";
 import "./css/receivemoney.css";
 import axios from "axios";
-import notificationService from "../../services/notificationService";
-import balanceService from "../../services/balanceService";
+import notificationService from '../../services/notificationService';
+import balanceService from '../../services/balanceService';
+import { broadcastFundTransaction } from '../../services/fundTransactionChannel';
 
 const ReceiveMoney = () => {
   const [fundAccounts, setFundAccounts] = useState([]);
@@ -244,13 +245,21 @@ const ReceiveMoney = () => {
       
       // Process transaction and update balance
       try {
-        await balanceService.processTransaction('RECEIVE_MONEY', {
+        const processed = await balanceService.processTransaction('RECEIVE_MONEY', {
           fund_account_id: parseInt(fundAccountId),
           amount: parseFloat(amount),
           payer: finalPayerName,
           fund_account_name: selectedFund?.name || `Fund Account #${fundAccountId}`,
           transaction_id: responseData.id || responseData.transaction_id,
           receipt_no: responseData.receipt_no
+        });
+
+        broadcastFundTransaction({
+          accountId: parseInt(fundAccountId),
+          type: 'collection',
+          amount: parseFloat(amount),
+          source: 'ReceiveMoney',
+          balance: processed?.newBalance,
         });
       } catch (balanceError) {
         console.error('Balance update error:', balanceError);

@@ -136,6 +136,29 @@ class FundAccountController extends Controller
         return response()->json(['message' => 'Fund account updated successfully']);
     }
 
+    public function updateBalance(Request $request, $id)
+    {
+        $account = FundAccount::find($id);
+
+        if (!$account) {
+            return response()->json(['message' => 'Fund account not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'balance' => 'required|numeric',
+        ]);
+
+        $account->current_balance = $validated['balance'];
+        $account->save();
+
+        ActivityTracker::trackFundAccount($account, Auth::user(), 'balance_updated');
+
+        return response()->json([
+            'message' => 'Fund account balance updated successfully.',
+            'current_balance' => $account->current_balance,
+        ]);
+    }
+
 
     // Delete a fund account
     public function destroy($id)
