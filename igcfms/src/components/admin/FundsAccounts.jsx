@@ -3,7 +3,7 @@ import "../../assets/admin.css";
 import "./css/fundsaccount.css";
 import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
-import MiniLineGraph from '../../assets/analytics/MiniLineGraph'; // Import the new graph component
+import MiniLineGraph from '../../assets/analytics/MiniLineGraph'; 
 import {
   getFundAccounts,
   createFundAccount,
@@ -23,8 +23,7 @@ const FundsAccounts = () => {
   const [showTransactionHistory, setShowTransactionHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [, setError] = useState("");
   const [showMessagePopup, setShowMessagePopup] = useState(false);
   const [messagePopup, setMessagePopup] = useState({ type: '', message: '' });
 
@@ -117,7 +116,7 @@ const FundsAccounts = () => {
       const initialGraphData = {};
       
       // Also try to fetch transactions for each account if not included
-      const accountsWithTransactions = await Promise.all(
+      await Promise.all(
         response.map(async (account) => {
           console.log(`📈 Processing graph data for account ${account.id}:`, account);
           
@@ -695,7 +694,6 @@ const handleDeleteAccount = async (accountId) => {
         <h4><i className="fas fa-credit-card"></i> Fund Accounts ({accounts.length})</h4>
         <div className="account-cards">
           {accounts.map((account) => {
-            const latestTransaction = account.latest_transaction;
             return (
               <div key={account.id} className="account-card-new" onClick={() => openMenuId && setOpenMenuId(null)}>
                 <div className="card-header">

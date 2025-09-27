@@ -797,7 +797,7 @@ const IssueReceipt = () => {
       <div className="ir-header">
         <div className="header-content">
           <h1 className="ir-title">
-            <i className="fas fa-receipt"></i> Total Receipt
+            <i className="fas fa-receipt"></i> Issue Receipt
           </h1>
           <div className="header-stats">
             <div className="stat-item">
@@ -957,7 +957,7 @@ const IssueReceipt = () => {
           <div className="form-section-container">
             <div className="issue-form-section">
               <div className="form-header">
-                <h3><i className="fas fa-plus-circle"></i> Issue New Receipt</h3>
+                <h3 style={{ color: "white" }}><i className="fas fa-plus-circle"></i> Issue New Receipt</h3>
               </div>
               
               <form onSubmit={handleSubmit} className="receipt-form">
