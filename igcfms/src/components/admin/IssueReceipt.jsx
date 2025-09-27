@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "./css/issuereceipt.css";
+
+// Import Chart.js properly
+import Chart from 'chart.js/auto';
 
 // Helper function to convert numbers to words
 const numberToWords = (num) => {
@@ -51,6 +54,24 @@ const IssueReceipt = () => {
   const [transactions, setTransactions] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [filteredReceipts, setFilteredReceipts] = useState([]);
+  const [analyticsData, setAnalyticsData] = useState({
+    monthlyTrend: [],
+    payerDistribution: [],
+    totalAmount: 0,
+    averageAmount: 0,
+    revenueGrowth: 0,
+    lastUpdated: new Date(),
+    isLoading: false,
+    error: null
+  });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [powerNameError, setPowerNameError] = useState('');
+  
+  // Chart refs
+  const monthlyChartRef = useRef(null);
+  const distributionChartRef = useRef(null);
+  const monthlyChartInstance = useRef(null);
+  const distributionChartInstance = useRef(null);
   
   // Form states
   const [formData, setFormData] = useState({
@@ -90,6 +111,25 @@ const IssueReceipt = () => {
   useEffect(() => {
     filterTransactions();
   }, [transactions, transactionSearch]);
+
+  useEffect(() => {
+    if (receipts.length > 0) {
+      generateAnalyticsData();
+    }
+  }, [receipts, transactions]);
+
+  useEffect(() => {
+    initializeCharts();
+    return () => {
+      // Cleanup charts on unmount
+      if (monthlyChartInstance.current) {
+        monthlyChartInstance.current.destroy();
+      }
+      if (distributionChartInstance.current) {
+        distributionChartInstance.current.destroy();
+      }
+    };
+  }, [analyticsData]);
 
   const fetchInitialData = async () => {
     try {
@@ -369,6 +409,380 @@ const IssueReceipt = () => {
     return `RCP-${year}${month}${day}-${timestamp}`;
   };
 
+  // Enhanced analytics data generation
+  const generateAnalyticsData = () => {
+    setAnalyticsData(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      if (!receipts.length) {
+        setAnalyticsData(prev => ({
+          ...prev,
+          monthlyTrend: [],
+          payerDistribution: [],
+          totalAmount: 0,
+          averageAmount: 0,
+          revenueGrowth: 0,
+          lastUpdated: new Date(),
+          isLoading: false
+        }));
+        return;
+      }
+
+      // Enhanced monthly trend data (last 12 months for better insights)
+      const monthlyData = {};
+      const last12Months = [];
+      const now = new Date();
+      
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        last12Months.push({ key: monthKey, label: monthLabel, date });
+        monthlyData[monthKey] = { count: 0, amount: 0, receipts: [] };
+      }
+
+      // Enhanced payer and amount distribution
+      const payerCounts = {};
+      const payerAmounts = {};
+      const amountRanges = {
+        'Under ₱1,000': 0,
+        '₱1,000 - ₱5,000': 0,
+        '₱5,000 - ₱10,000': 0,
+        '₱10,000 - ₱50,000': 0,
+        'Over ₱50,000': 0
+      };
+      
+      let totalAmount = 0;
+      let currentMonthAmount = 0;
+      let previousMonthAmount = 0;
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      receipts.forEach(receipt => {
+        const receiptDate = new Date(receipt.issued_at || receipt.created_at);
+        const monthKey = `${receiptDate.getFullYear()}-${String(receiptDate.getMonth() + 1).padStart(2, '0')}`;
+        const transaction = transactions.find(t => t.id === receipt.transaction_id);
+        const amount = transaction ? parseFloat(transaction.amount || 0) : 0;
+        
+        // Monthly data
+        if (monthlyData[monthKey]) {
+          monthlyData[monthKey].count += 1;
+          monthlyData[monthKey].amount += amount;
+          monthlyData[monthKey].receipts.push(receipt);
+        }
+
+        // Current vs previous month comparison
+        if (receiptDate.getMonth() === currentMonth && receiptDate.getFullYear() === currentYear) {
+          currentMonthAmount += amount;
+        } else if (receiptDate.getMonth() === (currentMonth - 1) && receiptDate.getFullYear() === currentYear) {
+          previousMonthAmount += amount;
+        }
+
+        totalAmount += amount;
+
+        // Payer distribution
+        const payerName = receipt.payer_name || 'Unknown';
+        payerCounts[payerName] = (payerCounts[payerName] || 0) + 1;
+        payerAmounts[payerName] = (payerAmounts[payerName] || 0) + amount;
+
+        // Amount range distribution
+        if (amount < 1000) amountRanges['Under ₱1,000']++;
+        else if (amount < 5000) amountRanges['₱1,000 - ₱5,000']++;
+        else if (amount < 10000) amountRanges['₱5,000 - ₱10,000']++;
+        else if (amount < 50000) amountRanges['₱10,000 - ₱50,000']++;
+        else amountRanges['Over ₱50,000']++;
+      });
+
+      // Calculate revenue growth
+      const revenueGrowth = previousMonthAmount > 0 
+        ? ((currentMonthAmount - previousMonthAmount) / previousMonthAmount) * 100 
+        : currentMonthAmount > 0 ? 100 : 0;
+
+      // Enhanced monthly trend with growth indicators
+      const monthlyTrend = last12Months.map((month, index) => {
+        const data = monthlyData[month.key];
+        const prevData = index > 0 ? monthlyData[last12Months[index - 1].key] : null;
+        const growth = prevData && prevData.amount > 0 
+          ? ((data.amount - prevData.amount) / prevData.amount) * 100 
+          : 0;
+
+        return {
+          month: month.label,
+          shortMonth: month.label.substring(0, 3),
+          count: data.count,
+          amount: data.amount,
+          growth,
+          isCurrentMonth: month.date.getMonth() === currentMonth && month.date.getFullYear() === currentYear
+        };
+      });
+
+      // Enhanced payer distribution with amounts
+      const payerDistribution = Object.entries(payerCounts)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 6)
+        .map(([name, count]) => ({
+          name: name.length > 12 ? name.substring(0, 12) + '...' : name,
+          fullName: name,
+          count,
+          amount: payerAmounts[name] || 0,
+          percentage: ((count / receipts.length) * 100).toFixed(1)
+        }));
+
+      // Amount range distribution
+      const amountDistribution = Object.entries(amountRanges)
+        .filter(([, count]) => count > 0)
+        .map(([range, count]) => ({
+          range,
+          count,
+          percentage: ((count / receipts.length) * 100).toFixed(1)
+        }));
+
+      setAnalyticsData({
+        monthlyTrend,
+        payerDistribution,
+        amountDistribution,
+        totalAmount,
+        averageAmount: receipts.length > 0 ? totalAmount / receipts.length : 0,
+        revenueGrowth,
+        currentMonthAmount,
+        previousMonthAmount,
+        lastUpdated: new Date(),
+        isLoading: false,
+        error: null
+      });
+
+    } catch (error) {
+      console.error('Error generating analytics data:', error);
+      setAnalyticsData(prev => ({
+        ...prev,
+        error: 'Failed to generate analytics data',
+        isLoading: false
+      }));
+    }
+  };
+
+  // Initialize charts
+  const initializeCharts = () => {
+    if (!analyticsData.monthlyTrend.length) return;
+
+    // Destroy existing charts
+    if (monthlyChartInstance.current) {
+      monthlyChartInstance.current.destroy();
+    }
+    if (distributionChartInstance.current) {
+      distributionChartInstance.current.destroy();
+    }
+
+    // Enhanced Revenue Trend Chart
+    if (monthlyChartRef.current) {
+      const ctx = monthlyChartRef.current.getContext('2d');
+      
+      // Create gradient
+      const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+      gradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)');
+      gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
+
+      monthlyChartInstance.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: analyticsData.monthlyTrend.map(d => d.shortMonth),
+          datasets: [{
+            label: 'Revenue (₱)',
+            data: analyticsData.monthlyTrend.map(d => d.amount),
+            borderColor: '#3b82f6',
+            backgroundColor: gradient,
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: analyticsData.monthlyTrend.map(d => d.isCurrentMonth ? '#10b981' : '#3b82f6'),
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            pointRadius: analyticsData.monthlyTrend.map(d => d.isCurrentMonth ? 6 : 4),
+            pointHoverRadius: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: 2000,
+            easing: 'easeInOutQuart'
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              borderColor: '#3b82f6',
+              borderWidth: 1,
+              cornerRadius: 8,
+              displayColors: false,
+              titleFont: { size: 12, weight: 'bold' },
+              bodyFont: { size: 11 },
+              callbacks: {
+                title: (context) => context[0].label,
+                label: (context) => {
+                  const dataPoint = analyticsData.monthlyTrend[context.dataIndex];
+                  const growth = dataPoint.growth;
+                  const growthText = growth > 0 ? `↗ +${growth.toFixed(1)}%` : growth < 0 ? `↘ ${growth.toFixed(1)}%` : '→ 0%';
+                  return [
+                    `Revenue: ₱${context.parsed.y.toLocaleString()}`,
+                    `Receipts: ${dataPoint.count}`,
+                    `Growth: ${growthText}`
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              display: false,
+              grid: {
+                display: false
+              }
+            },
+            x: {
+              display: false,
+              grid: {
+                display: false
+              }
+            }
+          },
+          elements: {
+            point: {
+              hoverBorderWidth: 3
+            }
+          },
+          interaction: {
+            intersect: false,
+            mode: 'index'
+          }
+        }
+      });
+    }
+
+    // Enhanced Receipt Distribution Chart
+    if (distributionChartRef.current && analyticsData.payerDistribution.length) {
+      const ctx = distributionChartRef.current.getContext('2d');
+      const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+      
+      distributionChartInstance.current = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: analyticsData.payerDistribution.map(d => d.name),
+          datasets: [{
+            label: 'Receipts by Payer',
+            data: analyticsData.payerDistribution.map(d => d.count),
+            backgroundColor: colors.slice(0, analyticsData.payerDistribution.length),
+            borderColor: '#ffffff',
+            borderWidth: 2,
+            hoverBorderWidth: 3,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '60%',
+          animation: {
+            animateRotate: true,
+            animateScale: true,
+            duration: 1500,
+            easing: 'easeInOutQuart'
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              borderColor: '#3b82f6',
+              borderWidth: 1,
+              cornerRadius: 8,
+              displayColors: true,
+              titleFont: { size: 12, weight: 'bold' },
+              bodyFont: { size: 11 },
+              callbacks: {
+                title: (context) => context[0].label,
+                label: (context) => {
+                  const dataPoint = analyticsData.payerDistribution[context.dataIndex];
+                  return [
+                    `Receipts: ${dataPoint.count}`,
+                    `Amount: ₱${dataPoint.amount.toLocaleString()}`,
+                    `Share: ${dataPoint.percentage}%`
+                  ];
+                }
+              }
+            }
+          },
+          interaction: {
+            intersect: false
+          },
+          onHover: (event, activeElements) => {
+            event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+          }
+        }
+      });
+    }
+  };
+
+  // Enhanced form validation with power name
+  const validatePowerName = (value) => {
+    if (!value.trim()) {
+      setPowerNameError('Power name is required');
+      return false;
+    }
+    if (value.length < 3) {
+      setPowerNameError('Power name must be at least 3 characters');
+      return false;
+    }
+    if (!/^[a-zA-Z0-9\s]+$/.test(value)) {
+      setPowerNameError('Power name can only contain letters, numbers, and spaces');
+      return false;
+    }
+    setPowerNameError('');
+    return true;
+  };
+
+  // Sort table data
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedReceipts = () => {
+    if (!sortConfig.key) return filteredReceipts;
+    
+    return [...filteredReceipts].sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+      
+      // Handle special cases
+      if (sortConfig.key === 'amount') {
+        const aTransaction = transactions.find(t => t.id === a.transaction_id);
+        const bTransaction = transactions.find(t => t.id === b.transaction_id);
+        aValue = aTransaction ? parseFloat(aTransaction.amount || 0) : 0;
+        bValue = bTransaction ? parseFloat(bTransaction.amount || 0) : 0;
+      } else if (sortConfig.key === 'issued_at') {
+        aValue = new Date(a.issued_at || a.created_at);
+        bValue = new Date(b.issued_at || b.created_at);
+      }
+      
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
   if (loading && transactions.length === 0) {
     return (
       <div className="issue-receipt-loading">
@@ -381,9 +795,25 @@ const IssueReceipt = () => {
   return (
     <div className="issue-receipt-page">
       <div className="ir-header">
-        <h2 className="ir-title">
-          <i className="fas fa-receipt"></i> Issue Receipt Management
-        </h2>
+        <div className="header-content">
+          <h1 className="ir-title">
+            <i className="fas fa-receipt"></i> Total Receipt
+          </h1>
+          <div className="header-stats">
+            <div className="stat-item">
+              <span className="stat-value">₱{analyticsData.totalAmount.toLocaleString()}</span>
+              <span className="stat-label">Total Amount</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-value">{receipts.length}</span>
+              <span className="stat-label">Total Receipts</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-value">₱{analyticsData.averageAmount.toLocaleString()}</span>
+              <span className="stat-label">Average Amount</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -400,144 +830,230 @@ const IssueReceipt = () => {
         </div>
       )}
 
-      <div className="ir-content-grid">
-        {/* Issue Receipt Form */}
-        <div className="issue-form-section">
-          <div className="form-header">
-            <h3><i className="fas fa-plus-circle"></i> Issue New Receipt</h3>
+      {/* Analytics Cards Section - New Layout */}
+      <div className="analytics-cards-section">
+        <div className="analytics-cards-container">
+          <div className="analytics-cards-grid">
+
+            
+            {/* Enhanced Stats Row */}
+            <div className="stats-row">
+              <div className="analytics-card stats-card">
+                <div className="card-content">
+                  {analyticsData.isLoading ? (
+                    <div className="loading-indicator">
+                      <i className="fas fa-spinner fa-spin"></i>
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="card-value animated-counter">
+                        ₱{analyticsData.totalAmount.toLocaleString()}
+                      </div>
+                      <div className="card-subtitle">
+                        {receipts.length} receipts issued
+                        {analyticsData.revenueGrowth !== 0 && (
+                          <div className={`growth-indicator ${analyticsData.revenueGrowth > 0 ? 'positive' : 'negative'}`}>
+                            <i className={`fas fa-arrow-${analyticsData.revenueGrowth > 0 ? 'up' : 'down'}`}></i>
+                            {Math.abs(analyticsData.revenueGrowth).toFixed(1)}%
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              <div className="analytics-card stats-card">
+                <div className="card-content">
+                  {analyticsData.isLoading ? (
+                    <div className="loading-indicator">
+                      <i className="fas fa-spinner fa-spin"></i>
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="card-value animated-counter">
+                        ₱{analyticsData.averageAmount.toLocaleString()}
+                      </div>
+                      <div className="card-subtitle">
+                        Average per receipt
+                        <div className="last-updated">
+                          <i className="fas fa-clock"></i>
+                          Updated {new Date(analyticsData.lastUpdated).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Enhanced Chart Cards */}
+            <div className="chart-cards">
+              <div className="analytics-card chart-card">
+                <div className="card-content">
+                  <div className="chart-header-info">
+                    <h4 className="chart-title">Revenue Trend Analysis</h4>
+                    <div className="chart-meta">
+                      <span className="data-points">{analyticsData.monthlyTrend.length} months</span>
+                      {analyticsData.revenueGrowth !== 0 && (
+                        <span className={`trend-badge ${analyticsData.revenueGrowth > 0 ? 'positive' : 'negative'}`}>
+                          {analyticsData.revenueGrowth > 0 ? '↗' : '↘'} {Math.abs(analyticsData.revenueGrowth).toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {analyticsData.isLoading ? (
+                    <div className="chart-loading">
+                      <i className="fas fa-chart-line"></i>
+                      <span>Loading chart data...</span>
+                    </div>
+                  ) : analyticsData.error ? (
+                    <div className="chart-error">
+                      <i className="fas fa-exclamation-triangle"></i>
+                      <span>Failed to load chart</span>
+                    </div>
+                  ) : (
+                    <div className="mini-chart-wrapper">
+                      <canvas ref={monthlyChartRef} id="monthlyChart"></canvas>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="analytics-card chart-card">
+                <div className="card-content">
+                  <div className="chart-header-info">
+                    <h4 className="chart-title">Receipt Distribution</h4>
+                    <div className="chart-meta">
+                      <span className="data-points">{analyticsData.payerDistribution.length} payers</span>
+                      <span className="total-badge">
+                        {receipts.length} total receipts
+                      </span>
+                    </div>
+                  </div>
+                  {analyticsData.isLoading ? (
+                    <div className="chart-loading">
+                      <i className="fas fa-chart-pie"></i>
+                      <span>Loading distribution...</span>
+                    </div>
+                  ) : analyticsData.error ? (
+                    <div className="chart-error">
+                      <i className="fas fa-exclamation-triangle"></i>
+                      <span>Failed to load chart</span>
+                    </div>
+                  ) : (
+                    <div className="mini-chart-wrapper">
+                      <canvas ref={distributionChartRef} id="distributionChart"></canvas>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
           
-          <form onSubmit={handleSubmit} className="receipt-form">
-            <div className="form-group">
-              <label>Select Collection Transaction *</label>
-              <div className="transaction-selector">
-                <button
-                  type="button"
-                  className="transaction-select-btn"
-                  onClick={openTransactionModal}
-                >
-                  <span className="selected-transaction">
-                    {getSelectedTransactionDisplay()}
-                  </span>
-                  <i className="fas fa-chevron-down"></i>
-                </button>
-                {formData.transactionId && (
+          {/* Form Section on the Right */}
+          <div className="form-section-container">
+            <div className="issue-form-section">
+              <div className="form-header">
+                <h3><i className="fas fa-plus-circle"></i> Issue New Receipt</h3>
+              </div>
+              
+              <form onSubmit={handleSubmit} className="receipt-form">
+                <div className="form-group">
+                  <label>Select Collection Transaction *</label>
+                  <div className="transaction-selector">
+                    <button
+                      type="button"
+                      className="transaction-select-btn"
+                      onClick={openTransactionModal}
+                    >
+                      <span className="selected-transaction">
+                        {getSelectedTransactionDisplay()}
+                      </span>
+                      <i className="fas fa-chevron-down"></i>
+                    </button>
+                    {formData.transactionId && (
+                      <button
+                        type="button"
+                        className="clear-selection-btn"
+                        onClick={() => handleInputChange('transactionId', '')}
+                        title="Clear Selection"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Payer Name *</label>
+                    <input
+                      type="text"
+                      placeholder="Enter payer name"
+                      value={formData.payerName}
+                      onChange={(e) => {
+                        handleInputChange('payerName', e.target.value);
+                        validatePowerName(e.target.value);
+                      }}
+                      required
+                      className={powerNameError ? 'error' : ''}
+                    />
+                    {powerNameError && (
+                      <div className="error-message">
+                        <i className="fas fa-exclamation-circle"></i>
+                        {powerNameError}
+                      </div>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label>Receipt Number</label>
+                    <input
+                      type="text"
+                      placeholder=""
+                      value={formData.receiptNumber}
+                      onChange={(e) => handleInputChange('receiptNumber', e.target.value)}
+                      required
+                      readOnly
+                      className="auto-generated-field"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Issue Date</label>
+                  <input
+                    type="date"
+                    value={formData.issueDate}
+                    onChange={(e) => handleInputChange('issueDate', e.target.value)}
+                  />
+                </div>
+
+                <div className="form-actions">
                   <button
-                    type="button"
-                    className="clear-selection-btn"
-                    onClick={() => handleInputChange('transactionId', '')}
-                    title="Clear Selection"
+                    type="submit"
+                    className="submit-btn issue-receipt-btn"
+                    disabled={loading || powerNameError}
                   >
-                    <i className="fas fa-times"></i>
+                    {loading ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin"></i> Processing...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-receipt"></i> Issue Receipt
+                      </>
+                    )}
                   </button>
-                )}
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Payer Name *</label>
-                <input
-                  type="text"
-                  placeholder="Enter payer name"
-                  value={formData.payerName}
-                  onChange={(e) => handleInputChange('payerName', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Receipt Number</label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={formData.receiptNumber}
-                  onChange={(e) => handleInputChange('receiptNumber', e.target.value)}
-                  required
-                  readOnly
-                  className="auto-generated-field"
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Issue Date</label>
-              <input
-                type="date"
-                value={formData.issueDate}
-                onChange={(e) => handleInputChange('issueDate', e.target.value)}
-              />
-            </div>
-
-            <div className="form-actions">
-              <button
-                type="submit"
-                className="submit-btn"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i> Processing...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-receipt"></i> Issue Receipt
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Receipt Statistics */}
-        <div className="receipt-stats-section">
-          <div className="section-header">
-            <h3><i className="fas fa-chart-bar"></i> Receipt Statistics</h3>
-          </div>
-          
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-receipt"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">{receipts.length}</div>
-                <div className="stat-label">Total Receipts</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-calendar-day"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">
-                  {receipts.filter(r => {
-                    const receiptDate = new Date(r.issued_at || r.created_at);
-                    const today = new Date();
-                    return receiptDate.toDateString() === today.toDateString();
-                  }).length}
                 </div>
-                <div className="stat-label">Today's Receipts</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-calendar-week"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">
-                  {receipts.filter(r => {
-                    const receiptDate = new Date(r.issued_at || r.created_at);
-                    const weekAgo = new Date();
-                    weekAgo.setDate(weekAgo.getDate() - 7);
-                    return receiptDate >= weekAgo;
-                  }).length}
-                </div>
-                <div className="stat-label">This Week</div>
-              </div>
+              </form>
             </div>
           </div>
         </div>
       </div>
+
 
       {/* Modern Filters Section */}
       <div className="modern-filters-section">
@@ -601,45 +1117,51 @@ const IssueReceipt = () => {
             <thead>
               <tr>
                 <th>
-                  <div className="table-header">
-                    <span>Receipt ID</span>
+                  <div className="table-header sortable" onClick={() => handleSort('id')}>
+                    <span>RECEIPT ID</span>
+                    <i className={`fas fa-sort${sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? '-up' : '-down') : ''}`}></i>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header sortable" onClick={() => handleSort('receipt_number')}>
+                    <span>RECEIPT NUMBER</span>
+                    <i className={`fas fa-sort${sortConfig.key === 'receipt_number' ? (sortConfig.direction === 'asc' ? '-up' : '-down') : ''}`}></i>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header sortable" onClick={() => handleSort('transaction_id')}>
+                    <span>TRANSACTION</span>
+                    <i className={`fas fa-sort${sortConfig.key === 'transaction_id' ? (sortConfig.direction === 'asc' ? '-up' : '-down') : ''}`}></i>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header sortable" onClick={() => handleSort('payer_name')}>
+                    <span>PAYER NAME</span>
+                    <i className={`fas fa-sort${sortConfig.key === 'payer_name' ? (sortConfig.direction === 'asc' ? '-up' : '-down') : ''}`}></i>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header sortable" onClick={() => handleSort('amount')}>
+                    <span>AMOUNT</span>
+                    <i className={`fas fa-sort${sortConfig.key === 'amount' ? (sortConfig.direction === 'asc' ? '-up' : '-down') : ''}`}></i>
+                  </div>
+                </th>
+                <th>
+                  <div className="table-header sortable" onClick={() => handleSort('issued_at')}>
+                    <span>ISSUE DATE</span>
+                    <i className={`fas fa-sort${sortConfig.key === 'issued_at' ? (sortConfig.direction === 'asc' ? '-up' : '-down') : ''}`}></i>
                   </div>
                 </th>
                 <th>
                   <div className="table-header">
-                    <span>Receipt Number</span>
-                  </div>
-                </th>
-                <th>
-                  <div className="table-header">
-                    <span>Transaction</span>
-                  </div>
-                </th>
-                <th>
-                  <div className="table-header">
-                    <span>Payer Name</span>
-                  </div>
-                </th>
-                <th>
-                  <div className="table-header">
-                    <span>Amount</span>
-                  </div>
-                </th>
-                <th>
-                  <div className="table-header">
-                    <span>Issue Date</span>
-                  </div>
-                </th>
-                <th>
-                  <div className="table-header">
-                    <span>Actions</span>
+                    <span>ACTIONS</span>
                   </div>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {filteredReceipts.length > 0 ? (
-                filteredReceipts.map((receipt) => {
+              {getSortedReceipts().length > 0 ? (
+                getSortedReceipts().map((receipt) => {
                   const transaction = transactions.find(tx => tx.id === receipt.transaction_id);
                   return (
                     <tr key={receipt.id} className="table-row">
@@ -686,14 +1208,36 @@ const IssueReceipt = () => {
                         <div className="cell-content">
                           <div className="action-buttons">
                             <button 
-                              className="view-btn"
+                              className="action-btn view-btn"
                               onClick={() => viewReceiptDetails(receipt)}
                               title="View Details"
                             >
                               <i className="fas fa-eye"></i>
                             </button>
                             <button 
-                              className="print-btn"
+                              className="action-btn edit-btn"
+                              onClick={() => {
+                                // Edit functionality can be added here
+                                console.log('Edit receipt:', receipt.id);
+                              }}
+                              title="Edit Receipt"
+                            >
+                              <i className="fas fa-edit"></i>
+                            </button>
+                            <button 
+                              className="action-btn delete-btn"
+                              onClick={() => {
+                                // Delete functionality can be added here
+                                if (window.confirm('Are you sure you want to delete this receipt?')) {
+                                  console.log('Delete receipt:', receipt.id);
+                                }
+                              }}
+                              title="Delete Receipt"
+                            >
+                              <i className="fas fa-trash"></i>
+                            </button>
+                            <button 
+                              className="action-btn print-btn"
                               onClick={() => {
                                 viewReceiptDetails(receipt);
                                 setTimeout(() => printReceipt(), 500);

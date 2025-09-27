@@ -3,7 +3,7 @@ import "../../assets/admin.css";
 import "./css/fundsaccount.css";
 import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
-import MiniLineGraph from './MiniLineGraph'; // Import the new graph component
+import MiniLineGraph from '../../assets/analytics/MiniLineGraph'; // Import the new graph component
 import {
   getFundAccounts,
   createFundAccount,

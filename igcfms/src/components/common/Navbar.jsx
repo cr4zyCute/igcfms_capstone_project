@@ -111,12 +111,12 @@ const Navbar = ({ userRole, user, onNavigate }) => {
               </div>
 
               <div className="dropdown-divider"></div>
-              
+
               <button 
                 onClick={handleLogout} 
                 className="dropdown-item logout-btn"
               >
-                <span className="item-icon">🚪</span>
+                <span className="item-icon"></span>
                 <span className="item-text">Sign Out</span>
               </button>
             </div>

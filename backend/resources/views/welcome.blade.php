@@ -11,6 +11,9 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
 
+    <!-- Lottie Player -->
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
     <!-- Styles / Scripts -->
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -1318,6 +1321,63 @@
             }
         }
 
+        @keyframes fadeOutUp {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-out-up {
+            animation: fadeOutUp 0.8s ease-in-out forwards;
+        }
+
+        .fade-in-down {
+            animation: fadeInDown 0.8s ease-in-out forwards;
+        }
+
+        .backend-status {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(245, 48, 3, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(245, 48, 3, 0.3);
+        }
+
+        .lottie-container {
+            opacity: 0;
+            transform: translateY(50px);
+        }
+
+        .lottie-container.show {
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.8s ease-in-out;
+        }
+
         @property --tw-translate-x {
             syntax: "*";
             inherits: false;
@@ -1520,6 +1580,8 @@
 </head>
 
 <body class="bg-[#FDFDFC] dark:bg-[#0a0a0a] text-[#1b1b18] flex p-6 lg:p-8 items-center lg:justify-center min-h-screen flex-col">
+    <!-- Backend Status -->
+    <h2 class="backend-status">Backend is running</h2>
     <header class="w-full lg:max-w-4xl max-w-[335px] text-sm mb-6 not-has-[nav]:hidden">
         @if (Route::has('login'))
         <nav class="flex items-center justify-end gap-4">
@@ -1547,8 +1609,9 @@
         </nav>
         @endif
     </header>
-    <div class="flex items-center justify-center w-full transition-opacity opacity-100 duration-750 lg:grow starting:opacity-0">
-        <main class="flex max-w-[335px] w-full flex-col-reverse lg:max-w-4xl lg:flex-row">
+    <div class="flex items-center justify-center w-full transition-opacity opacity-100 duration-750 lg:grow starting:opacity-0" id="mainContainer">
+        <!-- Original Content (will fade out) -->
+        <main class="flex max-w-[335px] w-full flex-col-reverse lg:max-w-4xl lg:flex-row" id="originalContent">
             <div class="text-[13px] leading-[20px] flex-1 p-6 pb-12 lg:p-20 bg-white dark:bg-[#161615] dark:text-[#EDEDEC] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-bl-lg rounded-br-lg lg:rounded-tl-lg lg:rounded-br-none">
                 <h1 class="mb-1 font-medium">Let's get started</h1>
                 <p class="mb-2 text-[#706f6c] dark:text-[#A1A09A]">Laravel has an incredibly rich ecosystem. <br>We suggest starting with the following.</p>
@@ -1762,11 +1825,48 @@
                 <div class="absolute inset-0 rounded-t-lg lg:rounded-t-none lg:rounded-r-lg shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d]"></div>
             </div>
         </main>
+        
+        <!-- Lottie Animation Container (will fade in) -->
+        <div class="lottie-container flex items-center justify-center w-full h-full" id="lottieContainer" style="display: none;">
+            <lottie-player 
+                src="{{ asset('Background_looping_animation.json') }}"
+                background="transparent"
+                speed="1"
+                style="width: 100%; height: 400px; max-width: 800px;"
+                loop
+                autoplay>
+            </lottie-player>
+        </div>
     </div>
 
     @if (Route::has('login'))
     <div class="h-14.5 hidden lg:block"></div>
     @endif
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const originalContent = document.getElementById('originalContent');
+            const lottieContainer = document.getElementById('lottieContainer');
+            
+            // Wait 3 seconds, then start the transition
+            setTimeout(() => {
+                // Add fade out animation to original content
+                originalContent.classList.add('fade-out-up');
+                
+                // After fade out completes, show Lottie animation
+                setTimeout(() => {
+                    originalContent.style.display = 'none';
+                    lottieContainer.style.display = 'flex';
+                    
+                    // Trigger fade in animation for Lottie
+                    setTimeout(() => {
+                        lottieContainer.classList.add('show');
+                    }, 50);
+                }, 800); // Match the fadeOutUp animation duration
+                
+            }, 3000); // Wait 3 seconds before starting transition
+        });
+    </script>
 </body>
 
 </html>
