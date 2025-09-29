@@ -2551,9 +2551,15 @@ table tr:last-child td {
 
 /* Empty State */
 .empty-state {
+  grid-column: 1 / -1; /* Span all grid columns */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 60px 20px;
   color: #666666;
+  min-height: 200px;
 }
 
 .empty-state h4 {

@@ -1037,7 +1037,7 @@ const FundsAccounts = () => {
                       onClick={() => setAccountSearchTerm('')}
                       className="clear-search-btn"
                     >
-                      Clear Search
+                      x
                     </button>
                   )}
                 </div>
@@ -1267,7 +1267,7 @@ const FundsAccounts = () => {
                       onClick={() => setSearchTerm('')}
                       className="transaction-clear-search-btn-improved"
                     >
-                      Clear Search
+                      x
                     </button>
                   )}
                 </div>
