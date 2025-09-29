@@ -1,8 +1,6 @@
 // Notification Service for IGCFMS
 // Handles admin notifications and email alerts
 
-import axios from 'axios';
-
 class NotificationService {
   constructor() {
     this.API_BASE = 'http://localhost:8000/api';

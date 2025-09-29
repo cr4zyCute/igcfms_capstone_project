@@ -115,8 +115,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/fund-accounts', [FundAccountController::class, 'index']);
     Route::get('/fund-accounts/{id}', [FundAccountController::class, 'show']);
     Route::post('/fund-accounts', [FundAccountController::class, 'store']);
-    Route::put('/fund-accounts/{id}', [FundAccountController::class, 'update']); // <-- Add this
+    Route::put('/fund-accounts/{id}', [FundAccountController::class, 'update']);
     Route::delete('/fund-accounts/{id}', [FundAccountController::class, 'destroy']);
+    
+    // Debug route to view all accounts including soft-deleted ones
+    Route::get('/fund-accounts-debug/all-with-deleted', [FundAccountController::class, 'getAllWithDeleted']);
 });
 // Remove duplicate route
 

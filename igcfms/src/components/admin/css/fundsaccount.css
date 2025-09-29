@@ -2880,11 +2880,485 @@ table tr:last-child td {
   border: none;
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
 }
 
-.preview-close-button:hover {
-  background-color: #1f2937;
+/* Account Card Skeleton Loading Styles */
+.account-card-new.skeleton-loading {
+  opacity: 0.7;
+  pointer-events: none;
+  position: relative;
+}
+
+.account-card-new.skeleton-loading::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  z-index: 10;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.skeleton-loading .skeleton-line {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.skeleton-loading .skeleton-title {
+  height: 18px;
+  width: 70%;
+}
+
+.skeleton-loading .skeleton-date {
+  height: 12px;
+  width: 50%;
+}
+
+.skeleton-loading .skeleton-code {
+  height: 14px;
+  width: 60px;
+}
+
+.skeleton-loading .skeleton-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+.skeleton-loading .skeleton-balance {
+  height: 32px;
+  width: 80%;
+  margin: 8px 0;
+}
+
+.skeleton-loading .skeleton-transactions {
+  height: 14px;
+  width: 60%;
+}
+
+.skeleton-loading .skeleton-graph {
+  height: 60px;
+  width: 100%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin: 10px 0;
+}
+
+.skeleton-loading .skeleton-action {
+  height: 16px;
+  width: 90%;
+  margin: 6px 0;
+}
+
+.skeleton-loading .skeleton-button {
+  height: 36px;
+  width: 100%;
+  margin: 8px 0;
+}
+
+/* Modern Black & White Theme for Add Account Button */
+.btn-modern {
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  outline: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-modern:hover {
+  background: #ffffff;
+  color: #000000;
+  border-color: #000000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-modern:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-modern:disabled {
+  background: #f5f5f5;
+  color: #999999;
+  border-color: #e0e0e0;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-modern i {
+  font-size: 14px;
+}
+
+/* Search and Filter Container */
+.search-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  max-width: 600px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Filter Dropdown Styles */
+.filter-dropdown-container {
+  position: relative;
+}
+
+.filter-dropdown-btn {
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333333;
+  transition: all 0.2s ease;
+  min-width: 200px;
+  justify-content: space-between;
+}
+
+.filter-dropdown-btn:hover {
+  border-color: #000000;
+  background: #f8f8f8;
+}
+
+.filter-dropdown-btn:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.filter-label {
+  flex: 1;
+  text-align: left;
+  font-weight: 500;
+}
+
+.filter-arrow {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.filter-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  margin-top: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.filter-option {
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333333;
+  transition: all 0.2s ease;
+}
+
+.filter-option:hover {
+  background: #f8f8f8;
+}
+
+.filter-option.active {
+  background: #000000;
+  color: #ffffff;
+}
+
+.filter-option.active:hover {
+  background: #333333;
+}
+
+.filter-option i {
+  width: 16px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.filter-option span {
+  flex: 1;
+  font-weight: 500;
+}
+
+.filter-check {
+  font-size: 12px;
+  color: #ffffff;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .search-filter-container {
+    flex-direction: column;
+    max-width: none;
+    gap: 8px;
+  }
+  
+  .account-search-container,
+  .filter-dropdown-btn {
+    width: 100%;
+  }
+  
+  .action-buttons {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .btn-modern,
+  .export-accounts-btn {
+    flex: 1;
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-filter-container {
+    gap: 6px;
+  }
+  
+  .filter-dropdown-btn {
+    min-width: auto;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  
+  .filter-label {
+    display: none;
+  }
+  
+  .filter-dropdown-btn::after {
+    content: 'Filter';
+    font-size: 13px;
+  }
+}
+
+/* Export Report Icon Button & Dropdown */
+.export-report-dropdown-container {
+  position: relative;
+}
+
+.btn-icon {
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #333333;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.btn-icon:hover {
+  border-color: #000000;
+  background: #f8f8f8;
+  color: #000000;
+}
+
+.btn-icon:disabled {
+  background: #f5f5f5;
+  color: #999999;
+  border-color: #e0e0e0;
+  cursor: not-allowed;
+}
+
+.btn-icon:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.export-report-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  margin-top: 4px;
+  min-width: 180px;
+}
+
+.export-option {
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333333;
+  transition: all 0.2s ease;
+}
+
+.export-option:hover {
+  background: #f8f8f8;
+}
+
+.export-option:first-child {
+  border-radius: 6px 6px 0 0;
+}
+
+.export-option:last-child {
+  border-radius: 0 0 6px 6px;
+}
+
+.export-option i {
+  width: 16px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.export-option span {
+  font-weight: 500;
+}
+
+/* PDF and Excel specific colors */
+.export-option:first-child i {
+  color: #dc2626; /* Red for PDF */
+}
+
+.export-option:last-child i {
+  color: #16a34a; /* Green for Excel */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .action-buttons {
+    gap: 8px;
+  }
+  
+  .btn-icon {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 10px;
+  }
+  
+  .export-report-dropdown-menu {
+    right: 0;
+    left: auto;
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 480px) {
+  .export-report-dropdown-menu {
+    min-width: 140px;
+  }
+  
+  .export-option {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Black Modal Header for Create New Fund Account */
+.modal-header-black {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border-bottom: none !important;
+}
+
+.modal-header-black h4 {
+  color: #ffffff !important;
+  margin: 0;
+  font-weight: 600;
+}
+
+.modal-header-black h4 i {
+  color: #ffffff !important;
+  margin-right: 8px;
+}
+
+.modal-header-black .close-button {
+  background: transparent !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-size: 24px !important;
+  font-weight: bold !important;
+  cursor: pointer;
+  padding: 0 !important;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.modal-header-black .close-button:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
 }

@@ -10,11 +10,11 @@ use Illuminate\Support\Facades\Auth;
 
 class FundAccountController extends Controller
 {
-    // List all fund accounts
+    // List all fund accounts (only non-deleted and active)
     public function index()
     {
         $accounts = FundAccount::where('is_active', true)
-            ->get()
+            ->get() // This automatically excludes soft-deleted records
             ->map(function ($account) {
                 $transactionsSum = $account->transactions()->sum('amount');
                 $account->current_balance = $account->initial_balance + $transactionsSum;
@@ -53,8 +53,8 @@ class FundAccountController extends Controller
             'department' => 'nullable|string|max:255',
         ]);
 
-        // Auto-generate account code
-        $accountCode = $this->generateAccountCode($request->account_type);
+        // Auto-generate account code (includes soft-deleted records to avoid duplicates)
+        $accountCode = FundAccount::getNextAccountCode($request->account_type);
 
         $account = FundAccount::create([
             'name' => $request->name,
@@ -73,39 +73,6 @@ class FundAccountController extends Controller
         return response()->json($account, 201);
     }
 
-    /**
-     * Generate unique account code based on account type
-     */
-    private function generateAccountCode($accountType)
-    {
-        // Define prefixes for each account type
-        $prefixes = [
-            'Revenue' => 'REV',
-            'Expense' => 'EXP',
-            'Asset' => 'AST',
-            'Liability' => 'LIB',
-            'Equity' => 'EQT'
-        ];
-
-        $prefix = $prefixes[$accountType] ?? 'GEN';
-        
-        // Get the latest account with this prefix
-        $latestAccount = FundAccount::where('code', 'like', $prefix . '%')
-            ->orderBy('code', 'desc')
-            ->first();
-
-        if ($latestAccount) {
-            // Extract the number from the latest code and increment
-            $latestNumber = (int) substr($latestAccount->code, strlen($prefix));
-            $newNumber = $latestNumber + 1;
-        } else {
-            // Start with 1 if no accounts exist with this prefix
-            $newNumber = 1;
-        }
-
-        // Format with leading zeros (e.g., REV001, EXP002)
-        return $prefix . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
-    }
 
     public function update(Request $request, $id)
     {
@@ -174,14 +141,51 @@ class FundAccountController extends Controller
             $account->is_active = false;
             $account->save();
 
+            // Track fund account deactivation
+            ActivityTracker::trackFundAccount($account, Auth::user(), 'deactivated');
+
             return response()->json([
-                'message' => 'Fund account has transactions successfully deleted.'
+                'message' => 'Fund account has transactions and has been deactivated.'
             ], 200);
         }
 
         // No transactions, safe to soft delete
         $account->delete();
 
+        // Track fund account deletion
+        ActivityTracker::trackFundAccount($account, Auth::user(), 'deleted');
+
         return response()->json(['message' => 'Fund account deleted successfully'], 200);
+    }
+
+    /**
+     * Get all accounts including soft-deleted ones (for debugging/admin purposes)
+     * This can help verify that the code generation is working correctly
+     */
+    public function getAllWithDeleted()
+    {
+        $accounts = FundAccount::withTrashed()
+            ->orderBy('code')
+            ->get()
+            ->map(function ($account) {
+                return [
+                    'id' => $account->id,
+                    'code' => $account->code,
+                    'name' => $account->name,
+                    'account_type' => $account->account_type,
+                    'is_active' => $account->is_active,
+                    'deleted_at' => $account->deleted_at,
+                    'status' => $account->deleted_at ? 'soft_deleted' : ($account->is_active ? 'active' : 'inactive')
+                ];
+            });
+
+        return response()->json([
+            'message' => 'All accounts (including soft-deleted)',
+            'accounts' => $accounts,
+            'total_count' => $accounts->count(),
+            'active_count' => $accounts->where('status', 'active')->count(),
+            'inactive_count' => $accounts->where('status', 'inactive')->count(),
+            'deleted_count' => $accounts->where('status', 'soft_deleted')->count(),
+        ]);
     }
 }

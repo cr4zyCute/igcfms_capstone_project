@@ -419,7 +419,7 @@ const DashboardHome = () => {
           </p>
           <div className="realtime-indicator">
             <span className="realtime-dot"></span>
-            {wsConnected ? 'Live' : 'Auto-refresh 30s'}
+            {wsConnected ? 'Live' : ''}
             <span className="last-updated" style={{ marginLeft: 8 }}>
               {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : ''}
             </span>
