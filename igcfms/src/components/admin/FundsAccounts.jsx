@@ -780,7 +780,7 @@ const FundsAccounts = () => {
 
               {/* Actions Section */}
               <div className="form-actions enhanced-actions">
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setShowAddAccount(false)}
                   disabled={loading}
@@ -788,7 +788,7 @@ const FundsAccounts = () => {
                 >
                   <i className="fas fa-times"></i>
                   Cancel
-                </button>
+                </button> */}
                 <button 
                   type="submit" 
                   disabled={createAccountMutation.isPending}
@@ -1060,7 +1060,7 @@ const FundsAccounts = () => {
                       globalMaxAmount={globalMaxAmount}
                     />
                   ))
-                ) : (
+                ) : ( 
                   <div className="empty-state">
                     <h4>No Matching Accounts Found</h4>
                     <p>No accounts match your search criteria. Try adjusting your search terms.</p>
