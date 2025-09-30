@@ -987,18 +987,22 @@ const FundsAccounts = () => {
 
       {showDeleteModal && (
         <div className="modal-overlay">
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h4><i className="fas fa-exclamation-triangle"></i> Confirm Deletion</h4>
-              <button onClick={closeDeleteModal} className="close-button">×</button>
+          <div className="delete-modal-modern" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-header-modern">
+              <div className="delete-modal-title-wrapper">
+                <i className="fas fa-exclamation-triangle delete-modal-warning-icon"></i>
+                <h3 className="delete-modal-title-modern">Confirm Deletion</h3>
+              </div>
             </div>
-            <div className="modal-body">
-              <p>Are you sure you want to delete this fund account? This action cannot be undone.</p>
+            <div className="delete-modal-body-modern">
+              <p className="delete-modal-description">
+                Are you sure you want to delete this fund account? This action cannot be undone and will permanently remove all associated data.
+              </p>
             </div>
-            <div className="modal-footer">
+            <div className="delete-modal-footer-modern">
               <button 
                 onClick={closeDeleteModal} 
-                className="btn btn-secondary"
+                className="delete-modal-btn-cancel"
                 disabled={deleteAccountMutation.isPending}
               >
                 Cancel
@@ -1006,7 +1010,7 @@ const FundsAccounts = () => {
               <button 
                 onClick={handleDeleteAccountConfirm}
                 disabled={deleteAccountMutation.isPending}
-                className="btn btn-danger"
+                className="delete-modal-btn-delete"
               >
                 {deleteAccountMutation.isPending ? (
                   <>

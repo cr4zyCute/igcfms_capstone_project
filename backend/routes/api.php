@@ -137,6 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/recipient-accounts/{recipientAccount}', [RecipientAccountController::class, 'update']);
     Route::delete('/recipient-accounts/{recipientAccount}', [RecipientAccountController::class, 'destroy']);
     Route::patch('/recipient-accounts/{recipientAccount}/toggle-status', [RecipientAccountController::class, 'toggleStatus']);
+    Route::get('/recipient-accounts/{recipientAccount}/transactions', [RecipientAccountController::class, 'getTransactions']);
     Route::get('/recipient-accounts-fund-accounts', [RecipientAccountController::class, 'getFundAccounts']);
     Route::get('/recipient-accounts-stats', [RecipientAccountController::class, 'getStats']);
 });

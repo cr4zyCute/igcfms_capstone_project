@@ -70,17 +70,20 @@ class RecipientAccountController extends Controller
             'email' => 'required|email|unique:recipient_accounts,email',
             'phone' => 'required|string|max:20',
             'address' => 'required|string',
+            'fund_code' => 'nullable|string|max:50',
+            'description' => 'nullable|string',
+            'fund_account_id' => 'nullable|exists:fund_accounts,id',
+            'tax_id' => 'nullable|string|max:50',
+            'bank_account' => 'nullable|string|max:100',
+            'bank_name' => 'nullable|string|max:255',
+            'account_number' => 'nullable|string|max:100',
+            'account_type' => 'nullable|string|max:50',
         ];
 
         // Add conditional validation based on type
-        if ($request->type === 'disbursement') {
-            // Frontend currently provides bank_name and account_number; make tax_id and bank_account optional
-            $rules['tax_id'] = 'nullable|string|max:50';
-            $rules['bank_account'] = 'nullable|string|max:100';
-        } else {
-            $rules['fund_code'] = 'required|string|max:20';
+        if ($request->type === 'collection') {
+            $rules['fund_code'] = 'required|string|max:50';
             $rules['description'] = 'required|string';
-            $rules['fund_account_id'] = 'nullable|exists:fund_accounts,id';
         }
 
         $validated = $request->validate($rules);
@@ -143,17 +146,20 @@ class RecipientAccountController extends Controller
             ],
             'phone' => 'required|string|max:20',
             'address' => 'required|string',
+            'fund_code' => 'nullable|string|max:50',
+            'description' => 'nullable|string',
+            'fund_account_id' => 'nullable|exists:fund_accounts,id',
+            'tax_id' => 'nullable|string|max:50',
+            'bank_account' => 'nullable|string|max:100',
+            'bank_name' => 'nullable|string|max:255',
+            'account_number' => 'nullable|string|max:100',
+            'account_type' => 'nullable|string|max:50',
         ];
 
         // Add conditional validation based on type
-        if ($request->type === 'disbursement') {
-            // Make optional to match current frontend fields
-            $rules['tax_id'] = 'nullable|string|max:50';
-            $rules['bank_account'] = 'nullable|string|max:100';
-        } else {
-            $rules['fund_code'] = 'required|string|max:20';
+        if ($request->type === 'collection') {
+            $rules['fund_code'] = 'required|string|max:50';
             $rules['description'] = 'required|string';
-            $rules['fund_account_id'] = 'nullable|exists:fund_accounts,id';
         }
 
         $validated = $request->validate($rules);
@@ -258,5 +264,28 @@ class RecipientAccountController extends Controller
             'success' => true,
             'data' => $stats
         ]);
+    }
+
+    /**
+     * Get transactions for a specific recipient account
+     */
+    public function getTransactions(RecipientAccount $recipientAccount): JsonResponse
+    {
+        try {
+            $transactions = Transaction::where('recipient_account_id', $recipientAccount->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $transactions
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch transactions',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

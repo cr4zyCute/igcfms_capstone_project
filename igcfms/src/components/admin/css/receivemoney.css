@@ -25,8 +25,9 @@
 .form-header {
   background: linear-gradient(135deg, #000000 0%, #333333 100%);
   color: #ffffff;
-  padding: 20px 30px;
+  padding: 20px 30px 20px 30px;
   text-align: center;
+  margin-bottom: 0;
 }
 
 .form-header h2 {
@@ -83,7 +84,7 @@
 
 /* Enhanced Form */
 .enhanced-form {
-  padding: 0px 20px !important;
+  padding: 20px 20px !important;
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
   gap: 20px !important;
@@ -111,9 +112,20 @@
 }
 
 .form-section:hover {
-  border-color: #d1d5db !important;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.06) !important;
+  border-color: #000000 !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
   transform: translateY(-2px) !important;
+}
+
+.form-section:hover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #000000, #333333);
+  border-radius: 12px 12px 0 0;
 }
 
 /* Column Specific Styling */
@@ -142,8 +154,9 @@
   margin-bottom: 8px;
 }
 
+.left-column .subsection-header,
 .right-column .subsection-header {
-  margin: 12px 0 6px 0;
+  margin: 0 0 16px 0;
 }
 
 /* Section Headers */
@@ -585,18 +598,26 @@
   justify-content: space-between;
   align-items: center;
   padding: 24px 30px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fafafa;
+  border-bottom: 2px solid #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .modal-header h4 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: #000000;
   display: flex;
   align-items: center;
   gap: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modal-header h4 i {
+  color: #000000;
+  font-size: 16px;
 }
 
 .close-button {

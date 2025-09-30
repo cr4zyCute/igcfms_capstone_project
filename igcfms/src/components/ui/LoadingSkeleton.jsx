@@ -79,3 +79,38 @@ export const SkeletonTransactionTable = () => (
     </div>
   </div>
 );
+
+// Recipient Account Skeleton Components
+export const SkeletonRecipientCard = () => (
+  <div className="recipient-card skeleton-card">
+    <div className="card-top-section">
+      <SkeletonLine width="80px" height={20} />
+      <SkeletonCircle size={32} />
+    </div>
+    <div className="recipient-card-header">
+      <div className="recipient-avatar">
+        <SkeletonCircle size={48} />
+      </div>
+      <div className="recipient-info" style={{ flex: 1 }}>
+        <SkeletonLine width="70%" height={20} style={{ marginBottom: '8px' }} />
+        <SkeletonLine width="45%" height={14} />
+      </div>
+    </div>
+    <div className="recipient-details">
+      <div style={{ marginBottom: '12px' }}>
+        <SkeletonLine width="90%" height={14} style={{ marginBottom: '6px' }} />
+        <SkeletonLine width="75%" height={14} style={{ marginBottom: '6px' }} />
+        <SkeletonLine width="85%" height={14} style={{ marginBottom: '6px' }} />
+        <SkeletonLine width="60%" height={14} />
+      </div>
+    </div>
+  </div>
+);
+
+export const SkeletonRecipientGrid = ({ count = 6 }) => (
+  <div className="account-cards skeleton-recipient-grid">
+    {Array.from({ length: count }).map((_, index) => (
+      <SkeletonRecipientCard key={index} />
+    ))}
+  </div>
+);

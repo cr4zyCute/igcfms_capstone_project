@@ -1,22 +1,55 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+import { useQueryClient } from '@tanstack/react-query';
+import { 
+  useRecipientAccounts, 
+  useCreateRecipientAccount, 
+  useUpdateRecipientAccount, 
+  useDeleteRecipientAccount, 
+  useToggleRecipientStatus,
+  useRecipientTransactions,
+  RECIPIENT_ACCOUNTS_KEYS 
+} from '../../hooks/useRecipientAccounts';
+import { SkeletonSectionHeader, SkeletonRecipientGrid, SkeletonTransactionTable } from '../ui/LoadingSkeleton';
+import QueryErrorFallback from '../common/QueryErrorBoundary';
+import "../../assets/admin.css";
 import "./css/recipientaccount.css";
 import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
 
 const RecipientAccount = () => {
-  // State for recipients and fund accounts
-  const [recipients, setRecipients] = useState([]);
+  // State for fund accounts
   const [fundAccounts, setFundAccounts] = useState([]);
+  
+  // React Query client for manual cache updates
+  const queryClient = useQueryClient();
+  
+  // React Query hooks
+  const { 
+    data: recipients = [], 
+    isLoading: recipientsLoading, 
+    error: recipientsError,
+    refetch: refetchRecipients 
+  } = useRecipientAccounts();
+  
+  // Mutation hooks
+  const createRecipientMutation = useCreateRecipientAccount();
+  const updateRecipientMutation = useUpdateRecipientAccount();
+  const deleteRecipientMutation = useDeleteRecipientAccount();
+  const toggleStatusMutation = useToggleRecipientStatus();
 
   // Modal and form states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [showFundAccountModal, setShowFundAccountModal] = useState(false);
+  const [fundAccountSearch, setFundAccountSearch] = useState("");
   
   // Filter and search states
   const [activeFilter, setActiveFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   
   // Generate unique fund code function (moved up for initialization)
   const generateFundCode = (accountType, fundAccount = null) => {
@@ -63,43 +96,49 @@ const RecipientAccount = () => {
     message: ""
   });
   const [loading, setLoading] = useState(false);
+  
+  // Combined loading state for all operations
+  const isLoading = loading || recipientsLoading || createRecipientMutation.isPending || 
+                   updateRecipientMutation.isPending || deleteRecipientMutation.isPending || 
+                   toggleStatusMutation.isPending;
   const [errors, setErrors] = useState({});
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [showTransactionHistory, setShowTransactionHistory] = useState(false);
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
 
-  // Load data on component mount
+  const selectedFundAccountDetails = useMemo(() => {
+    if (!formData.fund_account_id) return null;
+    return fundAccounts.find(
+      (fund) => parseInt(formData.fund_account_id) === parseInt(fund.id)
+    ) || null;
+  }, [formData.fund_account_id, fundAccounts]);
+
+  const filteredFundAccounts = useMemo(() => {
+    const term = fundAccountSearch.trim().toLowerCase();
+    if (!term) return fundAccounts;
+    return fundAccounts.filter((fund) => {
+      const nameMatch = fund.name?.toLowerCase().includes(term);
+      const codeMatch = fund.code?.toLowerCase().includes(term);
+      const typeMatch = fund.account_type?.toLowerCase().includes(term);
+      return nameMatch || codeMatch || typeMatch;
+    });
+  }, [fundAccounts, fundAccountSearch]);
+  
+  // Transaction query
+  const {
+    data: transactions = [],
+    isLoading: transactionsLoading,
+    error: transactionsError
+  } = useRecipientTransactions(selectedRecipient?.id, {
+    enabled: !!selectedRecipient && showTransactionHistory
+  });
+
+  // Load fund accounts on component mount
   useEffect(() => {
-    loadRecipients();
     loadFundAccounts();
   }, []);
 
   // API Functions
-  const loadRecipients = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/recipient-accounts', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to load recipients:', response.status, response.statusText);
-        // For now, set empty array if endpoint doesn't exist
-        setRecipients([]);
-        return;
-      }
-      
-      const data = await response.json();
-      if (data.success) {
-        setRecipients(data.data);
-      } else {
-        setRecipients([]);
-      }
-    } catch (error) {
-      console.error('Error loading recipients:', error);
-      setRecipients([]);
-    }
-  };
 
   const loadFundAccounts = async () => {
     try {
@@ -175,44 +214,48 @@ const RecipientAccount = () => {
 
   // Handle fund account selection and auto-fill
   const handleFundAccountSelect = (fundAccountId) => {
-    const selectedFund = fundAccounts.find(fund => fund.id === parseInt(fundAccountId));
-    if (selectedFund) {
-      const generatedCode = generateFundCode(formData.type, selectedFund);
-      
-      if (formData.type === 'collection') {
-        setFormData(prev => ({
-          ...prev,
-          fund_account_id: fundAccountId,
-          name: `${selectedFund.name} Collection Account`,
-          fund_code: generatedCode,
-          description: `Collection account linked to ${selectedFund.name} (${selectedFund.account_type})`
-        }));
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          fund_account_id: fundAccountId,
-          fund_code: generatedCode
-        }));
-      }
-    } else {
-      setFormData(prev => ({
+    const selectedFund = fundAccounts.find(
+      (fund) => parseInt(fund.id, 10) === parseInt(fundAccountId, 10)
+    );
+
+    setFormData((prev) => {
+      const updates = {
         ...prev,
         fund_account_id: fundAccountId
-      }));
-    }
+      };
+
+      if (selectedFund) {
+        updates.fund_code = generateFundCode(prev.type, selectedFund);
+        if (!prev.name) {
+          updates.name = `${selectedFund.name} Account`;
+        }
+        if (!prev.description) {
+          updates.description = `Account linked to ${selectedFund.name} (${selectedFund.account_type})`;
+        }
+      }
+
+      return updates;
+    });
+
+    setErrors((prev) => ({
+      ...prev,
+      fund_account_id: undefined
+    }));
+
+    setShowFundAccountModal(false);
   };
 
   // Handle account type change
   const handleAccountTypeChange = (type) => {
-    // Map new account types to existing backend types
+    // Map new account types to existing backend types - removed collection type
     const typeMapping = {
       'vendor': 'disbursement',
-      'customer': 'collection', 
       'employee': 'disbursement',
-      'other': 'disbursement'
+      'contractor': 'disbursement',
+      'supplier': 'disbursement'
     };
     
-    const backendType = typeMapping[type] || type;
+    const backendType = typeMapping[type] || 'disbursement';
     const newFundCode = generateFundCode(backendType);
     
     setFormData(prev => ({
@@ -260,7 +303,6 @@ const RecipientAccount = () => {
     if (!formData.email.trim()) newErrors.email = "Email address is required";
     if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
     if (!formData.address.trim()) newErrors.address = "Address is required";
-    if (!formData.fund_code.trim()) newErrors.fund_code = "Fund code is required";
     if (!formData.description.trim()) newErrors.description = "Description/Purpose is required";
     
     // Email validation
@@ -273,9 +315,19 @@ const RecipientAccount = () => {
       newErrors.phone = "Please enter a valid phone number";
     }
     
-    // Fund account validation
-    if (!formData.fund_account_id) {
-      newErrors.fund_account_id = "Fund account selection is required";
+    // Bank information validation (if provided)
+    if (formData.bank_name && formData.bank_name.trim()) {
+      if (!formData.account_number || !formData.account_number.trim()) {
+        newErrors.account_number = "Account number is required when bank name is provided";
+      } else if (!/^\d{10,16}$/.test(formData.account_number.replace(/\s/g, ''))) {
+        newErrors.account_number = "Account number must be 10-16 digits";
+      }
+    }
+    
+    if (formData.account_number && formData.account_number.trim()) {
+      if (!formData.bank_name || !formData.bank_name.trim()) {
+        newErrors.bank_name = "Bank name is required when account number is provided";
+      }
     }
     
     setErrors(newErrors);
@@ -312,9 +364,6 @@ const RecipientAccount = () => {
     }
     
     try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
       // Prepare data for API
       const apiData = {
         name: formData.name.trim(),
@@ -329,51 +378,31 @@ const RecipientAccount = () => {
         fund_code: formData.fund_code || null,
         bank_name: formData.bank_name?.trim() || null,
         account_number: formData.account_number?.trim() || null,
+        account_type: formData.account_type || null,
         branch: formData.branch?.trim() || null
       };
       
       console.log('Creating recipient account with data:', apiData);
       
-      // Make API call to create recipient account
-      const response = await fetch('http://localhost:8000/api/recipient-accounts', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(apiData)
-      });
+      // Use React Query mutation
+      await createRecipientMutation.mutateAsync(apiData);
       
-      const responseData = await response.json();
-      console.log('API Response:', responseData);
-      
-      if (!response.ok) {
-        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+      // Send notification for new recipient account
+      const selectedFund = fundAccounts.find(fund => fund.id === parseInt(formData.fund_account_id));
+      try {
+        await notificationService.notifyTransaction('RECIPIENT_ACCOUNT_CREATED', {
+          name: formData.name,
+          fund_account: selectedFund?.name || `Fund Account #${formData.fund_account_id}`,
+          fund_account_id: formData.fund_account_id
+        });
+      } catch (notificationError) {
+        console.log('Notification failed:', notificationError);
+        // Continue even if notification fails
       }
       
-      if (responseData.success) {
-        // Success - reload recipients from server
-        await loadRecipients();
-        
-        // Send notification for new recipient account
-        const selectedFund = fundAccounts.find(fund => fund.id === parseInt(formData.fund_account_id));
-        try {
-          await notificationService.notifyTransaction('RECIPIENT_ACCOUNT_CREATED', {
-            name: formData.name,
-            fund_account: selectedFund?.name || `Fund Account #${formData.fund_account_id}`,
-            fund_account_id: formData.fund_account_id
-          });
-        } catch (notificationError) {
-          console.log('Notification failed:', notificationError);
-          // Continue even if notification fails
-        }
-        
-        showNotification('success', 'Success', 'Recipient account created successfully');
-        resetForm();
-        setShowAddModal(false);
-      } else {
-        throw new Error(responseData.message || 'Failed to create recipient account');
-      }
+      showNotification('success', 'Success', 'Recipient account created successfully');
+      resetForm();
+      setShowAddModal(false);
       
     } catch (error) {
       console.error('Error creating recipient:', error);
@@ -384,78 +413,42 @@ const RecipientAccount = () => {
         errorMessage = 'An account with this email already exists';
       } else if (error.message.includes('validation')) {
         errorMessage = 'Please check your input data';
+      } else if (error.message.includes('404') || error.message.includes('Not Found')) {
+        errorMessage = 'API endpoint not found. Please check if the backend server is running.';
       } else if (error.message) {
         errorMessage = error.message;
       }
       
       showNotification('error', 'Error', errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleEditRecipient = async (e) => {
+  const handleEditRecipientSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setLoading(true);
-    
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/recipient-accounts/${editingRecipient.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+      await updateRecipientMutation.mutateAsync({
+        id: editingRecipient.id,
+        data: formData
       });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        await loadRecipients(); // Reload the list
-        setShowEditModal(false);
-        setEditingRecipient(null);
-        resetForm();
-        showNotification("success", "Recipient Updated", `${formData.name}'s information has been successfully updated.`);
-      } else {
-        showNotification("error", "Error", data.message || "Failed to update recipient");
-      }
+      setShowEditModal(false);
+      setEditingRecipient(null);
+      resetForm();
+      showNotification("success", "Recipient Updated", `${formData.name}'s information has been successfully updated.`);
     } catch (error) {
-      showNotification("error", "Error", "Failed to update recipient");
-    } finally {
-      setLoading(false);
+      showNotification("error", "Error", error.message || "Failed to update recipient");
     }
   };
 
-  const handleDeleteRecipient = async () => {
-    setLoading(true);
-    
+  const handleDeleteRecipientConfirm = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/recipient-accounts/${deletingRecipient.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        await loadRecipients(); // Reload the list
-        setShowDeleteModal(false);
-        setDeletingRecipient(null);
-        showNotification("success", "Recipient Deleted", `${deletingRecipient.name} has been removed from the system.`);
-      } else {
-        showNotification("error", "Error", data.message || "Failed to delete recipient");
-      }
+      await deleteRecipientMutation.mutateAsync(deletingRecipient.id);
+      setShowDeleteModal(false);
+      setDeletingRecipient(null);
+      showNotification("success", "Recipient Deleted", `${deletingRecipient.name} has been removed from the system.`);
     } catch (error) {
-      showNotification("error", "Error", "Failed to delete recipient");
-    } finally {
-      setLoading(false);
+      showNotification("error", "Error", error.message || "Failed to delete recipient");
     }
   };
 
@@ -473,7 +466,7 @@ const RecipientAccount = () => {
       const data = await response.json();
       
       if (data.success) {
-        await loadRecipients(); // Reload the list
+        // React Query will automatically update the cache
         const newStatus = data.data.status;
         showNotification(
           "success", 
@@ -495,6 +488,8 @@ const RecipientAccount = () => {
   };
 
   const openEditModal = (recipient) => {
+    console.log('Opening edit modal for recipient:', recipient);
+    console.log('Recipient fund_code:', recipient.fund_code);
     setEditingRecipient(recipient);
     setFormData({
       name: recipient.name,
@@ -505,9 +500,13 @@ const RecipientAccount = () => {
       address: recipient.address,
       tax_id: recipient.tax_id || "",
       bank_account: recipient.bank_account || "",
-      fund_code: recipient.fund_code || "",
+      bank_name: recipient.bank_name || "",
+      account_number: recipient.account_number || "",
+      account_type: recipient.account_type || "savings",
+      fund_code: recipient.fund_code || recipient.code || "",
       description: recipient.description || "",
-      fund_account_id: recipient.fund_account_id || ""
+      fund_account_id: recipient.fund_account_id || "",
+      balance: recipient.balance || recipient.current_balance || 0
     });
     setShowEditModal(true);
   };
@@ -517,135 +516,290 @@ const RecipientAccount = () => {
     setShowDeleteModal(true);
   };
 
-  // Filter and calculate stats
-  const filteredRecipients = recipients.filter(recipient => {
-    const matchesFilter = activeFilter === "all" || recipient.type === activeFilter;
-    const matchesSearch = recipient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         recipient.contact_person.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         recipient.email.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
-
-  const stats = {
-    total: recipients.length,
-    disbursement: recipients.filter(r => r.type === "disbursement").length,
-    collection: recipients.filter(r => r.type === "collection").length,
-    active: recipients.filter(r => r.status === "active").length,
-    inactive: recipients.filter(r => r.status === "inactive").length
+  // Filter helper functions
+  const getFilterLabel = (filter) => {
+    const filterLabels = {
+      'all': 'All Recipients',
+      'vendor': 'Vendors',
+      'bank': 'With Banking',
+      'active': 'Active',
+      'inactive': 'Inactive'
+    };
+    return filterLabels[filter] || 'Filter';
   };
 
+  const handleFilterChange = (filter) => {
+    setActiveFilter(filter);
+    setShowFilterDropdown(false);
+  };
+
+  // Menu handlers
+  const handleMenuToggle = (recipientId) => {
+    setOpenMenuId(openMenuId === recipientId ? null : recipientId);
+  };
+
+  const handleEditRecipient = (recipient) => {
+    openEditModal(recipient);
+    setOpenMenuId(null);
+  };
+
+  const handleDeleteRecipient = (recipient) => {
+    openDeleteModal(recipient);
+    setOpenMenuId(null);
+  };
+
+  const handleToggleStatus = (recipient) => {
+    toggleRecipientStatus(recipient);
+    setOpenMenuId(null);
+  };
+
+  const handleViewTransactions = (recipient) => {
+    setSelectedRecipient(recipient);
+    setShowTransactionHistory(true);
+    setOpenMenuId(null);
+  };
+
+  // Memoized filtered recipients for performance
+  const filteredRecipients = useMemo(() => {
+    return recipients.filter(recipient => {
+      const matchesFilter = activeFilter === "all" || 
+                           (activeFilter === "active" && recipient.status === "active") ||
+                           (activeFilter === "inactive" && recipient.status === "inactive") ||
+                           (activeFilter === "bank" && recipient.bank_name) ||
+                           (activeFilter === "vendor" && recipient.type === "disbursement");
+      const matchesSearch = !searchTerm || 
+                           recipient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           recipient.contact_person.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           recipient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (recipient.bank_name && recipient.bank_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                           (recipient.account_number && recipient.account_number.toLowerCase().includes(searchTerm.toLowerCase()));
+      return matchesFilter && matchesSearch;
+    });
+  }, [recipients, activeFilter, searchTerm]);
+
+  const stats = useMemo(() => ({
+    total: recipients.length,
+    vendors: recipients.filter(r => r.type === "disbursement").length,
+    withBank: recipients.filter(r => r.bank_name && r.bank_name.trim()).length,
+    active: recipients.filter(r => r.status === "active").length,
+    inactive: recipients.filter(r => r.status === "inactive").length
+  }), [recipients]);
+
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showFilterDropdown && !event.target.closest('.filter-dropdown-container')) {
+        setShowFilterDropdown(false);
+      }
+      if (openMenuId && !event.target.closest('.menu-container')) {
+        setOpenMenuId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showFilterDropdown, openMenuId]);
+
+  // Show loading skeleton while data is loading
+  if (recipientsLoading) {
+    return (
+      <div className="recipient-account-page">
+        <SkeletonSectionHeader />
+        <SkeletonRecipientGrid />
+      </div>
+    );
+  }
+
   return (
-    <div className="recipient-account-page">
-      <div className="funds-header">
-        <div className="header-content">
-          <div className="header-text">
-            <h1 className="header-title">
-              <i className="fas fa-address-book"></i>
-              Recipient Account Management
-            </h1>
-            <p className="header-subtitle">
-              Manage payees, vendors, and fund collection accounts for cashier operations
-            </p>
-          </div>
-        </div>
-        <button className="add-recipient-btn" onClick={openAddModal}>
-          <i className="fas fa-plus"></i> Add New Recipient
-        </button>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="filter-tabs">
-        <button 
-          className={`filter-tab ${activeFilter === "all" ? "active" : ""}`}
-          onClick={() => setActiveFilter("all")}
-        >
-          <i className="fas fa-list"></i> All Recipients
-        </button>
-        <button 
-          className={`filter-tab ${activeFilter === "disbursement" ? "active" : ""}`}
-          onClick={() => setActiveFilter("disbursement")}
-        >
-          <i className="fas fa-arrow-up"></i> Disbursement Recipients
-        </button>
-        <button 
-          className={`filter-tab ${activeFilter === "collection" ? "active" : ""}`}
-          onClick={() => setActiveFilter("collection")}
-        >
-          <i className="fas fa-arrow-down"></i> Collection Funds
-        </button>
-      </div>
-
-      {/* Search Bar */}
-      <div className="search-filter-bar">
-        <input
-          type="text"
-          className="search-input"
-          placeholder="Search recipients by name, contact person, or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      {/* Stats Cards */}
-      <div className="recipient-stats">
-        <div className="stat-card">
-          <div className="stat-icon total">
+    <ErrorBoundary FallbackComponent={QueryErrorFallback}>
+      <div className="recipient-account-page">
+      <div className="section-header">
+        <div className="section-title-group">
+          <h3>
             <i className="fas fa-address-book"></i>
-          </div>
-          <div className="stat-value">{stats.total}</div>
-          <div className="stat-label">Total Recipients</div>
+            Recipient Account Management
+            <span className="section-count">({filteredRecipients.length})</span>
+          </h3>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon disbursement">
-            <i className="fas fa-money-bill-wave"></i>
+        <div className="header-controls">
+          <div className="search-filter-container">
+            <div className="account-search-container">
+              <input
+                type="text"
+                placeholder="Search recipients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="account-search-input"
+              />
+              <i className="fas fa-search account-search-icon"></i>
+            </div>
+            
+            <div className="filter-dropdown-container">
+              <button
+                className="filter-dropdown-btn"
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                title="Filter recipients"
+              >
+                <i className="fas fa-filter"></i>
+                <span className="filter-label">
+                  {getFilterLabel(activeFilter)}
+                </span>
+                <i className={`fas fa-chevron-${showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
+              </button>
+              
+              {showFilterDropdown && (
+                <div className="filter-dropdown-menu">
+                  <button
+                    className={`filter-option ${activeFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => handleFilterChange('all')}
+                  >
+                    <i className="fas fa-list"></i>
+                    <span>All Recipients</span>
+                    {activeFilter === 'all' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${activeFilter === 'vendor' ? 'active' : ''}`}
+                    onClick={() => handleFilterChange('vendor')}
+                  >
+                    <i className="fas fa-building"></i>
+                    <span>Vendors</span>
+                    {activeFilter === 'vendor' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${activeFilter === 'bank' ? 'active' : ''}`}
+                    onClick={() => handleFilterChange('bank')}
+                  >
+                    <i className="fas fa-university"></i>
+                    <span>With Banking</span>
+                    {activeFilter === 'bank' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${activeFilter === 'active' ? 'active' : ''}`}
+                    onClick={() => handleFilterChange('active')}
+                  >
+                    <i className="fas fa-check-circle"></i>
+                    <span>Active</span>
+                    {activeFilter === 'active' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${activeFilter === 'inactive' ? 'active' : ''}`}
+                    onClick={() => handleFilterChange('inactive')}
+                  >
+                    <i className="fas fa-pause-circle"></i>
+                    <span>Inactive</span>
+                    {activeFilter === 'inactive' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="stat-info">
-            <div className="stat-number">{stats.disbursement}</div>
-            <div className="stat-label">Payees/Vendors</div>
+          
+          <div className="action-buttons">
+            <button
+              className="btn-modern add-account-btn"
+              onClick={openAddModal}
+              disabled={isLoading}
+            >
+              <i className="fas fa-plus"></i>
+              Add New Recipient
+            </button>
           </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon collection">
-            <i className="fas fa-piggy-bank"></i>
-          </div>
-          <div className="stat-info">
-            <div className="stat-number">{stats.collection}</div>
-            <div className="stat-label">Fund Accounts</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon active">
-            <i className="fas fa-check-circle"></i>
-          </div>
-          <div className="stat-value">{stats.active}</div>
-          <div className="stat-label">Active Accounts</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon inactive">
-            <i className="fas fa-times-circle"></i>
-          </div>
-          <div className="stat-value">{stats.inactive}</div>
-          <div className="stat-label">Inactive Accounts</div>
         </div>
       </div>
 
-      {/* Recipients Grid */}
-      {filteredRecipients.length > 0 ? (
-        <div className="recipients-grid">
-          {filteredRecipients.map((recipient) => (
-            <div key={recipient.id} className="recipient-card">
-              <div className={`status-badge ${recipient.status}`}>
-                {recipient.status}
+      <div className="accounts-overview">
+        {searchTerm && (
+          <div className="search-results-info">
+            <i className="fas fa-search"></i>
+            Showing {filteredRecipients.length} of {recipients.length} recipients for "{searchTerm}"
+            {filteredRecipients.length === 0 && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="clear-search-btn"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+        
+        <div className="account-cards">
+          {filteredRecipients.length > 0 ? (
+            filteredRecipients.map((recipient) => (
+            <div 
+              key={recipient.id} 
+              className="recipient-card clickable-card"
+              onClick={() => handleViewTransactions(recipient)}
+              title="Click to view transactions"
+            >
+              <div className="card-top-section">
+                <div className={`status-badge ${recipient.status}`}>
+                  <i className={`fas fa-${recipient.status === 'active' ? 'check-circle' : 'pause-circle'}`}></i>
+                  {recipient.status}
+                </div>
+                
+                <div className="menu-container">
+                  <button
+                    className="menu-btn"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent card click when clicking menu
+                      handleMenuToggle(recipient.id);
+                    }}
+                    title="More actions"
+                  >
+                    <i className="fas fa-ellipsis-v"></i>
+                  </button>
+                  
+                  {openMenuId === recipient.id && (
+                    <div className="menu-dropdown" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="menu-option edit-option"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditRecipient(recipient);
+                        }}
+                      >
+                        <i className="fas fa-edit"></i>
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        className={`menu-option status-option ${recipient.status === 'active' ? 'deactivate' : 'activate'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleStatus(recipient);
+                        }}
+                      >
+                        <i className={`fas fa-${recipient.status === 'active' ? 'pause' : 'play'}`}></i>
+                        <span>{recipient.status === 'active' ? 'Deactivate' : 'Activate'}</span>
+                      </button>
+                      <button
+                        className="menu-option delete-option"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteRecipient(recipient);
+                        }}
+                      >
+                        <i className="fas fa-trash"></i>
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="recipient-card-header">
+                <div className="recipient-avatar">
+                  <i className="fas fa-building"></i>
+                </div>
                 <div className="recipient-info">
                   <h3 className="recipient-name">
-                    <i className={`fas fa-${recipient.type === 'disbursement' ? 'building' : 'university'}`}></i>
                     {recipient.name}
                   </h3>
-                  <span className={`recipient-type ${recipient.type}`}>
-                    {recipient.type}
+                  <span className="recipient-type">
+                    Vendor Account
                   </span>
                 </div>
               </div>
@@ -653,96 +807,175 @@ const RecipientAccount = () => {
               <div className="recipient-details">
                 <div className="recipient-detail">
                   <i className="fas fa-user"></i>
-                  <span>{recipient.contact_person}</span>
+                  <span><strong>Contact:</strong> {recipient.contact_person}</span>
                 </div>
                 <div className="recipient-detail">
                   <i className="fas fa-envelope"></i>
-                  <span>{recipient.email}</span>
+                  <span><strong>Email:</strong> {recipient.email}</span>
                 </div>
                 <div className="recipient-detail">
                   <i className="fas fa-phone"></i>
-                  <span>{recipient.phone}</span>
+                  <span><strong>Phone:</strong> {recipient.phone}</span>
                 </div>
-                <div className="recipient-detail">
-                  <i className="fas fa-map-marker-alt"></i>
-                  <span>{recipient.address}</span>
-                </div>
-                {recipient.type === 'disbursement' ? (
-                  <>
-                    <div className="recipient-detail">
-                      <i className="fas fa-id-card"></i>
-                      <span>Tax ID: {recipient.tax_id}</span>
-                    </div>
-                    <div className="recipient-detail">
-                      <i className="fas fa-credit-card"></i>
-                      <span>Bank: {recipient.bank_account}</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="recipient-detail">
-                      <i className="fas fa-code"></i>
-                      <span>Fund Code: {recipient.fund_code}</span>
-                    </div>
-                    <div className="recipient-detail">
-                      <i className="fas fa-info-circle"></i>
-                      <span>{recipient.description}</span>
-                    </div>
-                    {recipient.fund_account && (
-                      <div className="recipient-detail">
-                        <i className="fas fa-university"></i>
-                        <span>Fund: {recipient.fund_account.name} ({recipient.fund_account.code})</span>
-                      </div>
-                    )}
-                  </>
+                {recipient.bank_name && (
+                  <div className="recipient-detail bank-info">
+                    <i className="fas fa-university"></i>
+                    <span><strong>Bank:</strong> {recipient.bank_name}</span>
+                  </div>
+                )}
+                {recipient.account_number && (
+                  <div className="recipient-detail">
+                    <i className="fas fa-credit-card"></i>
+                    <span><strong>Account:</strong> {recipient.account_number}</span>
+                  </div>
                 )}
                 <div className="recipient-detail">
-                  <i className="fas fa-chart-line"></i>
-                  <span>{recipient.total_transactions} transactions • ₱{recipient.total_amount ? parseFloat(recipient.total_amount).toLocaleString() : '0'}</span>
+                  <i className="fas fa-map-marker-alt"></i>
+                  <span><strong>Address:</strong> {recipient.address}</span>
                 </div>
+                {recipient.description && (
+                  <div className="recipient-detail">
+                    <i className="fas fa-info-circle"></i>
+                    <span><strong>Notes:</strong> {recipient.description}</span>
+                  </div>
+                )}
               </div>
 
-              <div className="recipient-actions">
-                <button
-                  className="action-btn edit-btn"
-                  onClick={() => openEditModal(recipient)}
-                  title="Edit Recipient"
+
+              {/* Click hint */}
+              <div className="card-click-hint">
+                <i className="fas fa-history"></i>
+                <span>Click to view transactions</span>
+              </div>
+
+            </div>
+            ))
+          ) : (
+            <div className="empty-state">
+              <h4>No Matching Recipients Found</h4>
+              <p>No recipients match your search criteria. Try adjusting your search terms.</p>
+            </div>
+          )}
+        </div>
+        
+        {recipients.length === 0 && (
+          <div className="empty-state">
+            <h4>No Recipients Found</h4>
+            <p>Create your first recipient account to get started with vendor management.</p>
+            <button className="btn-modern add-account-btn" onClick={openAddModal}>
+              <i className="fas fa-plus"></i> Add First Recipient
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Transaction History Modal */}
+      {showTransactionHistory && selectedRecipient && (
+        <div className="modal-overlay" onClick={() => setShowTransactionHistory(false)}>
+          <div className="modal transaction-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="transaction-modal-header-improved">
+              <h4 className="transaction-modal-title-improved">
+                <i className="fas fa-history"></i> 
+                Transaction History: {selectedRecipient.name}
+              </h4>
+              <div className="transaction-modal-controls">
+                <button 
+                  onClick={() => setShowTransactionHistory(false)}
+                  className="close-btn-styled"
                 >
-                  <i className="fas fa-edit"></i>
-                </button>
-                <button
-                  className={`action-btn toggle-btn ${recipient.status === "inactive" ? "activate" : ""}`}
-                  onClick={() => toggleRecipientStatus(recipient)}
-                  title={recipient.status === "active" ? "Deactivate" : "Activate"}
-                >
-                  <i className={`fas fa-${recipient.status === "active" ? "pause" : "play"}`}></i>
-                </button>
-                <button
-                  className="action-btn delete-btn"
-                  onClick={() => openDeleteModal(recipient)}
-                  title="Delete Recipient"
-                >
-                  <i className="fas fa-trash"></i>
+                  ×
                 </button>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state">
-          <i className="fas fa-address-book"></i>
-          <h3>No Recipients Found</h3>
-          <p>No recipients match your current filter and search criteria.</p>
-          <button className="btn btn-primary" onClick={openAddModal}>
-            <i className="fas fa-plus"></i> Add First Recipient
-          </button>
+
+            <div className="account-info-section-improved">
+              <div className="account-info-item-improved">
+                <div className="account-info-label-improved">Recipient Code</div>
+                <div className="account-code-value-improved">{selectedRecipient.fund_code || 'N/A'}</div>
+              </div>
+              <div className="account-info-item-improved">
+                <div className="account-info-label-improved">Contact Person</div>
+                <div className="account-balance-value-improved">{selectedRecipient.contact_person}</div>
+              </div>
+              <div className="account-info-item-improved">
+                <div className="account-info-label-improved">Email</div>
+                <div className="account-balance-value-improved">{selectedRecipient.email}</div>
+              </div>
+            </div>
+
+            {transactionsLoading ? (
+              <SkeletonTransactionTable />
+            ) : transactions.length > 0 ? (
+              <div className="transaction-history-table-container">
+                <table className="transaction-history-table">
+                  <thead>
+                    <tr>
+                      <th><i className="fas fa-calendar"></i> Date</th>
+                      <th><i className="fas fa-file-text"></i> Description</th>
+                      <th><i className="fas fa-user"></i> Payee/Payer</th>
+                      <th><i className="fas fa-exchange-alt"></i> Type</th>
+                      <th><i className="fas fa-money-bill"></i> Amount</th>
+                      <th><i className="fas fa-hashtag"></i> Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map((transaction) => (
+                      <tr key={transaction.id}>
+                        <td className="transaction-date-cell">
+                          {new Date(transaction.created_at).toLocaleDateString()}
+                        </td>
+                        
+                        <td className="transaction-description-cell">
+                          {transaction.description || 'N/A'}
+                        </td>
+                        
+                        <td className={`transaction-payee-cell ${transaction.type?.toLowerCase()}`}>
+                          {transaction.type === "Collection" 
+                            ? (transaction.payer_name || transaction.recipient || 'Unknown Payer')
+                            : (transaction.recipient || transaction.payer_name || 'Unknown Payee')
+                          }
+                        </td>
+                        
+                        <td className="transaction-type-cell">
+                          <span className={`transaction-type-badge-table ${transaction.type?.toLowerCase()}`}>
+                            {transaction.type === "Collection" && <i className="fas fa-arrow-up"></i>}
+                            {transaction.type === "Disbursement" && <i className="fas fa-arrow-down"></i>}
+                            {transaction.type}
+                          </span>
+                        </td>
+                        
+                        <td className={`transaction-amount-cell ${transaction.type?.toLowerCase()}`}>
+                          {transaction.type === "Collection" ? "+" : "-"}₱{Math.abs(transaction.amount || 0).toLocaleString()}
+                        </td>
+                        
+                        <td className="transaction-reference-cell">
+                          {transaction.reference ||
+                           transaction.reference_no ||
+                           transaction.receipt_no ||
+                           'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="transaction-empty-state-improved">
+                <i className="fas fa-inbox transaction-empty-icon-improved"></i>
+                <h4 className="transaction-empty-title-improved">No Transactions Found</h4>
+                <p className="transaction-empty-text-improved">
+                  This recipient account has no transaction history yet.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* Add Recipient Modal */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content edit-modal-enhanced" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">
                 <i className="fas fa-plus-circle"></i> Add New Recipient Account
@@ -752,204 +985,220 @@ const RecipientAccount = () => {
               </button>
             </div>
             <form onSubmit={handleAddRecipient}>
-              <div className="modal-body">
+              <div className="modal-body modal-body-no-scroll">
                 <div className="form-container">
-                  
-                  {/* Basic Information Section */}
-                  <div className="form-section">
-                    <div className="form-section-header">
-                      <i className="fas fa-info-circle form-section-icon"></i>
-                      <h4 className="form-section-title">Basic Information</h4>
-                    </div>
-                    <div className="form-grid">
-                      <div className="form-group full-width">
-                        <label className="form-label">
-                          Account Name <span className="required">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          className={`form-input ${errors.name ? 'error' : ''}`}
-                          value={formData.name}
-                          onChange={(e) => setFormData({...formData, name: e.target.value})}
-                          placeholder="e.g., ABC Corporation, John Doe"
-                        />
-                        {errors.name && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.name}</div>}
+                  <div className="form-sections-row">
+                    {/* Basic Information Section */}
+                    <div className="form-section">
+                      <div className="form-section-header">
+                        <i className="fas fa-user form-section-icon"></i>
+                        <h5 className="form-section-title">Basic Information</h5>
                       </div>
+                      <div className="form-grid-2x2">
+                        <div className="form-group">
+                          <label className="form-label">
+                            Recipient Name <span className="required">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-input ${errors.name ? 'error' : ''}`}
+                            value={formData.name}
+                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                            placeholder="e.g., ABC Corporation"
+                          />
+                          {errors.name && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.name}</div>}
+                        </div>
 
-                      <div className="form-group">
-                        <label className="form-label">
-                          Account Type <span className="required">*</span>
-                        </label>
-                        <select
-                          className="form-select"
-                          value={formData.type}
-                          onChange={(e) => handleAccountTypeChange(e.target.value)}
-                        >
-                          <option value="disbursement">Vendor</option>
-                          <option value="collection">Customer</option>
-                          <option value="employee">Employee</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
+                        <div className="form-group">
+                          <label className="form-label">
+                            Account Type <span className="required">*</span>
+                          </label>
+                          <select
+                            className="form-select"
+                            value={formData.type}
+                            onChange={(e) => handleAccountTypeChange(e.target.value)}
+                          >
+                            <option value="vendor">Vendor/Supplier</option>
+                            <option value="contractor">Contractor</option>
+                            <option value="employee">Employee</option>
+                            <option value="supplier">Service Provider</option>
+                          </select>
+                        </div>
 
-                      <div className="form-group">
-                        <label className="form-label">Recipient Code</label>
-                        <input
-                          type="text"
-                          className="form-input auto-generated"
-                          value={formData.fund_code}
-                          readOnly
-                          placeholder="Auto-generated"
-                        />
-                        <div className="form-help">Automatically generated based on account type</div>
-                      </div>
+                        <div className="form-group">
+                          <label className="form-label">Recipient Code</label>
+                          <input
+                            type="text"
+                            className="form-input auto-generated"
+                            value={formData.fund_code}
+                            readOnly
+                            placeholder="Auto-generated"
+                          />
+                          
+                        </div>
 
-                      <div className="form-group">
-                        <label className="form-label">Fund Account (Optional)</label>
-                        <select
-                          className={`form-select ${errors.fund_account_id ? 'error' : ''}`}
-                          value={formData.fund_account_id}
-                          onChange={(e) => handleFundAccountSelect(e.target.value)}
-                        >
-                          <option value="">Select Fund Account ({fundAccounts.length} available)</option>
-                          {fundAccounts.map((fund) => (
-                            <option key={fund.id} value={fund.id}>
-                              {fund.name} - {fund.code} (₱{parseFloat(fund.current_balance || 0).toLocaleString()})
-                            </option>
-                          ))}
-                        </select>
-                        {errors.fund_account_id && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.fund_account_id}</div>}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Contact Information Section */}
-                  <div className="form-section">
-                    <div className="form-section-header">
-                      <i className="fas fa-address-book form-section-icon"></i>
-                      <h4 className="form-section-title">Contact Information</h4>
-                    </div>
-                    <div className="form-grid">
-                      <div className="form-group">
-                        <label className="form-label">
-                          Contact Person <span className="required">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          className={`form-input ${errors.contact_person ? 'error' : ''}`}
-                          value={formData.contact_person}
-                          onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
-                          placeholder="Enter contact person name"
-                        />
-                        {errors.contact_person && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.contact_person}</div>}
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">
-                          Email Address <span className="required">*</span>
-                        </label>
-                        <input
-                          type="email"
-                          className={`form-input ${errors.email ? 'error' : ''}`}
-                          value={formData.email}
-                          onChange={(e) => setFormData({...formData, email: e.target.value})}
-                          placeholder="Enter email address"
-                        />
-                        {errors.email && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.email}</div>}
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">
-                          Phone Number <span className="required">*</span>
-                        </label>
-                        <input
-                          type="tel"
-                          className={`form-input ${errors.phone ? 'error' : ''}`}
-                          value={formData.phone}
-                          onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                          placeholder="Enter phone number"
-                        />
-                        {errors.phone && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.phone}</div>}
-                      </div>
-
-                      <div className="form-group full-width">
-                        <label className="form-label">
-                          Address <span className="required">*</span>
-                        </label>
-                        <textarea
-                          className={`form-textarea ${errors.address ? 'error' : ''}`}
-                          value={formData.address}
-                          onChange={(e) => setFormData({...formData, address: e.target.value})}
-                          placeholder="Enter complete address"
-                          rows="3"
-                        />
-                        {errors.address && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.address}</div>}
+                        <div className="form-group">
+                          <label className="form-label">Fund Account (Optional)</label>
+                          <button
+                            type="button"
+                            className={`fund-account-selector ${errors.fund_account_id ? 'error' : ''}`}
+                            onClick={() => {
+                              setFundAccountSearch("");
+                              setShowFundAccountModal(true);
+                            }}
+                          >
+                            <div className="selector-content">
+                              {selectedFundAccountDetails ? (
+                                <>
+                                  <span className="selector-title">{selectedFundAccountDetails.name}</span>
+                                  <span className="selector-subtitle">{selectedFundAccountDetails.code} · {selectedFundAccountDetails.account_type}</span>
+                                </>
+                              ) : (
+                                <span className="selector-placeholder">Select Fund Account ({fundAccounts.length} available)</span>
+                              )}
+                            </div>
+                            <i className="fas fa-chevron-down selector-icon"></i>
+                          </button>
+                          {errors.fund_account_id && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.fund_account_id}</div>}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Bank Information Section */}
-                  <div className="form-section">
-                    <div className="form-section-header">
-                      <i className="fas fa-university form-section-icon"></i>
-                      <h4 className="form-section-title">Bank Information (Optional)</h4>
-                    </div>
-                    <div className="form-grid">
-                      <div className="form-group">
-                        <label className="form-label">Bank Name</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={formData.bank_name}
-                          onChange={(e) => setFormData({...formData, bank_name: e.target.value})}
-                          placeholder="Enter bank name"
-                        />
+                    {/* Contact Information Section */}
+                    <div className="form-section">
+                      <div className="form-section-header">
+                        <i className="fas fa-address-card form-section-icon"></i>
+                        <h5 className="form-section-title">Contact Information</h5>
                       </div>
+                      <div className="form-grid-2x2">
+                        <div className="form-group">
+                          <label className="form-label">
+                            Contact Person <span className="required">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-input ${errors.contact_person ? 'error' : ''}`}
+                            value={formData.contact_person}
+                            onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
+                            placeholder="Enter contact person name"
+                          />
+                          {errors.contact_person && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.contact_person}</div>}
+                        </div>
 
-                      <div className="form-group">
-                        <label className="form-label">Account Number</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={formData.account_number}
-                          onChange={(e) => setFormData({...formData, account_number: e.target.value})}
-                          placeholder="Enter account number"
-                        />
-                      </div>
+                        <div className="form-group">
+                          <label className="form-label">
+                            Email Address <span className="required">*</span>
+                          </label>
+                          <input
+                            type="email"
+                            className={`form-input ${errors.email ? 'error' : ''}`}
+                            value={formData.email}
+                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                            placeholder="Enter email address"
+                          />
+                          {errors.email && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.email}</div>}
+                        </div>
 
-                      <div className="form-group">
-                        <label className="form-label">Branch</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={formData.branch}
-                          onChange={(e) => setFormData({...formData, branch: e.target.value})}
-                          placeholder="Enter branch name"
-                        />
+                        <div className="form-group">
+                          <label className="form-label">
+                            Phone Number <span className="required">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            className={`form-input ${errors.phone ? 'error' : ''}`}
+                            value={formData.phone}
+                            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                            placeholder="Enter phone number"
+                          />
+                          {errors.phone && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.phone}</div>}
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">
+                            Address <span className="required">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-input ${errors.address ? 'error' : ''}`}
+                            value={formData.address}
+                            onChange={(e) => setFormData({...formData, address: e.target.value})}
+                            placeholder="Enter complete address"
+                          />
+                          {errors.address && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.address}</div>}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Status and Description Section */}
-                  <div className="form-section">
-                    <div className="form-section-header">
-                      <i className="fas fa-cog form-section-icon"></i>
-                      <h4 className="form-section-title">Status & Description</h4>
-                    </div>
-                    
-                    <div className="status-toggle">
-                      <div 
-                        className={`toggle-switch ${formData.status === 'active' ? 'active' : ''}`}
-                        onClick={() => setFormData({...formData, status: formData.status === 'active' ? 'inactive' : 'active'})}
-                      ></div>
-                      <div className="toggle-label">Account Status</div>
-                      <div className={`toggle-status ${formData.status}`}>
-                        {formData.status}
+                  <div className="form-sections-row">
+                    {/* Bank Information Section */}
+                    <div className="form-section">
+                      <div className="form-section-header">
+                        <i className="fas fa-university form-section-icon"></i>
+                        <h5 className="form-section-title">Bank Information (Optional)</h5>
+                      </div>
+                      <div className="form-grid-2x2">
+                        <div className="form-group">
+                          <label className="form-label">
+                            Bank Name <span className="required">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-input ${errors.bank_name ? 'error' : ''}`}
+                            value={formData.bank_name}
+                            onChange={(e) => setFormData({...formData, bank_name: e.target.value})}
+                            placeholder="e.g., BDO, BPI, Metrobank"
+                          />
+                          {errors.bank_name && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.bank_name}</div>}
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">
+                            Account Number <span className="required">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-input ${errors.account_number ? 'error' : ''}`}
+                            value={formData.account_number}
+                            onChange={(e) => setFormData({...formData, account_number: e.target.value})}
+                            placeholder="Enter 10-16 digit account number"
+                          />
+                          {errors.account_number && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.account_number}</div>}
+                          <div className="form-help">Account number must be 10-16 digits</div>
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Account Type</label>
+                          <select
+                            className="form-select"
+                            value={formData.account_type || 'savings'}
+                            onChange={(e) => setFormData({...formData, account_type: e.target.value})}
+                          >
+                            <option value="savings">Savings Account</option>
+                            <option value="checking">Checking Account</option>
+                            <option value="current">Current Account</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="form-grid single-column" style={{marginTop: '24px'}}>
-                      <div className="form-group">
+                    {/* Status and Description Section */}
+                    <div className="form-section">
+                      <div className="form-section-header">
+                        <i className="fas fa-cog form-section-icon"></i>
+                        <h5 className="form-section-title">Status & Description</h5>
+                      </div>
+                      <div className="status-toggle">
+                        <div
+                          className={`toggle-switch ${formData.status === 'active' ? 'active' : ''}`}
+                          onClick={() => setFormData({...formData, status: formData.status === 'active' ? 'inactive' : 'active'})}
+                        ></div>
+                        <div className="toggle-label">Account Status</div>
+                        <div className={`toggle-status ${formData.status}`}>
+                          {formData.status}
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ marginTop: '24px' }}>
                         <label className="form-label">
                           Description / Purpose <span className="required">*</span>
                         </label>
@@ -958,7 +1207,7 @@ const RecipientAccount = () => {
                           value={formData.description}
                           onChange={(e) => setFormData({...formData, description: e.target.value})}
                           placeholder="Explain the use and purpose of this recipient account"
-                          rows="4"
+                          rows="6"
                         />
                         {errors.description && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.description}</div>}
                       </div>
@@ -967,13 +1216,11 @@ const RecipientAccount = () => {
 
                 </div>
               </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>
-                  <i className="fas fa-times"></i> Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus"></i>}
-                  {loading ? 'Adding...' : 'Add Recipient'}
+              <div className="modal-footer modal-footer-enhanced">
+                
+                <button type="submit" className="btn btn-primary btn-update-enhanced" disabled={createRecipientMutation.isPending}>
+                  {createRecipientMutation.isPending ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus"></i>}
+                  {createRecipientMutation.isPending ? 'Adding...' : 'Add Recipient'}
                 </button>
               </div>
             </form>
@@ -984,7 +1231,7 @@ const RecipientAccount = () => {
       {/* Edit Recipient Modal */}
       {showEditModal && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content edit-modal-enhanced" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">
                 <i className="fas fa-edit"></i> Edit Recipient Account
@@ -993,156 +1240,227 @@ const RecipientAccount = () => {
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            <form onSubmit={handleEditRecipient}>
-              <div className="modal-body">
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label className="form-label">Account Type *</label>
-                    <select
-                      className="form-select"
-                      value={formData.type}
-                      onChange={(e) => setFormData({...formData, type: e.target.value})}
-                    >
-                      <option value="disbursement">Disbursement Recipient</option>
-                      <option value="collection">Collection Fund</option>
-                    </select>
-                  </div>
-                  {formData.type === 'collection' && (
-                    <div className="form-group">
-                      <label className="form-label">Fund Account *</label>
-                      <select
-                        className={`form-select ${errors.fund_account_id ? 'error' : ''}`}
-                        value={formData.fund_account_id}
-                        onChange={(e) => handleFundAccountSelect(e.target.value)}
-                      >
-                        <option value="">Select Fund Account ({fundAccounts.length} available)</option>
-                        {fundAccounts.map((fund) => (
-                          <option key={fund.id} value={fund.id}>
-                            {fund.name} - {fund.code} (₱{parseFloat(fund.current_balance || 0).toLocaleString()})
-                          </option>
-                        ))}
-                      </select>
-                      {errors.fund_account_id && <div className="form-error">{errors.fund_account_id}</div>}
-                    </div>
-                  )}
-                  <div className="form-group full-width">
-                    <label className="form-label">
-                      {formData.type === 'disbursement' ? 'Company/Individual Name' : 'Fund Name'} *
-                    </label>
-                    <input
-                      type="text"
-                      className={`form-input ${errors.name ? 'error' : ''}`}
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      placeholder={formData.type === 'disbursement' ? 'Enter company or individual name' : 'Enter fund name'}
-                    />
-                    {errors.name && <div className="form-error">{errors.name}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Contact Person *</label>
-                    <input
-                      type="text"
-                      className={`form-input ${errors.contact_person ? 'error' : ''}`}
-                      value={formData.contact_person}
-                      onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
-                      placeholder="Enter contact person name"
-                    />
-                    {errors.contact_person && <div className="form-error">{errors.contact_person}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Email Address *</label>
-                    <input
-                      type="email"
-                      className={`form-input ${errors.email ? 'error' : ''}`}
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      placeholder="Enter email address"
-                    />
-                    {errors.email && <div className="form-error">{errors.email}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Phone Number *</label>
-                    <input
-                      type="tel"
-                      className={`form-input ${errors.phone ? 'error' : ''}`}
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      placeholder="Enter phone number"
-                    />
-                    {errors.phone && <div className="form-error">{errors.phone}</div>}
-                  </div>
-                  <div className="form-group full-width">
-                    <label className="form-label">Address *</label>
-                    <textarea
-                      className={`form-textarea ${errors.address ? 'error' : ''}`}
-                      value={formData.address}
-                      onChange={(e) => setFormData({...formData, address: e.target.value})}
-                      placeholder="Enter complete address"
-                      rows="3"
-                    />
-                    {errors.address && <div className="form-error">{errors.address}</div>}
-                  </div>
+            <form onSubmit={handleEditRecipientSubmit}>
+              <div className="modal-body modal-body-no-scroll">
+                <div className="form-container">
                   
-                  {formData.type === 'disbursement' ? (
-                    <>
+                  {/* First Row: Basic Information & Contact Information */}
+                  <div className="form-sections-row">
+                    {/* Basic Information Section */}
+                    <div className="form-section">
+                      <div className="form-section-header">
+                        <i className="fas fa-user form-section-icon"></i>
+                        <h5 className="form-section-title">Basic Information</h5>
+                      </div>
+                      
+                      {/* 2x2 Grid Layout */}
+                      <div className="form-grid-2x2">
+                        <div className="form-group">
+                          <label className="form-label">
+                            Recipient Name <span className="required">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-input ${errors.name ? 'error' : ''}`}
+                            value={formData.name}
+                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                            placeholder="e.g., ABC Corporation,  "
+                          />
+                          {errors.name && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.name}</div>}
+                        </div>
+                        
+                        <div className="form-group">
+                          <label className="form-label">
+                            Account Type <span className="required">*</span>
+                            <div className="tooltip">
+                              <i className="fas fa-info-circle tooltip-trigger"></i>
+                              <span className="tooltip-text">Choose the type of recipient: Vendor for suppliers, Contractor for service providers, Employee for staff payments, or Service Provider for professional services.</span>
+                            </div>
+                          </label>
+                          <select
+                            className="form-select"
+                            value={formData.type}
+                            onChange={(e) => handleAccountTypeChange(e.target.value)}
+                          >
+                            <option value="vendor">Vendor/Supplier</option>
+                            <option value="contractor">Contractor</option>
+                            <option value="employee">Employee</option>
+                            <option value="supplier">Service Provider</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">
+                            Recipient Code
+                          </label>
+                          <input
+                            type="text"
+                            className="form-input auto-generated"
+                            value={formData.fund_code || "N/A"}
+                            readOnly
+                            placeholder="Auto-generated"
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">
+                            Current Balance
+                          </label>
+                          <div className="balance-display-input">
+                            ₱{(formData.balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact Information Section */}
+                    <div className="form-section">
+                      <div className="form-section-header">
+                        <i className="fas fa-address-card form-section-icon"></i>
+                        <h5 className="form-section-title">Contact Information</h5>
+                      </div>
+                      
+                      {/* 2x2 Grid Layout */}
+                      <div className="form-grid-2x2">
+                        <div className="form-group">
+                          <label className="form-label">
+                            Contact Person <span className="required">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-input ${errors.contact_person ? 'error' : ''}`}
+                            value={formData.contact_person}
+                            onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
+                            placeholder="Enter contact person name"
+                          />
+                          {errors.contact_person && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.contact_person}</div>}
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">
+                            Email Address <span className="required">*</span>
+                          </label>
+                          <input
+                            type="email"
+                            className={`form-input ${errors.email ? 'error' : ''}`}
+                            value={formData.email}
+                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                            placeholder="Enter email address"
+                          />
+                          {errors.email && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.email}</div>}
+                        </div>
+                        
+                        <div className="form-group">
+                          <label className="form-label">
+                            Phone Number <span className="required">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            className={`form-input ${errors.phone ? 'error' : ''}`}
+                            value={formData.phone}
+                            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                            placeholder="Enter phone number"
+                          />
+                          {errors.phone && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.phone}</div>}
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">
+                            Address <span className="required">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-input ${errors.address ? 'error' : ''}`}
+                            value={formData.address}
+                            onChange={(e) => setFormData({...formData, address: e.target.value})}
+                            placeholder="Enter complete address"
+                          />
+                          {errors.address && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.address}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Second Row: Bank Information & Description */}
+                  <div className="form-sections-row">
+                    {/* Bank Information Section */}
+                    <div className="form-section">
+                      <div className="form-section-header">
+                        <i className="fas fa-university form-section-icon"></i>
+                        <h5 className="form-section-title">Bank Information (Optional)</h5>
+                      </div>
+                      
                       <div className="form-group">
-                        <label className="form-label">Tax ID Number *</label>
+                        <label className="form-label">
+                          Bank Name
+                        </label>
                         <input
                           type="text"
-                          className={`form-input ${errors.tax_id ? 'error' : ''}`}
-                          value={formData.tax_id}
-                          onChange={(e) => setFormData({...formData, tax_id: e.target.value})}
-                          placeholder="Enter tax ID number"
+                          className={`form-input ${errors.bank_name ? 'error' : ''}`}
+                          value={formData.bank_name}
+                          onChange={(e) => setFormData({...formData, bank_name: e.target.value})}
+                          placeholder="e.g., BDO, BPI, Metrobank"
                         />
-                        {errors.tax_id && <div className="form-error">{errors.tax_id}</div>}
+                        {errors.bank_name && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.bank_name}</div>}
                       </div>
+
                       <div className="form-group">
-                        <label className="form-label">Bank Account *</label>
+                        <label className="form-label">
+                          Account Number
+                        </label>
                         <input
                           type="text"
-                          className={`form-input ${errors.bank_account ? 'error' : ''}`}
-                          value={formData.bank_account}
-                          onChange={(e) => setFormData({...formData, bank_account: e.target.value})}
-                          placeholder="Enter bank account number"
+                          className={`form-input ${errors.account_number ? 'error' : ''}`}
+                          value={formData.account_number}
+                          onChange={(e) => setFormData({...formData, account_number: e.target.value})}
+                          placeholder="Enter 10-16 digit account number"
                         />
-                        {errors.bank_account && <div className="form-error">{errors.bank_account}</div>}
+                        {errors.account_number && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.account_number}</div>}
                       </div>
-                    </>
-                  ) : (
-                    <>
+                      
                       <div className="form-group">
-                        <label className="form-label">Fund Code *</label>
-                        <input
-                          type="text"
-                          className={`form-input ${errors.fund_code ? 'error' : ''}`}
-                          value={formData.fund_code}
-                          onChange={(e) => setFormData({...formData, fund_code: e.target.value})}
-                          placeholder="Enter fund code (e.g., GF-001)"
-                        />
-                        {errors.fund_code && <div className="form-error">{errors.fund_code}</div>}
+                        <label className="form-label">Account Type</label>
+                        <select
+                          className="form-select"
+                          value={formData.account_type || 'savings'}
+                          onChange={(e) => setFormData({...formData, account_type: e.target.value})}
+                        >
+                          <option value="savings">Savings Account</option>
+                          <option value="checking">Checking Account</option>
+                          <option value="current">Current Account</option>
+                        </select>
                       </div>
-                      <div className="form-group full-width">
-                        <label className="form-label">Description *</label>
+                    </div>
+
+                    {/* Description Section */}
+                    <div className="form-section">
+                      <div className="form-section-header">
+                        <i className="fas fa-file-text form-section-icon"></i>
+                        <h5 className="form-section-title">Description & Notes</h5>
+                      </div>
+                      
+                      <div className="form-group">
+                        <label className="form-label">
+                          Description / Purpose <span className="required">*</span>
+                        </label>
                         <textarea
                           className={`form-textarea ${errors.description ? 'error' : ''}`}
                           value={formData.description}
                           onChange={(e) => setFormData({...formData, description: e.target.value})}
-                          placeholder="Enter fund description and purpose"
-                          rows="3"
+                          placeholder="Explain the use and purpose of this recipient account"
+                          rows="8"
                         />
-                        {errors.description && <div className="form-error">{errors.description}</div>}
+                        {errors.description && <div className="form-error"><i className="fas fa-exclamation-circle"></i>{errors.description}</div>}
                       </div>
-                    </>
-                  )}
+                    </div>
+                  </div>
+
                 </div>
               </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
-                  <i className="fas fa-times"></i> Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
-                  {loading ? 'Updating...' : 'Update Recipient'}
+              <div className="modal-footer modal-footer-enhanced">
+                <button type="submit" className="btn btn-primary btn-update-enhanced" disabled={updateRecipientMutation.isPending}>
+                  {updateRecipientMutation.isPending ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
+                  {updateRecipientMutation.isPending ? 'Updating...' : 'Update Recipient'}
                 </button>
               </div>
             </form>
@@ -1153,54 +1471,208 @@ const RecipientAccount = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && deletingRecipient && (
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">
-                <i className="fas fa-exclamation-triangle" style={{color: '#dc3545'}}></i> Confirm Delete
-              </h3>
-              <button className="modal-close" onClick={() => setShowDeleteModal(false)}>
-                <i className="fas fa-times"></i>
-              </button>
+          <div className="delete-modal-modern" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-header-modern">
+              <div className="delete-modal-title-wrapper">
+                <i className="fas fa-exclamation-triangle delete-modal-warning-icon"></i>
+                <h3 className="delete-modal-title-modern">Confirm Deletion</h3>
+              </div>
             </div>
-            <div className="modal-body">
-              <p>Are you sure you want to delete <strong>{deletingRecipient.name}</strong>?</p>
-              <p style={{color: '#dc3545', fontSize: '14px'}}>
-                <i className="fas fa-exclamation-triangle"></i> This action cannot be undone and will affect transaction history.
+            <div className="delete-modal-body-modern">
+              <p className="delete-modal-description">
+                Are you sure you want to delete <strong>{deletingRecipient.name}</strong>? This action cannot be undone and will permanently remove all associated data.
               </p>
             </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={() => setShowDeleteModal(false)}>
-                <i className="fas fa-times"></i> Cancel
+            <div className="delete-modal-footer-modern">
+              <button 
+                type="button" 
+                className="delete-modal-btn-cancel" 
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Cancel
               </button>
-              <button type="button" className="btn btn-danger" onClick={handleDeleteRecipient} disabled={loading}>
-                {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-trash"></i>}
-                {loading ? 'Deleting...' : 'Delete Recipient'}
+              <button 
+                type="button" 
+                className="delete-modal-btn-delete" 
+                onClick={handleDeleteRecipientConfirm} 
+                disabled={deleteRecipientMutation.isPending}
+              >
+                {deleteRecipientMutation.isPending ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i> Deleting...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-trash"></i> Delete
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Notification Modal */}
-      {showNotificationModal && (
-        <div className="modal-overlay" onClick={() => setShowNotificationModal(false)}>
-          <div className="notification-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="notification-header">
-              <div className={`notification-icon ${notification.type}`}>
-                <i className={`fas fa-${notification.type === 'success' ? 'check-circle' : notification.type === 'error' ? 'times-circle' : 'exclamation-triangle'}`}></i>
-              </div>
-              <h3 className="notification-title">{notification.title}</h3>
-              <p className="notification-message">{notification.message}</p>
-            </div>
-            <div className="notification-footer">
-              <button className="btn btn-primary" onClick={() => setShowNotificationModal(false)}>
-                <i className="fas fa-check"></i> OK
+      {/* Fund Account Selection Modal */}
+      {showFundAccountModal && (
+        <div className="modal-overlay" onClick={() => setShowFundAccountModal(false)}>
+          <div className="modal-content fund-account-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">
+                <i className="fas fa-university"></i> Select Fund Account
+              </h3>
+              <button className="modal-close" onClick={() => setShowFundAccountModal(false)}>
+                <i className="fas fa-times"></i>
               </button>
             </div>
+            
+            <div className="modal-body">
+              {/* Search Bar */}
+              <div className="search-bar-container">
+                <div className="search-input-wrapper">
+                  <i className="fas fa-search search-icon"></i>
+                  <input
+                    type="text"
+                    className="search-input"
+                    placeholder="Search by name, code, or type..."
+                    value={fundAccountSearch}
+                    onChange={(e) => setFundAccountSearch(e.target.value)}
+                    autoFocus
+                  />
+                  {fundAccountSearch && (
+                    <button
+                      className="clear-search"
+                      onClick={() => setFundAccountSearch("")}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  )}
+                </div>
+                <div className="search-results-count">
+                  {filteredFundAccounts.length} of {fundAccounts.length} accounts
+                </div>
+              </div>
+
+              {/* Fund Accounts List */}
+              <div className="fund-accounts-list">
+                {filteredFundAccounts.length === 0 ? (
+                  <div className="empty-state">
+                    <i className="fas fa-search"></i>
+                    <p>No fund accounts found</p>
+                    {fundAccountSearch && (
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setFundAccountSearch("")}
+                      >
+                        Clear Search
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  filteredFundAccounts.map((fund) => (
+                    <div
+                      key={fund.id}
+                      className={`fund-account-item ${
+                        parseInt(formData.fund_account_id) === parseInt(fund.id)
+                          ? "selected"
+                          : ""
+                      }`}
+                      onClick={() => handleFundAccountSelect(fund.id)}
+                    >
+                      <div className="fund-account-info">
+                        <div className="fund-account-header">
+                          <h4 className="fund-account-name">{fund.name}</h4>
+                          <span className="fund-account-code">{fund.code}</span>
+                        </div>
+                        <div className="fund-account-details">
+                          <span className="fund-account-type">
+                            <i className="fas fa-tag"></i> {fund.account_type}
+                          </span>
+                          {fund.department && (
+                            <span className="fund-account-dept">
+                              <i className="fas fa-building"></i> {fund.department}
+                            </span>
+                          )}
+                        </div>
+                        <div className="fund-account-balance">
+                          <span className="balance-label">Current Balance:</span>
+                          <span className="balance-amount">
+                            ₱{parseFloat(fund.current_balance || 0).toLocaleString('en-PH', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                      {parseInt(formData.fund_account_id) === parseInt(fund.id) && (
+                        <div className="selected-indicator">
+                          <i className="fas fa-check-circle"></i>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setFundAccountSearch("");
+                  setShowFundAccountModal(false);
+                }}
+              >
+                <i className="fas fa-times"></i> Cancel
+              </button>
+            </div> */}
           </div>
         </div>
       )}
-    </div>
+
+      {/* Notification Modal */}
+      {showNotificationModal && (
+        <div className="modal-overlay" style={{ zIndex: 2000 }}>
+          <div 
+            className="modal" 
+            style={{ 
+              maxWidth: '400px', 
+              textAlign: 'center',
+              animation: 'slideIn 0.3s ease'
+            }}
+          >
+            <div style={{ marginBottom: '20px' }}>
+              {notification.type === 'success' ? (
+                <div style={{ fontSize: '48px', color: '#16a34a', marginBottom: '15px' }}>
+                  <i className="fas fa-check-circle"></i>
+                </div>
+              ) : (
+                <div style={{ fontSize: '48px', color: '#dc2626', marginBottom: '15px' }}>
+                  <i className="fas fa-exclamation-circle"></i>
+                </div>
+              )}
+              <h4 style={{ 
+                color: notification.type === 'success' ? '#16a34a' : '#dc2626',
+                marginBottom: '10px'
+              }}>
+                {notification.type === 'success' ? 'Success!' : 'Error!'}
+              </h4>
+              <p style={{ color: '#333333', fontSize: '16px', lineHeight: '1.5' }}>
+                {notification.message}
+              </p>
+            </div>
+            <button 
+              className="btn btn-primary"
+              onClick={() => setShowNotificationModal(false)}
+              style={{ minWidth: '100px' }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+    </ErrorBoundary>
   );
 };
 
