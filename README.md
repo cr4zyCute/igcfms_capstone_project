@@ -204,7 +204,7 @@ const receivePayment = async (paymentData) => {
         type: 'Collection',
         amount: 5000.00,
         fund_account_id: 1,
-        recipient: 'John Doe',
+        recipient: 'Nikki Sixx Acosta',
         department: 'Finance',
         category: 'Tax Collection',
         mode_of_payment: 'Cash'

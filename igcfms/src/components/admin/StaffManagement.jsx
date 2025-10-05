@@ -6,9 +6,9 @@ const StaffManagement = () => {
   const [staffMembers, setStaffMembers] = useState([
     {
       id: 1,
-      name: "John Doe",
+      name: "Nikki Sixx Acosta",
       role: "Cashier",
-      email: "john@example.com",
+      email: "nikki@example.com",
       status: "active",
       phone: "+1234567890",
       department: "Finance",
