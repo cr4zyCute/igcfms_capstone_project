@@ -10,9 +10,9 @@ import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
 import AccountCard from '../ui/AccountCard';
 import QueryErrorFallback from '../common/QueryErrorBoundary';
+import Deletion from '../common/Deletion';
 import "../../assets/admin.css";
 import "./css/fundsaccount.css";
-
 
 const FundsAccounts = () => {
   // UI State
@@ -811,7 +811,7 @@ const FundsAccounts = () => {
           </div>
         </div>
       )}
-
+    {/* Edit Modal */}
       {showEditAccount && (
         <div className="modal-overlay" onClick={() => setShowEditAccount(false)}>
           <div className="modal edit-modal" onClick={(e) => e.stopPropagation()}>
@@ -985,50 +985,27 @@ const FundsAccounts = () => {
         </div>
       )}
 
-      {showDeleteModal && (
-        <div className="modal-overlay">
-          <div className="delete-modal-modern" onClick={(e) => e.stopPropagation()}>
-            <div className="delete-modal-header-modern">
-              <div className="delete-modal-title-wrapper">
-                <i className="fas fa-exclamation-triangle delete-modal-warning-icon"></i>
-                <h3 className="delete-modal-title-modern">Confirm Deletion</h3>
-              </div>
-            </div>
-            <div className="delete-modal-body-modern">
-              <p className="delete-modal-description">
-                Are you sure you want to delete this fund account? This action cannot be undone and will permanently remove all associated data.
-              </p>
-            </div>
-            <div className="delete-modal-footer-modern">
-              <button 
-                onClick={closeDeleteModal} 
-                className="delete-modal-btn-cancel"
-                disabled={deleteAccountMutation.isPending}
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleDeleteAccountConfirm}
-                disabled={deleteAccountMutation.isPending}
-                className="delete-modal-btn-delete"
-              >
-                {deleteAccountMutation.isPending ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i>
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-trash"></i>
-                    Delete
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Modal */}  
+      <Deletion
+        isOpen={showDeleteModal}
+        onClose={closeDeleteModal}
+        onConfirm={handleDeleteAccountConfirm}
+        loading={deleteAccountMutation.isPending}
+        title="CONFIRM DELETION"
+        message="Are you sure you want to delete this fund account? This action cannot be undone and will permanently remove all associated data."
+        itemDetails={deletingAccountId ? (() => {
+          const accountToDelete = accounts.find(acc => acc.id === deletingAccountId);
+          return accountToDelete ? [
+            { label: "Account Name", value: accountToDelete.name },
+            { label: "Account Type", value: accountToDelete.account_type },
+            { label: "Current Balance", value: `₱${parseFloat(accountToDelete.current_balance || 0).toLocaleString()}` }
+          ] : [];
+        })() : []}
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
 
+      {/* Accounts Overview */}
       <div className="accounts-overview">
         <>
           <h4 className="sr-only">Fund Accounts List</h4>

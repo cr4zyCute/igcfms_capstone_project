@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "./css/issuereceipt.css";
+import Deletion from '../common/Deletion';
+import DisbursementTrends from '../analytics/disbursementAnalytics';
+import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
+import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
 
 // Import Chart.js properly
 import Chart from 'chart.js/auto';
@@ -70,10 +74,8 @@ const IssueReceipt = () => {
   
   // Chart refs
   const monthlyChartRef = useRef(null);
-  const distributionChartRef = useRef(null);
   const receiptsCountChartRef = useRef(null);
   const monthlyChartInstance = useRef(null);
-  const distributionChartInstance = useRef(null);
   const receiptsCountChartInstance = useRef(null);
   
   // Form states
@@ -86,12 +88,11 @@ const IssueReceipt = () => {
 
   // Filter states
   const [filters, setFilters] = useState({
-    status: "all",
+    activeFilter: "all", // all, latest, oldest, highest, lowest
     dateFrom: "",
     dateTo: "",
     searchTerm: "",
-    showFilterDropdown: false,
-    sortBy: "latest" // latest, oldest, highest, lowest
+    showFilterDropdown: false
   });
 
   const [showIssueModal, setShowIssueModal] = useState(false);
@@ -99,11 +100,14 @@ const IssueReceipt = () => {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showIssueFormModal, setShowIssueFormModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [receiptToDelete, setReceiptToDelete] = useState(null);
   const [receiptResult, setReceiptResult] = useState(null);
   const [transactionSearch, setTransactionSearch] = useState("");
   const [filteredTransactions, setFilteredTransactions] = useState([]);
-  const [trendPeriod, setTrendPeriod] = useState("month"); // week, month, year
+  const [trendPeriod, setTrendPeriod] = useState('month');
+  const [disbursementPeriod, setDisbursementPeriod] = useState('week'); // week, month, year
   const [editFormData, setEditFormData] = useState({
     id: null,
     payerName: "",
@@ -135,9 +139,6 @@ const IssueReceipt = () => {
       // Cleanup charts on unmount
       if (monthlyChartInstance.current) {
         monthlyChartInstance.current.destroy();
-      }
-      if (distributionChartInstance.current) {
-        distributionChartInstance.current.destroy();
       }
       if (receiptsCountChartInstance.current) {
         receiptsCountChartInstance.current.destroy();
@@ -177,12 +178,14 @@ const IssueReceipt = () => {
   const applyFilters = () => {
     let filtered = [...receipts];
 
-    // Status filter (based on issued date - recent vs older)
-    if (filters.status === "recent") {
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
+    // Search term filter
+    if (filters.searchTerm) {
+      const searchLower = filters.searchTerm.toLowerCase();
       filtered = filtered.filter(receipt => 
-        new Date(receipt.issued_at || receipt.created_at) >= weekAgo
+        receipt.payer_name?.toLowerCase().includes(searchLower) ||
+        receipt.receipt_number?.toLowerCase().includes(searchLower) ||
+        receipt.transaction_id?.toString().includes(searchLower) ||
+        receipt.id.toString().includes(searchLower)
       );
     }
 
@@ -198,40 +201,29 @@ const IssueReceipt = () => {
       );
     }
 
-    // Search term filter
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(receipt => 
-        receipt.payer_name?.toLowerCase().includes(searchLower) ||
-        receipt.receipt_number?.toLowerCase().includes(searchLower) ||
-        receipt.transaction_id?.toString().includes(searchLower) ||
-        receipt.id.toString().includes(searchLower)
-      );
-    }
-
-    // Sort filter
-    if (filters.sortBy) {
+    // Apply active filter (sort/filter based on selection)
+    if (filters.activeFilter === 'latest') {
+      // Latest to oldest by date
+      filtered.sort((a, b) => new Date(b.issued_at || b.created_at) - new Date(a.issued_at || a.created_at));
+    } else if (filters.activeFilter === 'oldest') {
+      // Oldest to latest by date
+      filtered.sort((a, b) => new Date(a.issued_at || a.created_at) - new Date(b.issued_at || b.created_at));
+    } else if (filters.activeFilter === 'highest') {
+      // Highest to lowest amount
       filtered.sort((a, b) => {
-        if (filters.sortBy === 'latest') {
-          // Latest to oldest by date
-          return new Date(b.issued_at || b.created_at) - new Date(a.issued_at || a.created_at);
-        } else if (filters.sortBy === 'oldest') {
-          // Oldest to latest by date
-          return new Date(a.issued_at || a.created_at) - new Date(b.issued_at || b.created_at);
-        } else if (filters.sortBy === 'highest') {
-          // Highest to lowest amount
-          const amountA = transactions.find(t => t.id === a.transaction_id)?.amount || 0;
-          const amountB = transactions.find(t => t.id === b.transaction_id)?.amount || 0;
-          return parseFloat(amountB) - parseFloat(amountA);
-        } else if (filters.sortBy === 'lowest') {
-          // Lowest to highest amount
-          const amountA = transactions.find(t => t.id === a.transaction_id)?.amount || 0;
-          const amountB = transactions.find(t => t.id === b.transaction_id)?.amount || 0;
-          return parseFloat(amountA) - parseFloat(amountB);
-        }
-        return 0;
+        const amountA = transactions.find(t => t.id === a.transaction_id)?.amount || 0;
+        const amountB = transactions.find(t => t.id === b.transaction_id)?.amount || 0;
+        return parseFloat(amountB) - parseFloat(amountA);
+      });
+    } else if (filters.activeFilter === 'lowest') {
+      // Lowest to highest amount
+      filtered.sort((a, b) => {
+        const amountA = transactions.find(t => t.id === a.transaction_id)?.amount || 0;
+        const amountB = transactions.find(t => t.id === b.transaction_id)?.amount || 0;
+        return parseFloat(amountA) - parseFloat(amountB);
       });
     }
+    // 'all' doesn't need any special sorting, just shows all receipts
 
     setFilteredReceipts(filtered);
   };
@@ -263,10 +255,11 @@ const IssueReceipt = () => {
 
   const clearFilters = () => {
     setFilters({
-      status: "all",
+      activeFilter: "all",
       dateFrom: "",
       dateTo: "",
-      searchTerm: ""
+      searchTerm: "",
+      showFilterDropdown: false
     });
   };
 
@@ -477,6 +470,26 @@ const IssueReceipt = () => {
     } catch (err) {
       console.error('Error updating receipt:', err);
       showMessage(err.response?.data?.message || 'Failed to update receipt.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete receipt
+  const deleteReceipt = async () => {
+    try {
+      setLoading(true);
+      const headers = { Authorization: `Bearer ${token}` };
+
+      await axios.delete(`${API_BASE}/receipts/${receiptToDelete.id}`, { headers });
+      
+      showMessage('Receipt deleted successfully!', 'success');
+      setShowDeleteModal(false);
+      setReceiptToDelete(null);
+      fetchInitialData(); // Refresh data
+    } catch (err) {
+      console.error('Error deleting receipt:', err);
+      showMessage(err.response?.data?.message || 'Failed to delete receipt.', 'error');
     } finally {
       setLoading(false);
     }
@@ -700,427 +713,8 @@ const IssueReceipt = () => {
     if (monthlyChartInstance.current) {
       monthlyChartInstance.current.destroy();
     }
-    if (distributionChartInstance.current) {
-      distributionChartInstance.current.destroy();
-    }
     if (receiptsCountChartInstance.current) {
       receiptsCountChartInstance.current.destroy();
-    }
-
-    // Enhanced Revenue Trend Chart
-    if (monthlyChartRef.current) {
-      const ctx = monthlyChartRef.current.getContext('2d');
-      
-      // Create gradient
-      const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-      gradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)');
-      gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
-
-      monthlyChartInstance.current = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: analyticsData.monthlyTrend.map(d => d.shortMonth),
-          datasets: [{
-            label: 'Revenue (₱)',
-            data: analyticsData.monthlyTrend.map(d => d.amount),
-            borderColor: '#3b82f6',
-            backgroundColor: gradient,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointBackgroundColor: analyticsData.monthlyTrend.map(d => d.isCurrentMonth ? '#10b981' : '#3b82f6'),
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2,
-            pointRadius: analyticsData.monthlyTrend.map(d => d.isCurrentMonth ? 6 : 4),
-            pointHoverRadius: 8
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: {
-            duration: 2000,
-            easing: 'easeInOutQuart'
-          },
-          plugins: {
-            legend: {
-              display: false
-            },
-            tooltip: {
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              titleColor: '#ffffff',
-              bodyColor: '#ffffff',
-              borderColor: '#3b82f6',
-              borderWidth: 1,
-              cornerRadius: 8,
-              displayColors: false,
-              titleFont: { size: 12, weight: 'bold' },
-              bodyFont: { size: 11 },
-              callbacks: {
-                title: (context) => context[0].label,
-                label: (context) => {
-                  const dataPoint = analyticsData.monthlyTrend[context.dataIndex];
-                  const growth = dataPoint.growth;
-                  const growthText = growth > 0 ? `↗ +${growth.toFixed(1)}%` : growth < 0 ? `↘ ${growth.toFixed(1)}%` : '→ 0%';
-                  return [
-                    `Revenue: ₱${context.parsed.y.toLocaleString()}`,
-                    `Receipts: ${dataPoint.count}`,
-                    `Growth: ${growthText}`
-                  ];
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              display: false,
-              grid: {
-                display: false
-              }
-            },
-            x: {
-              display: false,
-              grid: {
-                display: false
-              }
-            }
-          },
-          elements: {
-            point: {
-              hoverBorderWidth: 3
-            }
-          },
-          interaction: {
-            intersect: false,
-            mode: 'index'
-          }
-        }
-      });
-    }
-
-    // Enhanced Receipt Distribution Chart
-    if (distributionChartRef.current && analyticsData.payerDistribution.length) {
-      const ctx = distributionChartRef.current.getContext('2d');
-      const colors = ['#1f2937', '#374151', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db'];
-      
-      distributionChartInstance.current = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: analyticsData.payerDistribution.map(d => d.name),
-          datasets: [{
-            label: 'Receipts by Payer',
-            data: analyticsData.payerDistribution.map(d => d.count),
-            backgroundColor: colors.slice(0, analyticsData.payerDistribution.length),
-            borderColor: '#ffffff',
-            borderWidth: 3,
-            hoverBorderWidth: 4,
-            hoverOffset: 10
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '60%',
-          animation: {
-            animateRotate: true,
-            animateScale: true,
-            duration: 1500,
-            easing: 'easeInOutQuart'
-          },
-          plugins: {
-            legend: {
-              display: false
-            },
-            tooltip: {
-              backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              titleColor: '#ffffff',
-              bodyColor: '#ffffff',
-              borderColor: '#3b82f6',
-              borderWidth: 1,
-              cornerRadius: 8,
-              displayColors: true,
-              titleFont: { size: 12, weight: 'bold' },
-              bodyFont: { size: 11 },
-              callbacks: {
-                title: (context) => context[0].label,
-                label: (context) => {
-                  const dataPoint = analyticsData.payerDistribution[context.dataIndex];
-                  return [
-                    `Receipts: ${dataPoint.count}`,
-                    `Amount: ₱${dataPoint.amount.toLocaleString()}`,
-                    `Share: ${dataPoint.percentage}%`
-                  ];
-                }
-              }
-            }
-          },
-          interaction: {
-            intersect: false
-          },
-          onHover: (event, activeElements) => {
-            event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
-          }
-        }
-      });
-    }
-
-    // Monthly Receipts Count Chart (Multi-Line Business Intelligence Dashboard)
-    if (receiptsCountChartRef.current) {
-      const ctx = receiptsCountChartRef.current.getContext('2d');
-      
-      // Professional color palette for business analytics
-      const colors = {
-        navy: '#001F3F',      // Deep navy blue
-        orange: '#FF851B',    // Burnt orange
-        teal: '#39CCCC'       // Teal
-      };
-      
-      // Calculate cumulative and average trends for multi-line display
-      const receiptsData = analyticsData.monthlyTrend.map(d => d.count);
-      const amountData = analyticsData.monthlyTrend.map(d => Math.round(d.amount / 1000)); // In thousands
-      
-      // Calculate moving average (smoothed trend)
-      const movingAverage = receiptsData.map((val, idx, arr) => {
-        if (idx === 0) return val;
-        if (idx === 1) return Math.round((arr[0] + arr[1]) / 2);
-        return Math.round((arr[idx - 2] + arr[idx - 1] + arr[idx]) / 3);
-      });
-      
-      receiptsCountChartInstance.current = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: analyticsData.monthlyTrend.map(d => d.shortMonth),
-          datasets: [
-            {
-              label: 'Receipts Issued',
-              data: receiptsData,
-              borderColor: colors.navy,
-              backgroundColor: 'transparent',
-              borderWidth: 2.5,
-              fill: false,
-              tension: 0.2, // Slightly angular, realistic data trend
-              pointRadius: 5,
-              pointHoverRadius: 7,
-              pointBackgroundColor: colors.navy,
-              pointBorderColor: '#ffffff',
-              pointBorderWidth: 2,
-              pointHoverBackgroundColor: colors.navy,
-              pointHoverBorderColor: '#ffffff',
-              pointHoverBorderWidth: 3,
-              shadowOffsetX: 0,
-              shadowOffsetY: 2,
-              shadowBlur: 4,
-              shadowColor: 'rgba(0, 31, 63, 0.3)'
-            },
-            {
-              label: 'Revenue (₱K)',
-              data: amountData,
-              borderColor: colors.orange,
-              backgroundColor: 'transparent',
-              borderWidth: 2.5,
-              fill: false,
-              tension: 0.2,
-              pointRadius: 5,
-              pointHoverRadius: 7,
-              pointBackgroundColor: colors.orange,
-              pointBorderColor: '#ffffff',
-              pointBorderWidth: 2,
-              pointHoverBackgroundColor: colors.orange,
-              pointHoverBorderColor: '#ffffff',
-              pointHoverBorderWidth: 3,
-              shadowOffsetX: 0,
-              shadowOffsetY: 2,
-              shadowBlur: 4,
-              shadowColor: 'rgba(255, 133, 27, 0.3)'
-            },
-            {
-              label: 'Trend (3-period MA)',
-              data: movingAverage,
-              borderColor: colors.teal,
-              backgroundColor: 'transparent',
-              borderWidth: 2.5,
-              fill: false,
-              tension: 0.2,
-              pointRadius: 5,
-              pointHoverRadius: 7,
-              pointBackgroundColor: colors.teal,
-              pointBorderColor: '#ffffff',
-              pointBorderWidth: 2,
-              pointHoverBackgroundColor: colors.teal,
-              pointHoverBorderColor: '#ffffff',
-              pointHoverBorderWidth: 3,
-              borderDash: [5, 3], // Dashed line for trend
-              shadowOffsetX: 0,
-              shadowOffsetY: 2,
-              shadowBlur: 4,
-              shadowColor: 'rgba(57, 204, 204, 0.3)'
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: {
-            duration: 1800,
-            easing: 'easeInOutQuart'
-          },
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top',
-              align: 'end',
-              labels: {
-                usePointStyle: true,
-                pointStyle: 'circle',
-                padding: 15,
-                font: {
-                  size: 11,
-                  weight: '600',
-                  family: "'Inter', 'Segoe UI', sans-serif"
-                },
-                color: '#4b5563',
-                boxWidth: 8,
-                boxHeight: 8
-              }
-            },
-            tooltip: {
-              enabled: true,
-              backgroundColor: 'rgba(255, 255, 255, 0.98)',
-              titleColor: '#1f2937',
-              bodyColor: '#4b5563',
-              borderColor: '#d1d5db',
-              borderWidth: 1,
-              cornerRadius: 8,
-              displayColors: true,
-              padding: 12,
-              titleFont: { 
-                size: 12, 
-                weight: '700',
-                family: "'Inter', 'Segoe UI', sans-serif"
-              },
-              bodyFont: { 
-                size: 11,
-                weight: '500',
-                family: "'Inter', 'Segoe UI', sans-serif"
-              },
-              caretSize: 6,
-              caretPadding: 10,
-              boxPadding: 4,
-              usePointStyle: true,
-              callbacks: {
-                title: (context) => `Week: ${context[0].label}`,
-                label: (context) => {
-                  const label = context.dataset.label || '';
-                  const value = context.parsed.y;
-                  if (label.includes('Revenue')) {
-                    return `${label}: ₱${value}K`;
-                  }
-                  return `${label}: ${value}`;
-                },
-                afterBody: (context) => {
-                  const dataPoint = analyticsData.monthlyTrend[context[0].dataIndex];
-                  if (dataPoint.amount > 0) {
-                    return `\nTotal Amount: ₱${dataPoint.amount.toLocaleString()}`;
-                  }
-                  return '';
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Receipts Issued',
-                color: '#6b7280',
-                font: {
-                  size: 12,
-                  weight: '600',
-                  family: "'Inter', 'Segoe UI', sans-serif"
-                },
-                padding: { top: 0, bottom: 10 }
-              },
-              ticks: {
-                stepSize: 5,
-                color: '#9ca3af',
-                font: { 
-                  size: 11,
-                  weight: '500',
-                  family: "'Inter', 'Segoe UI', sans-serif"
-                },
-                padding: 8
-              },
-              grid: {
-                color: 'rgba(0, 0, 0, 0.06)',
-                drawBorder: false,
-                lineWidth: 1
-              },
-              border: {
-                display: false
-              }
-            },
-            x: {
-              title: {
-                display: true,
-                text: 'Week',
-                color: '#6b7280',
-                font: {
-                  size: 12,
-                  weight: '600',
-                  family: "'Inter', 'Segoe UI', sans-serif"
-                },
-                padding: { top: 10, bottom: 0 }
-              },
-              ticks: {
-                color: '#9ca3af',
-                font: { 
-                  size: 11,
-                  weight: '500',
-                  family: "'Inter', 'Segoe UI', sans-serif"
-                },
-                padding: 8
-              },
-              grid: {
-                color: 'rgba(0, 0, 0, 0.04)',
-                drawBorder: false,
-                lineWidth: 1
-              },
-              border: {
-                display: false
-              }
-            }
-          },
-          elements: {
-            line: {
-              borderCapStyle: 'round',
-              borderJoinStyle: 'round'
-            },
-            point: {
-              hoverBorderWidth: 3
-            }
-          },
-          interaction: {
-            intersect: false,
-            mode: 'index'
-          }
-        },
-        plugins: [{
-          // Custom plugin for subtle line shadows (soft realism)
-          beforeDatasetsDraw: (chart) => {
-            const ctx = chart.ctx;
-            ctx.save();
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 2;
-            ctx.shadowBlur = 4;
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
-          },
-          afterDatasetsDraw: (chart) => {
-            chart.ctx.restore();
-          }
-        }]
-      });
     }
   };
 
@@ -1282,98 +876,27 @@ const IssueReceipt = () => {
               </div>
             </div>
 
-            {/* Box 1: Placeholder */}
-            <div className="dashboard-box box-1">
-              <div className="box-content box-1-empty">
-                <div className="empty-box-placeholder">
-                  <i className="fas fa-chart-area"></i>
-                  <p>Box 1</p>
-                </div>
-              </div>
-            </div>
+            {/* Box 1: Disbursement Trends Component */}
+            <DisbursementTrends 
+              receipts={receipts}
+              transactions={transactions}
+              disbursementPeriod={disbursementPeriod}
+              onPeriodChange={setDisbursementPeriod}
+            />
           </div>
 
-          {/* Box 2: Receipt Distribution with Top 3 Payers (Top-Right) */}
-          <div className="dashboard-box box-2 box-2-dark-theme">
-            <div className="box-header box-2-dark-header">
-              <h3 className="box-title">Box 2</h3>
-              <span className="box-subtitle">TOP 3 PAYERS</span>
-            </div>
-            <div className="box-content">
-              {analyticsData.isLoading ? (
-                <div className="chart-loading">
-                  <i className="fas fa-chart-pie"></i>
-                  <span>Loading distribution...</span>
-                </div>
-              ) : analyticsData.error ? (
-                <div className="chart-error">
-                  <i className="fas fa-exclamation-triangle"></i>
-                  <span>Failed to load chart</span>
-                </div>
-              ) : (
-                <div className="box-2-layout">
-                  <div className="box-2-chart-section">
-                    <canvas ref={distributionChartRef} id="distributionChart"></canvas>
-                  </div>
-                  <div className="box-2-payers-section">
-                    <h4 className="box-2-payers-title">TOP 3 PAYERS</h4>
-                    {analyticsData.payerDistribution.slice(0, 3).map((payer, index) => (
-                      <div key={index} className="box-2-payer-row">
-                        <div className="box-2-payer-left">
-                          <div className={`box-2-badge badge-${index + 1}`}>#{index + 1}</div>
-                          <div className="box-2-payer-name" title={payer.fullName}>{payer.fullName}</div>
-                        </div>
-                        <div className="box-2-payer-right">
-                          <span className="box-2-amount">₱{payer.amount.toLocaleString()}</span>
-                          <span className="box-2-receipts">{payer.count} receipts</span>
-                          <span className="box-2-percentage">{payer.percentage}%</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Right Column: Box 2 and Box 3 */}
+          <div className="right-column">
+            {/* Box 2: Payer Distribution Analytics Component */}
+            <PayerDistributionAnalytics 
+              analyticsData={analyticsData}
+            />
 
-          {/* Box 3: Monthly Issued Receipts Trend (Bottom-Right) */}
-          <div className="dashboard-box box-3">
-            <div className="box-header">
-              <div className="box-title-with-indicator">
-                <h3 className="box-title">Box 3</h3>
-                <div className="trend-indicator">
-                  <span className="indicator-dot"></span>
-                  <span className="indicator-text">Live</span>
-                </div>
-              </div>
-              <select 
-                value={trendPeriod} 
-                onChange={(e) => setTrendPeriod(e.target.value)}
-                className="period-selector"
-              >
-                <option value="hour">Hourly</option>
-                <option value="week">Weekly</option>
-                <option value="month">Monthly</option>
-                <option value="year">Yearly</option>
-              </select>
-            </div>
-            <div className="box-content">
-              {analyticsData.isLoading ? (
-                <div className="chart-loading">
-                  <i className="fas fa-chart-bar"></i>
-                  <span>Loading receipts trend...</span>
-                </div>
-              ) : analyticsData.error ? (
-                <div className="chart-error">
-                  <i className="fas fa-exclamation-triangle"></i>
-                  <span>Failed to load chart</span>
-                </div>
-              ) : (
-                <div className="chart-container-full">
-                  <canvas ref={receiptsCountChartRef} id="receiptsCountChart"></canvas>
-                </div>
-              )}
-            </div>
+            {/* Box 3: Receipt Count Analytics Component */}
+            <ReceiptCountAnalytics 
+              receipts={receipts}
+              analyticsData={analyticsData}
+            />
           </div>
         </div>
       </div>
@@ -1409,9 +932,10 @@ const IssueReceipt = () => {
               >
                 <i className="fas fa-filter"></i>
                 <span className="filter-label">
-                  {filters.sortBy === 'latest' ? 'Latest First' : 
-                   filters.sortBy === 'oldest' ? 'Oldest First' : 
-                   filters.sortBy === 'highest' ? 'Highest Amount' : 
+                  {filters.activeFilter === 'all' ? 'All Receipts' :
+                   filters.activeFilter === 'latest' ? 'Latest First' : 
+                   filters.activeFilter === 'oldest' ? 'Oldest First' : 
+                   filters.activeFilter === 'highest' ? 'Highest Amount' : 
                    'Lowest Amount'}
                 </span>
                 <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
@@ -1419,59 +943,45 @@ const IssueReceipt = () => {
               
               {filters.showFilterDropdown && (
                 <div className="filter-dropdown-menu">
-                  <div className="filter-section-title">Sort by Date</div>
                   <button
-                    className={`filter-option ${filters.sortBy === 'latest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('sortBy', 'latest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-arrow-down"></i>
-                    <span>Latest First</span>
-                    {filters.sortBy === 'latest' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.sortBy === 'oldest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('sortBy', 'oldest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-arrow-up"></i>
-                    <span>Oldest First</span>
-                    {filters.sortBy === 'oldest' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  
-                  <div className="filter-section-title">Sort by Amount</div>
-                  <button
-                    className={`filter-option ${filters.sortBy === 'highest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('sortBy', 'highest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-sort-amount-down"></i>
-                    <span>Highest Amount</span>
-                    {filters.sortBy === 'highest' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.sortBy === 'lowest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('sortBy', 'lowest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-sort-amount-up"></i>
-                    <span>Lowest Amount</span>
-                    {filters.sortBy === 'lowest' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  
-                  <div className="filter-section-divider"></div>
-                  <div className="filter-section-title">Filter by Status</div>
-                  <button
-                    className={`filter-option ${filters.status === 'all' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('status', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                    className={`filter-option ${filters.activeFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
                   >
                     <i className="fas fa-list"></i>
                     <span>All Receipts</span>
-                    {filters.status === 'all' && <i className="fas fa-check filter-check"></i>}
+                    {filters.activeFilter === 'all' && <i className="fas fa-check filter-check"></i>}
                   </button>
                   <button
-                    className={`filter-option ${filters.status === 'recent' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('status', 'recent'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                    className={`filter-option ${filters.activeFilter === 'latest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'latest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
                   >
-                    <i className="fas fa-clock"></i>
-                    <span>Recent (Last 7 days)</span>
-                    {filters.status === 'recent' && <i className="fas fa-check filter-check"></i>}
+                    <i className="fas fa-arrow-down"></i>
+                    <span>Latest First</span>
+                    {filters.activeFilter === 'latest' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'oldest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'oldest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-arrow-up"></i>
+                    <span>Oldest First</span>
+                    {filters.activeFilter === 'oldest' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'highest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'highest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-sort-amount-down"></i>
+                    <span>Highest Amount</span>
+                    {filters.activeFilter === 'highest' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'lowest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'lowest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-sort-amount-up"></i>
+                    <span>Lowest Amount</span>
+                    {filters.activeFilter === 'lowest' && <i className="fas fa-check filter-check"></i>}
                   </button>
                 </div>
               )}
@@ -1508,7 +1018,7 @@ const IssueReceipt = () => {
                   return (
                     <tr 
                       key={receipt.id} 
-                      className="table-row clickable-row"
+                      className={`table-row clickable-row ${openActionMenu === receipt.id ? 'row-active-menu' : ''}`}
                       onClick={(e) => {
                         // Don't trigger if clicking on action buttons
                         if (!e.target.closest('.action-cell')) {
@@ -1586,9 +1096,8 @@ const IssueReceipt = () => {
                                     className="action-dropdown-item danger"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (window.confirm('Are you sure you want to delete this receipt?')) {
-                                        console.log('Delete receipt:', receipt.id);
-                                      }
+                                      setReceiptToDelete(receipt);
+                                      setShowDeleteModal(true);
                                       setOpenActionMenu(null);
                                     }}
                                   >
@@ -1836,6 +1345,7 @@ const IssueReceipt = () => {
                 </div>
               </div>
             </div>
+            
           </div>
         </div>
       )}
@@ -1975,6 +1485,7 @@ const IssueReceipt = () => {
                       type="button"
                       className="transaction-select-btn"
                       onClick={openTransactionModal}
+                      style={{ width: '100%', height: '42px', padding: '12px 16px' }}
                     >
                       <span className="selected-transaction">
                         {getSelectedTransactionDisplay()}
@@ -1987,6 +1498,7 @@ const IssueReceipt = () => {
                         className="clear-selection-btn"
                         onClick={() => handleInputChange('transactionId', '')}
                         title="Clear Selection"
+                        style={{ width: '100%', height: '42px' }}
                       >
                         <i className="fas fa-times"></i>
                       </button>
@@ -2007,6 +1519,7 @@ const IssueReceipt = () => {
                       }}
                       required
                       className={powerNameError ? 'error' : ''}
+                      style={{ width: '100%', height: '42px', padding: '12px 16px', boxSizing: 'border-box' }}
                     />
                     {powerNameError && (
                       <div className="error-message">
@@ -2025,6 +1538,7 @@ const IssueReceipt = () => {
                       required
                       readOnly
                       className="auto-generated-field"
+                      style={{ width: '100%', height: '42px', padding: '12px 16px', boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
@@ -2035,6 +1549,7 @@ const IssueReceipt = () => {
                     type="date"
                     value={formData.issueDate}
                     onChange={(e) => handleInputChange('issueDate', e.target.value)}
+                    style={{ width: '100%', height: '42px', padding: '12px 16px', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
@@ -2066,7 +1581,7 @@ const IssueReceipt = () => {
         <div className="edit-modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="edit-modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="edit-modal-header">
-              <h3 className="edit-modal-title">
+              <h3 style={{ color: 'white' }} className="edit-modal-title">
                 <i className="fas fa-edit"></i>
                 Edit Receipt
               </h3>
@@ -2116,9 +1631,10 @@ const IssueReceipt = () => {
                       Issue Date
                     </label>
                     <input
-                      type="text"
+                      type="date"
                       className="edit-form-input"
-                      value={editFormData.issueDate ? new Date(editFormData.issueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : ''}
+                      value={editFormData.issueDate}
+                      onChange={(e) => handleEditInputChange('issueDate', e.target.value)}
                       disabled
                     />
                   </div>
@@ -2169,14 +1685,7 @@ const IssueReceipt = () => {
 
                 {/* Modal Footer */}
                 <div className="edit-modal-footer">
-                  <button
-                    type="button"
-                    className="edit-btn edit-btn-cancel"
-                    onClick={() => setShowEditModal(false)}
-                  >
-                    <i className="fas fa-times"></i>
-                    Cancel
-                  </button>
+              
                   <button
                     type="submit"
                     className="edit-btn edit-btn-save"
@@ -2200,7 +1709,23 @@ const IssueReceipt = () => {
           </div>
         </div>
       )}
-      
+
+      {/* Delete Confirmation Modal */}
+        <Deletion
+          isOpen={showDeleteModal && !!receiptToDelete}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={deleteReceipt}
+          loading={loading}
+          title="CONFIRM DELETION"
+          message="Are you sure you want to delete this receipt? This action cannot be undone and will permanently remove all associated data."
+          itemDetails={receiptToDelete ? [
+            { label: "Receipt Number", value: receiptToDelete.receipt_number },
+            { label: "Payer Name", value: receiptToDelete.payer_name },
+            { label: "Transaction ID", value: `#${receiptToDelete.transaction_id}` }
+          ] : []}
+          confirmText="Delete"
+          cancelText="Cancel"
+        />
     </div>
   );
 };

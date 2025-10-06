@@ -16,10 +16,28 @@ import "../../assets/admin.css";
 import "./css/recipientaccount.css";
 import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
+import Deletion from '../common/Deletion';
 
 const RecipientAccount = () => {
   // State for fund accounts
   const [fundAccounts, setFundAccounts] = useState([]);
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [showTransactionHistory, setShowTransactionHistory] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showFundAccountModal, setShowFundAccountModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingRecipient, setDeletingRecipient] = useState(null);
+  const [editingRecipient, setEditingRecipient] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [notificationType, setNotificationType] = useState("success");
+  const [fundAccountSearch, setFundAccountSearch] = useState("");
   
   // React Query client for manual cache updates
   const queryClient = useQueryClient();
@@ -28,35 +46,24 @@ const RecipientAccount = () => {
   const { 
     data: recipients = [], 
     isLoading: recipientsLoading, 
-    error: recipientsError,
-    refetch: refetchRecipients 
+    error: recipientsError
   } = useRecipientAccounts();
-  
-  // Mutation hooks
+
+  // React Query mutations
   const createRecipientMutation = useCreateRecipientAccount();
   const updateRecipientMutation = useUpdateRecipientAccount();
   const deleteRecipientMutation = useDeleteRecipientAccount();
   const toggleStatusMutation = useToggleRecipientStatus();
 
-  // Modal and form states
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showNotificationModal, setShowNotificationModal] = useState(false);
-  const [showFundAccountModal, setShowFundAccountModal] = useState(false);
-  const [fundAccountSearch, setFundAccountSearch] = useState("");
-  
-  // Filter and search states
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  
-  // Generate unique fund code function (moved up for initialization)
+  // Generate fund code helper function
   const generateFundCode = (accountType, fundAccount = null) => {
     const prefixes = {
-      'collection': 'CF',
-      'disbursement': 'DF', 
-      'trust': 'TF'
+      'disbursement': 'DB',
+      'collection': 'CL',
+      'vendor': 'VD',
+      'employee': 'EM',
+      'contractor': 'CT',
+      'supplier': 'SP'
     };
     
     const prefix = prefixes[accountType.toLowerCase()] || 'GF';
@@ -87,24 +94,19 @@ const RecipientAccount = () => {
     status: "active"
   });
   
-  // Other states
-  const [editingRecipient, setEditingRecipient] = useState(null);
-  const [deletingRecipient, setDeletingRecipient] = useState(null);
+  // Additional states
   const [notification, setNotification] = useState({
     type: "success",
     title: "",
     message: ""
   });
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
   
   // Combined loading state for all operations
   const isLoading = loading || recipientsLoading || createRecipientMutation.isPending || 
                    updateRecipientMutation.isPending || deleteRecipientMutation.isPending || 
                    toggleStatusMutation.isPending;
-  const [errors, setErrors] = useState({});
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const [showTransactionHistory, setShowTransactionHistory] = useState(false);
-  const [selectedRecipient, setSelectedRecipient] = useState(null);
 
   const selectedFundAccountDetails = useMemo(() => {
     if (!formData.fund_account_id) return null;
@@ -124,13 +126,21 @@ const RecipientAccount = () => {
     });
   }, [fundAccounts, fundAccountSearch]);
   
-  // Transaction query
+  // Transaction query for selected recipient (transaction history modal)
   const {
     data: transactions = [],
     isLoading: transactionsLoading,
     error: transactionsError
   } = useRecipientTransactions(selectedRecipient?.id, {
     enabled: !!selectedRecipient && showTransactionHistory
+  });
+
+  // Transaction query for deleting recipient (to get count for delete modal)
+  const {
+    data: deletingRecipientTransactions = [],
+    isLoading: deletingTransactionsLoading
+  } = useRecipientTransactions(deletingRecipient?.id, {
+    enabled: !!deletingRecipient && showDeleteModal
   });
 
   // Load fund accounts on component mount
@@ -269,9 +279,9 @@ const RecipientAccount = () => {
   };
 
   // Utility Functions
-  const showNotification = (type, title, message) => {
+  const showPopupMessage = (type, title, message) => {
     setNotification({ type, title, message });
-    setShowNotificationModal(true);
+    setShowNotification(true);
   };
 
   const resetForm = () => {
@@ -359,7 +369,7 @@ const RecipientAccount = () => {
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      showNotification('error', 'Validation Error', 'Please fill in all required fields correctly');
+      showPopupMessage('error', 'Validation Error', 'Please fill in all required fields correctly');
       return;
     }
     
@@ -400,7 +410,7 @@ const RecipientAccount = () => {
         // Continue even if notification fails
       }
       
-      showNotification('success', 'Success', 'Recipient account created successfully');
+      showPopupMessage('success', 'Success', 'Recipient account created successfully');
       resetForm();
       setShowAddModal(false);
       
@@ -419,7 +429,7 @@ const RecipientAccount = () => {
         errorMessage = error.message;
       }
       
-      showNotification('error', 'Error', errorMessage);
+      showPopupMessage('error', 'Error', errorMessage);
     }
   };
 
@@ -435,9 +445,9 @@ const RecipientAccount = () => {
       setShowEditModal(false);
       setEditingRecipient(null);
       resetForm();
-      showNotification("success", "Recipient Updated", `${formData.name}'s information has been successfully updated.`);
+      showPopupMessage("success", "Recipient Updated", `${formData.name}'s information has been successfully updated.`);
     } catch (error) {
-      showNotification("error", "Error", error.message || "Failed to update recipient");
+      showPopupMessage("error", "Error", error.message || "Failed to update recipient");
     }
   };
 
@@ -446,9 +456,9 @@ const RecipientAccount = () => {
       await deleteRecipientMutation.mutateAsync(deletingRecipient.id);
       setShowDeleteModal(false);
       setDeletingRecipient(null);
-      showNotification("success", "Recipient Deleted", `${deletingRecipient.name} has been removed from the system.`);
+      showPopupMessage("success", "Recipient Deleted", `${deletingRecipient.name} has been removed from the system.`);
     } catch (error) {
-      showNotification("error", "Error", error.message || "Failed to delete recipient");
+      showPopupMessage("error", "Error", error.message || "Failed to delete recipient");
     }
   };
 
@@ -468,16 +478,16 @@ const RecipientAccount = () => {
       if (data.success) {
         // React Query will automatically update the cache
         const newStatus = data.data.status;
-        showNotification(
+        showPopupMessage(
           "success", 
           "Status Updated", 
           `${recipient.name} has been ${newStatus === "active" ? "activated" : "deactivated"}.`
         );
       } else {
-        showNotification("error", "Error", data.message || "Failed to update status");
+        showPopupMessage("error", "Error", data.message || "Failed to update status");
       }
     } catch (error) {
-      showNotification("error", "Error", "Failed to update status");
+      showPopupMessage("error", "Error", "Failed to update status");
     }
   };
 
@@ -1467,52 +1477,23 @@ const RecipientAccount = () => {
           </div>
         </div>
       )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && deletingRecipient && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="delete-modal-modern" onClick={(e) => e.stopPropagation()}>
-            <div className="delete-modal-header-modern">
-              <div className="delete-modal-title-wrapper">
-                <i className="fas fa-exclamation-triangle delete-modal-warning-icon"></i>
-                <h3 className="delete-modal-title-modern">Confirm Deletion</h3>
-              </div>
-            </div>
-            <div className="delete-modal-body-modern">
-              <p className="delete-modal-description">
-                Are you sure you want to delete <strong>{deletingRecipient.name}</strong>? This action cannot be undone and will permanently remove all associated data.
-              </p>
-            </div>
-            <div className="delete-modal-footer-modern">
-              <button 
-                type="button" 
-                className="delete-modal-btn-cancel" 
-                onClick={() => setShowDeleteModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                className="delete-modal-btn-delete" 
-                onClick={handleDeleteRecipientConfirm} 
-                disabled={deleteRecipientMutation.isPending}
-              >
-                {deleteRecipientMutation.isPending ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i> Deleting...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-trash"></i> Delete
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Fund Account Selection Modal */}
+      
+    {/* Delete Confirmation Modal */}
+    <Deletion
+      isOpen={showDeleteModal && !!deletingRecipient}
+      onClose={() => setShowDeleteModal(false)}
+      onConfirm={handleDeleteRecipientConfirm}
+      loading={deleteRecipientMutation.isPending}
+      title="CONFIRM DELETION"
+      message="Are you sure you want to delete this recipient? This action cannot be undone and will permanently remove all associated data."
+      itemDetails={deletingRecipient ? [
+        { label: "Recipient Name", value: deletingRecipient.name },
+        { label: "Email", value: deletingRecipient.email || "N/A" },
+        { label: "Transaction Count", value: deletingTransactionsLoading ? "Loading..." : deletingRecipientTransactions.length.toString() }
+      ] : []}
+      confirmText="Delete"
+      cancelText="Cancel"
+    />
       {showFundAccountModal && (
         <div className="modal-overlay" onClick={() => setShowFundAccountModal(false)}>
           <div className="modal-content fund-account-modal" onClick={(e) => e.stopPropagation()}>
@@ -1631,7 +1612,7 @@ const RecipientAccount = () => {
       )}
 
       {/* Notification Modal */}
-      {showNotificationModal && (
+      {showNotification && (
         <div className="modal-overlay" style={{ zIndex: 2000 }}>
           <div 
             className="modal" 
@@ -1663,7 +1644,7 @@ const RecipientAccount = () => {
             </div>
             <button 
               className="btn btn-primary"
-              onClick={() => setShowNotificationModal(false)}
+              onClick={() => setShowNotification(false)}
               style={{ minWidth: '100px' }}
             >
               OK

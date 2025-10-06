@@ -66,6 +66,8 @@ Route::middleware('auth:sanctum')->group(function () {
     //receipt
     Route::get('/receipts', [ReceiptController::class, 'index']);
     Route::post('/receipts', [ReceiptController::class, 'store']);
+    Route::put('/receipts/{id}', [ReceiptController::class, 'update']);
+    Route::delete('/receipts/{id}', [ReceiptController::class, 'destroy']);
     //disbursements/cheques
     Route::get('/disbursements', [DisbursementController::class, 'index']);
     Route::post('/disbursements', [DisbursementController::class, 'store']);
