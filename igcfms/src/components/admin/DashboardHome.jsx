@@ -41,7 +41,7 @@ const DashboardHome = () => {
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef(null);
 
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = "/api";
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -270,7 +270,7 @@ const DashboardHome = () => {
 
     // WebSocket streaming (best-effort)
     try {
-      const ws = new WebSocket('ws://localhost:8000/ws');
+      const ws = new WebSocket('/ws');
       wsRef.current = ws;
       ws.onopen = () => setWsConnected(true);
       ws.onclose = () => setWsConnected(false);

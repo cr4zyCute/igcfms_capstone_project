@@ -499,7 +499,7 @@
 
 .account-search-input {
   padding: 10px 16px 10px 40px;
-  border: 1px solid #d0d0d0;
+  border: 2px solid #000000 !important  ;
   border-radius: 6px;
   font-size: 14px;
   width: 280px;
@@ -515,7 +515,7 @@
 
 .account-search-icon {
   position: absolute;
-  left: 14px;
+  left: 90%;
   top: 50%;
   transform: translateY(-50%);
   color: #666666;
@@ -534,7 +534,7 @@
   gap: 8px;
   padding: 10px 16px;
   background: white;
-  border: 1px solid #d0d0d0;
+  border: 2px solid #040404;
   border-radius: 6px;
   font-size: 14px;
   cursor: pointer;
@@ -543,7 +543,7 @@
 }
 
 .filter-dropdown-btn:hover {
-  border-color: #000000;
+  border-color: #fdfdfd;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -564,7 +564,7 @@
   left: 0;
   right: 0;
   background: white;
-  border: 1px solid #d0d0d0;
+  border: 2px solid #000000;
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   z-index: 1000;
@@ -618,7 +618,7 @@
   padding: 10px 20px;
   background: #000000;
   color: white;
-  border: 1px solid #000000;
+  border: 1px solid #000000 !important;
   border-radius: 6px;
   font-size: 14px;
   font-weight: 600;

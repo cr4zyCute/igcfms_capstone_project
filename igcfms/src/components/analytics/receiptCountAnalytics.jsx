@@ -21,6 +21,26 @@ const ReceiptCountAnalytics = ({
     };
   }, [receipts, analyticsData.isLoading, analyticsData.error]);
 
+  const getReceiptDate = (receipt) => {
+    const dateSource = receipt?.issued_at || receipt?.created_at || receipt?.updated_at;
+    if (!dateSource) return null;
+    const parsed = new Date(dateSource);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const normalizeDate = (date) => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  };
+
+  const formatDateKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const initializeLineChart = () => {
     if (!lineChartRef.current) {
       console.log('Canvas ref not available');
@@ -34,7 +54,6 @@ const ReceiptCountAnalytics = ({
         return;
       }
 
-      console.log('Initializing chart...');
       const ctx = lineChartRef.current.getContext('2d');
       
       // Destroy existing chart
@@ -42,177 +61,156 @@ const ReceiptCountAnalytics = ({
         lineChartInstance.current.destroy();
       }
 
-      // Calculate receipt counts for the 3 waves
-      const counts = calculateReceiptCounts();
-      
-      // Generate 7 data points for smooth wave visualization
-      const dataPoints = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      
-      // Create wave-like data for Today, This Week, This Month
-      const todayWave = [2, 4, 3, 6, 8, 5, counts.today || 3];
-      const weekWave = [8, 12, 15, 18, 22, 20, counts.week || 18];
-      const monthWave = [15, 20, 25, 30, 35, 32, counts.month || 28];
+      const dayInMs = 24 * 60 * 60 * 1000;
+      const today = normalizeDate(new Date());
+      const receiptDates = receipts
+        .map(getReceiptDate)
+        .filter((date) => date !== null)
+        .map((date) => normalizeDate(date))
+        .sort((a, b) => a - b);
 
-      // Create gradients
-      const todayGradient = ctx.createLinearGradient(0, 0, 0, 150);
-      todayGradient.addColorStop(0, 'rgba(147, 51, 234, 0.8)'); // Purple
-      todayGradient.addColorStop(1, 'rgba(147, 51, 234, 0.1)');
+      const receiptCountsByDay = receipts.reduce((map, receipt) => {
+        const receiptDate = getReceiptDate(receipt);
+        if (!receiptDate) return map;
+        const normalized = normalizeDate(receiptDate);
+        const key = formatDateKey(normalized);
+        map.set(key, (map.get(key) || 0) + 1);
+        return map;
+      }, new Map());
 
-      const weekGradient = ctx.createLinearGradient(0, 0, 0, 150);
-      weekGradient.addColorStop(0, 'rgba(59, 130, 246, 0.8)'); // Blue
-      weekGradient.addColorStop(1, 'rgba(59, 130, 246, 0.1)');
+      const labels = [];
+      const dataPoints = [];
 
-      const monthGradient = ctx.createLinearGradient(0, 0, 0, 150);
-      monthGradient.addColorStop(0, 'rgba(34, 211, 238, 0.8)'); // Cyan
-      monthGradient.addColorStop(1, 'rgba(34, 211, 238, 0.1)');
+      if (receiptDates.length === 0) {
+        labels.push(today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        dataPoints.push(0);
+      } else {
+        const startDate = receiptDates[0];
+        const endDate = today > receiptDates[receiptDates.length - 1] ? today : receiptDates[receiptDates.length - 1];
+        const totalDays = Math.max(0, Math.round((endDate - startDate) / dayInMs));
 
-    lineChartInstance.current = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: dataPoints,
-        datasets: [
-          {
-            label: 'Today',
-            data: todayWave,
-            borderColor: '#9333ea',
-            backgroundColor: todayGradient,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 0,
-            pointHoverRadius: 6,
-            pointBackgroundColor: '#9333ea',
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2
-          },
-          {
-            label: 'This Week',
-            data: weekWave,
-            borderColor: '#3b82f6',
-            backgroundColor: weekGradient,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 0,
-            pointHoverRadius: 6,
-            pointBackgroundColor: '#3b82f6',
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2
-          },
-          {
-            label: 'This Month',
-            data: monthWave,
-            borderColor: '#22d3ee',
-            backgroundColor: monthGradient,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 0,
-            pointHoverRadius: 6,
-            pointBackgroundColor: '#22d3ee',
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: {
-          duration: 1500,
-          easing: 'easeInOutQuart'
-        },
-        plugins: {
-          legend: {
-            display: true,
-            position: 'bottom',
-            labels: {
-              color: '#ffffff',
-              font: { size: 11, weight: '500' },
-              padding: 15,
-              usePointStyle: true,
-              pointStyle: 'circle'
-            }
-          },
-          tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            titleColor: '#ffffff',
-            bodyColor: '#ffffff',
-            borderColor: '#374151',
-            borderWidth: 1,
-            cornerRadius: 8,
-            displayColors: true,
-            titleFont: { size: 12, weight: 'bold' },
-            bodyFont: { size: 11 },
-            callbacks: {
-              title: (context) => context[0].label,
-              label: (context) => `${context.dataset.label}: ${context.parsed.y} receipts`
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            display: false,
-            grid: {
-              display: false
-            }
-          },
-          x: {
-            display: false,
-            grid: {
-              display: false
-            }
-          }
-        },
-        interaction: {
-          intersect: false,
-          mode: 'index'
+        for (let i = 0; i <= totalDays; i++) {
+          const currentDate = new Date(startDate.getTime() + i * dayInMs);
+          const key = formatDateKey(currentDate);
+          labels.push(currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+          dataPoints.push(receiptCountsByDay.get(key) || 0);
         }
       }
-    });
-    
-    console.log('Chart created successfully!');
+
+      const maxValue = dataPoints.reduce((max, value) => Math.max(max, value), 0);
+      const gradientFill = ctx.createLinearGradient(0, 0, 0, lineChartRef.current?.clientHeight || 260);
+      gradientFill.addColorStop(0, 'rgba(17, 24, 39, 0.35)');
+      gradientFill.addColorStop(1, 'rgba(17, 24, 39, 0.05)');
+
+      const borderGradient = ctx.createLinearGradient(0, 0, lineChartRef.current?.clientWidth || 320, 0);
+      borderGradient.addColorStop(0, '#0f172a');
+      borderGradient.addColorStop(1, '#1f2937');
+
+      lineChartInstance.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Receipts per day',
+              data: dataPoints,
+              borderColor: borderGradient,
+              backgroundColor: gradientFill,
+              borderWidth: 3,
+              fill: 'start',
+              tension: 0,
+              pointRadius: 0,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#0f172a',
+              pointBorderColor: '#f9fafb',
+              pointBorderWidth: 2,
+              pointHitRadius: 12,
+              spanGaps: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: 1400,
+            easing: 'easeInOutCubic'
+          },
+          layout: {
+            padding: {
+              top: 16,
+              bottom: 8,
+              left: 8,
+              right: 16
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: '#111827',
+              titleColor: '#f9fafb',
+              bodyColor: '#f3f4f6',
+              borderColor: '#0f172a',
+              borderWidth: 1,
+              cornerRadius: 8,
+              displayColors: false,
+              padding: 12,
+              titleFont: { size: 12, weight: '700' },
+              bodyFont: { size: 11, weight: '500' },
+              callbacks: {
+                title: (context) => context[0].label,
+                label: (context) => `Receipts: ${context.parsed.y}`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              suggestedMax: maxValue === 0 ? 3 : undefined,
+              ticks: {
+                color: '#1f2937',
+                font: { size: 11, weight: '600' },
+                padding: 10,
+                precision: 0
+              },
+              grid: {
+                color: 'rgba(17, 24, 39, 0.08)',
+                drawBorder: false,
+                tickLength: 0
+              }
+            },
+            x: {
+              ticks: {
+                color: '#1f2937',
+                font: { size: 11, weight: '600' },
+                padding: 8,
+                maxRotation: 0,
+                minRotation: 0
+              },
+              grid: {
+                color: 'rgba(17, 24, 39, 0.06)',
+                drawBorder: false,
+                tickLength: 0
+              }
+            }
+          },
+          elements: {
+            line: {
+              borderJoinStyle: 'round'
+            }
+          },
+          interaction: {
+            intersect: false,
+            mode: 'index'
+          }
+        }
+      });
+
+      console.log('Receipt count chart created', { labels, dataPoints });
     }, 100); // Close setTimeout
   };
-  
-  // Calculate receipt counts for different time periods
-  const calculateReceiptCounts = () => {
-    const today = new Date();
-    
-    const todayCount = receipts.filter(r => {
-      const receiptDate = new Date(r.created_at);
-      return receiptDate.toDateString() === today.toDateString();
-    }).length;
-    
-    const weekCount = receipts.filter(r => {
-      const receiptDate = new Date(r.created_at);
-      const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return receiptDate >= weekAgo;
-    }).length;
-    
-    const monthCount = receipts.filter(r => {
-      const receiptDate = new Date(r.created_at);
-      return receiptDate.getMonth() === today.getMonth() && 
-             receiptDate.getFullYear() === today.getFullYear();
-    }).length;
-    
-    const averagePerDay = receipts.length > 0 ? 
-      Math.round(receipts.length / Math.max(1, Math.ceil((new Date() - new Date(receipts[receipts.length - 1]?.created_at)) / (1000 * 60 * 60 * 24)))) : 0;
-    
-    const lastIssued = receipts.length > 0 ? 
-      new Date(receipts[0]?.created_at).toLocaleDateString() : 'N/A';
-    
-    return {
-      today: todayCount,
-      week: weekCount,
-      month: monthCount,
-      averagePerDay,
-      lastIssued
-    };
-  };
-
-  const counts = calculateReceiptCounts();
 
   return (
     <div className="dashboard-box box-3">

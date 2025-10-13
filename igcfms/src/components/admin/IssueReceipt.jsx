@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import "./css/issuereceipt.css";
 import Deletion from '../common/Deletion';
@@ -6,8 +6,9 @@ import DisbursementTrends from '../analytics/disbursementAnalytics';
 import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
 import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
 
-// Import Chart.js properly
+// Chart.js
 import Chart from 'chart.js/auto';
+// import { generateIssuedReceiptsPDF } from '../reports/pdf/IssuedReceiptsReportGenerator';
 
 // Helper function to convert numbers to words
 const numberToWords = (num) => {
@@ -51,6 +52,7 @@ const numberToWords = (num) => {
   return result.trim();
 };
 
+const RECEIPTS_PER_PAGE = 10;
 const IssueReceipt = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -71,13 +73,13 @@ const IssueReceipt = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [powerNameError, setPowerNameError] = useState('');
   const [openActionMenu, setOpenActionMenu] = useState(null);
-  
+  const [currentPage, setCurrentPage] = useState(1);
   // Chart refs
   const monthlyChartRef = useRef(null);
   const receiptsCountChartRef = useRef(null);
   const monthlyChartInstance = useRef(null);
   const receiptsCountChartInstance = useRef(null);
-  
+  const exportDropdownRef = useRef(null);
   // Form states
   const [formData, setFormData] = useState({
     transactionId: "",
@@ -85,7 +87,6 @@ const IssueReceipt = () => {
     receiptNumber: "",
     issueDate: new Date().toISOString().split('T')[0],
   });
-
   // Filter states
   const [filters, setFilters] = useState({
     activeFilter: "all", // all, latest, oldest, highest, lowest
@@ -94,7 +95,6 @@ const IssueReceipt = () => {
     searchTerm: "",
     showFilterDropdown: false
   });
-
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
@@ -115,7 +115,7 @@ const IssueReceipt = () => {
     issueDate: "",
     transactionId: ""
   });
-
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
   const API_BASE = "http://localhost:8000/api";
   const token = localStorage.getItem("token");
 
@@ -145,6 +145,19 @@ const IssueReceipt = () => {
       }
     };
   }, [analyticsData]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target)) {
+        setShowExportDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const fetchInitialData = async () => {
     try {
@@ -747,11 +760,11 @@ const IssueReceipt = () => {
 
   const getSortedReceipts = () => {
     if (!sortConfig.key) return filteredReceipts;
-    
+
     return [...filteredReceipts].sort((a, b) => {
       let aValue = a[sortConfig.key];
       let bValue = b[sortConfig.key];
-      
+
       // Handle special cases
       if (sortConfig.key === 'amount') {
         const aTransaction = transactions.find(t => t.id === a.transaction_id);
@@ -762,11 +775,78 @@ const IssueReceipt = () => {
         aValue = new Date(a.issued_at || a.created_at);
         bValue = new Date(b.issued_at || b.created_at);
       }
-      
+
       if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
+  };
+
+  const sortedReceipts = useMemo(
+    () => getSortedReceipts(),
+    [filteredReceipts, sortConfig, transactions]
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortedReceipts]);
+
+  useEffect(() => {
+    const totalPagesForData = Math.max(1, Math.ceil(sortedReceipts.length / RECEIPTS_PER_PAGE));
+    if (currentPage > totalPagesForData) {
+      setCurrentPage(totalPagesForData);
+    }
+  }, [sortedReceipts.length, currentPage]);
+
+  const totalReceipts = sortedReceipts.length;
+  const totalPages = Math.max(1, Math.ceil(totalReceipts / RECEIPTS_PER_PAGE));
+  const startIndex = (currentPage - 1) * RECEIPTS_PER_PAGE;
+  const currentReceipts = sortedReceipts.slice(startIndex, startIndex + RECEIPTS_PER_PAGE);
+  const displayStart = totalReceipts === 0 ? 0 : startIndex + 1;
+  const displayEnd = Math.min(totalReceipts, startIndex + currentReceipts.length);
+
+  const handleExportPdf = () => {
+    if (!sortedReceipts.length) {
+      setShowExportDropdown(false);
+      return;
+    }
+
+    generateIssuedReceiptsPDF(sortedReceipts, transactions);
+    setShowExportDropdown(false);
+  };
+
+  const handleExportExcel = () => {
+    if (!sortedReceipts.length) {
+      setShowExportDropdown(false);
+      return;
+    }
+
+    const headers = ['Receipt ID', 'Receipt Number', 'Transaction', 'Payer Name', 'Amount', 'Issue Date'];
+    const rows = sortedReceipts.map((receipt) => {
+      const transaction = transactions.find(tx => tx.id === receipt.transaction_id);
+      const amountValue = transaction ? Math.abs(parseFloat(transaction.amount || 0)) : 0;
+      const amountPrefix = transaction && (transaction.type === 'Disbursement' || (transaction.amount && transaction.amount < 0)) ? '-' : '';
+      return [
+        `#${receipt.id}`,
+        receipt.receipt_number,
+        `#${receipt.transaction_id}`,
+        receipt.payer_name,
+        `${amountPrefix}₱${amountValue.toLocaleString()}`,
+        new Date(receipt.issued_at || receipt.created_at).toLocaleDateString()
+      ].map((value) => `"${(value || '').toString().replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows].join('\n');
+    const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `issued_receipts_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setShowExportDropdown(false);
   };
 
   if (loading && transactions.length === 0) {
@@ -988,10 +1068,29 @@ const IssueReceipt = () => {
             </div>
           </div>
           
-          <div className="action-buttons">
-            <button className="btn-icon export-btn" title="Export Receipts">
+          <div className="action-buttons" ref={exportDropdownRef}>
+            <button
+              className="btn-icon export-btn"
+              title="Export Receipts"
+              type="button"
+              onClick={() => setShowExportDropdown(prev => !prev)}
+            >
               <i className="fas fa-download"></i>
+              <span>Export</span>
+              <i className={`fas fa-chevron-${showExportDropdown ? 'up' : 'down'} export-arrow`}></i>
             </button>
+            {showExportDropdown && (
+              <div className="export-dropdown-menu">
+                <button type="button" className="export-option" onClick={handleExportPdf}>
+                  <i className="fas fa-file-pdf"></i>
+                  <span>Download PDF</span>
+                </button>
+                <button type="button" className="export-option" onClick={handleExportExcel}>
+                  <i className="fas fa-file-excel"></i>
+                  <span>Download Excel</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1012,8 +1111,8 @@ const IssueReceipt = () => {
               </tr>
             </thead>
             <tbody>
-              {getSortedReceipts().length > 0 ? (
-                getSortedReceipts().map((receipt) => {
+              {sortedReceipts.length > 0 ? (
+                currentReceipts.map((receipt) => {
                   const transaction = transactions.find(tx => tx.id === receipt.transaction_id);
                   return (
                     <tr 
@@ -1136,6 +1235,32 @@ const IssueReceipt = () => {
             </tbody>
           </table>
         </div>
+        {sortedReceipts.length > 0 && (
+          <div className="table-pagination">
+            <div className="pagination-info">
+              Showing {displayStart}-{displayEnd} of {totalReceipts} receipts
+            </div>
+            <div className="pagination-controls">
+              <button
+                type="button"
+                className="pagination-button"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <span className="pagination-info">Page {currentPage} of {totalPages}</span>
+              <button
+                type="button"
+                className="pagination-button"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || totalReceipts === 0}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Confirmation Modal */}
@@ -1356,7 +1481,7 @@ const IssueReceipt = () => {
           <div className="transaction-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header transaction-modal-header">
               <h3><i className="fas fa-search"></i> Select Collection Transaction</h3>
-              <div className="transaction-count">
+              <div className="transaction-count"> 
                     Showing {filteredTransactions.length} of {transactions.length} transactions
                   </div>
               <button className="modal-close" onClick={() => setShowTransactionModal(false)}>

@@ -13,7 +13,7 @@ export const RECIPIENT_ACCOUNTS_KEYS = {
 // API functions
 const fetchRecipientAccounts = async () => {
   const token = localStorage.getItem('token');
-  const response = await fetch('http://localhost:8000/api/recipient-accounts', {
+  const response = await fetch('/api/recipient-accounts', {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -32,7 +32,7 @@ const fetchRecipientTransactions = async (recipientId) => {
   const token = localStorage.getItem('token');
   
   try {
-    const response = await fetch(`http://localhost:8000/api/recipient-accounts/${recipientId}/transactions`, {
+    const response = await fetch(`/api/recipient-accounts/${recipientId}/transactions`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -59,7 +59,7 @@ const fetchRecipientTransactions = async (recipientId) => {
 
 const createRecipientAccount = async (recipientData) => {
   const token = localStorage.getItem('token');
-  const response = await fetch('http://localhost:8000/api/recipient-accounts', {
+  const response = await fetch('/api/recipient-accounts', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -79,7 +79,7 @@ const createRecipientAccount = async (recipientData) => {
 
 const updateRecipientAccount = async ({ id, data: recipientData }) => {
   const token = localStorage.getItem('token');
-  const response = await fetch(`http://localhost:8000/api/recipient-accounts/${id}`, {
+  const response = await fetch(`/api/recipient-accounts/${id}`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -99,7 +99,7 @@ const updateRecipientAccount = async ({ id, data: recipientData }) => {
 
 const deleteRecipientAccount = async (id) => {
   const token = localStorage.getItem('token');
-  const response = await fetch(`http://localhost:8000/api/recipient-accounts/${id}`, {
+  const response = await fetch(`/api/recipient-accounts/${id}`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -118,7 +118,7 @@ const deleteRecipientAccount = async (id) => {
 
 const toggleRecipientStatus = async (id) => {
   const token = localStorage.getItem('token');
-  const response = await fetch(`http://localhost:8000/api/recipient-accounts/${id}/toggle-status`, {
+  const response = await fetch(`/api/recipient-accounts/${id}/toggle-status`, {
     method: 'PATCH',
     headers: {
       'Authorization': `Bearer ${token}`,

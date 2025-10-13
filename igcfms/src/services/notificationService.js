@@ -3,7 +3,7 @@
 
 class NotificationService {
   constructor() {
-    this.API_BASE = 'http://localhost:8000/api';
+    this.API_BASE = process.env.REACT_APP_API_URL || '/api';
     this.notifications = [];
     this.listeners = [];
   }

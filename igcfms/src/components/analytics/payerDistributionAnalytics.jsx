@@ -25,14 +25,16 @@ const PayerDistributionAnalytics = ({
       if (!distributionChartRef.current || !analyticsData.payerDistribution.length) return;
 
       const ctx = distributionChartRef.current.getContext('2d');
-      
       // Destroy existing chart
       if (distributionChartInstance.current) {
         distributionChartInstance.current.destroy();
       }
 
-      const colors = ['#1f2937', '#374151', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db'];
-    
+      const baseColors = ['#0f172a', '#1f2937', '#374151', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db', '#e5e7eb'];
+      const hoverPalette = ['#111c2d', '#253149', '#3a465d', '#4a576d', '#627083', '#8b94a3', '#e2e5eb', '#f1f3f7'];
+      const backgroundColors = baseColors.slice(0, analyticsData.payerDistribution.length);
+      const hoverColors = backgroundColors.map((_, index) => hoverPalette[index] || '#111827');
+
       distributionChartInstance.current = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -40,9 +42,11 @@ const PayerDistributionAnalytics = ({
           datasets: [{
             label: 'Receipts by Payer',
             data: analyticsData.payerDistribution.map(d => d.count),
-            backgroundColor: colors.slice(0, analyticsData.payerDistribution.length),
-            borderColor: '#ffffff',
+            backgroundColor: backgroundColors,
+            hoverBackgroundColor: hoverColors,
+            borderColor: '#e2e8f0',
             borderWidth: 3,
+            hoverBorderColor: '#0f172a',
             hoverBorderWidth: 4,
             hoverOffset: 10
           }]
@@ -50,7 +54,6 @@ const PayerDistributionAnalytics = ({
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '60%',
           animation: {
             animateRotate: true,
             animateScale: true,

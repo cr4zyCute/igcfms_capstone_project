@@ -6,7 +6,7 @@ import notificationService from './notificationService';
 
 class BalanceService {
   constructor() {
-    this.API_BASE = 'http://localhost:8000/api';
+    this.API_BASE = process.env.REACT_APP_API_URL || '/api';
     this.balanceListeners = [];
     this.fundBalances = new Map();
   }

@@ -12,7 +12,7 @@ const NotificationBell = () => {
   const dropdownRef = useRef(null);
   const bellRef = useRef(null);
 
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = "/api";
   const token = localStorage.getItem("token");
 
   useEffect(() => {
