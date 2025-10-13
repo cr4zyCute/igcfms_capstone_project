@@ -43,15 +43,15 @@
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
   background: rgba(148, 163, 184, 0.08);
-  color: #f9fafb;
-  transform: translateX(4px);
+  /* color: #f9fafb;
+  transform: translateX(4px); */
 }
 
 .admin-sidebar-item.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.5) 100%);
-  color: #ffffff;
+  background: #ffffff;
+  color: #0f172a;
   font-weight: 600;
-  box-shadow: 0 10px 26px -16px rgba(59, 130, 246, 0.65);
+  box-shadow: 0 10px 24px -18px rgba(148, 163, 184, 0.65);
 }
 
 .admin-sidebar-item.dashboard-item {
@@ -60,8 +60,9 @@
 }
 
 .admin-sidebar-item.dashboard-item.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.35) 0%, rgba(37, 99, 235, 0.6) 100%);
-  color: #ffffff;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 12px 28px -18px rgba(15, 23, 42, 0.4);
 }
 
 .admin-item-icon {
@@ -322,18 +323,9 @@
 }
 
 /* Active State Indicators */
-.admin-sidebar-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  width: 3px;
-  background: #ffffff;
-  border-radius: 0 2px 2px 0;
-}
-
-.admin-sidebar-item.submenu-item.active::before {
-  left: 8px;
-  width: 2px;
+.admin-sidebar-item.active .admin-item-icon,
+.admin-sidebar-item.active .admin-section-icon {
+  color: #000000;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
 }
