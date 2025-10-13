@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "./css/notificationbar.css";
 
@@ -6,6 +6,9 @@ const NotificationBar = () => {
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const filterDropdownRef = useRef(null);
+
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -14,6 +17,22 @@ const NotificationBar = () => {
 
   useEffect(() => {
     fetchNotifications();
+  }, []);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (
+        filterDropdownRef.current &&
+        !filterDropdownRef.current.contains(event.target)
+      ) {
+        setShowFilterDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
   }, []);
 
   const fetchNotifications = async () => {
@@ -36,6 +55,13 @@ const NotificationBar = () => {
       setLoading(false);
     }
   };
+
+  const filterOptions = [
+    { value: "all", label: "View all", icon: "fas fa-stream" },
+    { value: "logins", label: "Log ins", icon: "fas fa-sign-in-alt" },
+    { value: "transactions", label: "Transactions", icon: "fas fa-exchange-alt" },
+    { value: "override", label: "Override Request", icon: "fas fa-edit" }
+  ];
 
   const getFilteredNotifications = () => {
     let filtered = notifications;
@@ -125,6 +151,29 @@ const NotificationBar = () => {
     }
   };
 
+  const emojiIconMap = {
+    "🔒": "fas fa-lock",
+    "🔔": "fas fa-bell",
+    "🔐": "fas fa-lock",
+    "💸": "fas fa-money-bill-wave",
+    "⚠️": "fas fa-exclamation-triangle",
+    "⚠": "fas fa-exclamation-triangle"
+  };
+
+  const renderWithIcons = (text) => {
+    if (!text || typeof text !== "string") return text;
+
+    const parts = text.split(/(🔒|🔔|🔐|💸|⚠️|⚠)/);
+
+    return parts.filter(Boolean).map((part, index) => {
+      const iconClass = emojiIconMap[part];
+      if (iconClass) {
+        return <i key={`icon-${index}`} className={iconClass}></i>;
+      }
+      return <React.Fragment key={`text-${index}`}>{part}</React.Fragment>;
+    });
+  };
+
   const getNotificationIcon = (type) => {
     switch (type) {
       case "transaction":
@@ -154,18 +203,16 @@ const NotificationBar = () => {
     }
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "high":
-        return "#ef4444";
-      case "medium":
-        return "#f59e0b";
-      case "low":
-        return "#10b981";
-      default:
-        return "#6b7280";
-    }
+  const toggleFilterDropdown = () => {
+    setShowFilterDropdown(prev => !prev);
   };
+
+  const handleFilterChange = (value) => {
+    setFilter(value);
+    setShowFilterDropdown(false);
+  };
+
+  const selectedFilterLabel = filterOptions.find(option => option.value === filter)?.label || "Filter notifications";
 
   return (
     <div className="notification-bar-page">
@@ -188,35 +235,6 @@ const NotificationBar = () => {
       <div className="notification-content">
         {/* Left Sidebar - Notification List */}
         <div className="notification-sidebar">
-          <div className="notification-filters">
-            <div className="filter-tabs">
-              <button 
-                className={`filter-tab ${filter === "all" ? "active" : ""}`}
-                onClick={() => setFilter("all")}
-              >
-                View all
-              </button>
-              <button 
-                className={`filter-tab ${filter === "logins" ? "active" : ""}`}
-                onClick={() => setFilter("logins")}
-              >
-                Log ins
-              </button>
-              <button 
-                className={`filter-tab ${filter === "transactions" ? "active" : ""}`}
-                onClick={() => setFilter("transactions")}
-              >
-                Transactions
-              </button>
-              <button 
-                className={`filter-tab ${filter === "override" ? "active" : ""}`}
-                onClick={() => setFilter("override")}
-              >
-                Override Request
-              </button>
-            </div>
-          </div>
-
           <div className="notifications-list">
             <div className="search-section">
               <div className="search-input-container">
@@ -229,18 +247,35 @@ const NotificationBar = () => {
                 />
                 <i className="fas fa-search search-icon"></i>
               </div>
-            </div>
-            
-            <div className="list-header">
-              <h3>All Notifications</h3>
-              <div className="list-actions">
-                <button className="filter-btn">
+              <div className="search-filter-group" ref={filterDropdownRef}>
+                <button
+                  className={`filter-btn search-filter-btn ${showFilterDropdown ? "active" : ""}`}
+                  onClick={toggleFilterDropdown}
+                >
                   <i className="fas fa-filter"></i>
                 </button>
-                <button className="more-btn">
-                  <i className="fas fa-ellipsis-v"></i>
-                </button>
+                {showFilterDropdown && (
+                  <div className="notifications-filter-dropdown">
+                    {filterOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        className={`notifications-filter-option ${filter === option.value ? "active" : ""}`}
+                        onClick={() => handleFilterChange(option.value)}
+                      >
+                        <div className="filter-option-main">
+                          <i className={option.icon}></i>
+                          <span>{option.label}</span>
+                        </div>
+                        {filter === option.value && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+            </div>
+
+            <div className="list-header">
+              <h3> {selectedFilterLabel}</h3>
             </div>
 
             <div className="notification-items">
@@ -263,7 +298,6 @@ const NotificationBar = () => {
                         <div className="notification-icon">
                           <i 
                             className={getNotificationIcon(notification.type)}
-                            style={{ color: getPriorityColor(notification.priority) }}
                           ></i>
                         </div>
                         <div className="notification-meta">
@@ -273,8 +307,8 @@ const NotificationBar = () => {
                           {!(notification.is_read || notification.read) && <div className="unread-dot"></div>}
                         </div>
                       </div>
-                      <h4 className="notification-title">{notification.title || notification.type}</h4>
-                      <p className="notification-message">{notification.message || notification.data}</p>
+                      <h4 className="notification-title">{renderWithIcons(notification.title || notification.type)}</h4>
+                      <p className="notification-message">{renderWithIcons(notification.message || notification.data)}</p>
                       <div className="notification-tags">
                         <span className="category-tag">{notification.category || notification.type}</span>
                         {notification.type === 'login' && <span className="status-tag successful">Successful</span>}
@@ -298,7 +332,7 @@ const NotificationBar = () => {
             <div className="preview-content">
               <div className="preview-header">
                 <div className="preview-title-section">
-                  <h2 className="preview-title">{selectedNotification.title || selectedNotification.type}</h2>
+                  <h2 className="preview-title">{renderWithIcons(selectedNotification.title || selectedNotification.type)}</h2>
                   <div className="preview-meta">
                     <span className="preview-date">
                       {(selectedNotification.created_at || selectedNotification.timestamp) ? 
@@ -334,13 +368,13 @@ const NotificationBar = () => {
                   </div>
                   <div className="highlight-content">
                     <h3>System Notification</h3>
-                    <p>{selectedNotification.message || selectedNotification.data}</p>
+                    <p>{renderWithIcons(selectedNotification.message || selectedNotification.data)}</p>
                   </div>
                 </div>
 
                 <div className="notification-details">
                   <h4>Details</h4>
-                  <p>{selectedNotification.details || selectedNotification.message || selectedNotification.data}</p>
+                  <p>{renderWithIcons(selectedNotification.details || selectedNotification.message || selectedNotification.data)}</p>
 
                   {selectedNotification.data && typeof selectedNotification.data === 'object' && (
                     <div className="related-data">
