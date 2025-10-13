@@ -51,6 +51,10 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
         barValue: scaledValue,
         isCollection,
         color: isCollection ? '#22c55e' : '#ef4444',
+        shortDate: new Date(point.date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        }),
         dateFormatted: new Date(point.date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
@@ -144,7 +148,7 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
     <div
       style={{
         width: '100%',
-        height: '80px',
+        height: '120px',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -154,17 +158,18 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
         className="bar-chart-container"
         style={{
           width: '100%',
-          height: '80px',
+          height: '120px',
           overflowX: needsScroll ? 'scroll' : 'hidden',
           overflowY: 'hidden',
           paddingTop: '8px',
+          paddingBottom: '20px',
           cursor: needsScroll ? 'grab' : 'default',
         }}
         onMouseDown={handleMouseDown}
         onWheel={handleWheel}
       >
         {/* Bar Chart - Fixed dimensions instead of ResponsiveContainer */}
-        <div style={{ width: containerWidth, height: '80px' }}>
+        <div style={{ width: containerWidth, minHeight: '100px' }}>
           <BarChart 
             width={containerWidth}
             height={80}
@@ -193,6 +198,33 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
               ))}
             </Bar>
           </BarChart>
+          <div
+            style={{
+              display: 'flex',
+              gap: `${barSpacing}px`,
+              marginTop: '12px',
+              paddingRight: needsScroll ? '10px' : 0,
+            }}
+          >
+            {processedData.map((entry, index) => (
+              <div
+                key={`label-${index}`}
+                style={{
+                  width: `${minBarWidth}px`,
+                  flex: '0 0 auto',
+                  textAlign: 'center',
+                  fontSize: '10px',
+                  color: '#6b7280',
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  transform: 'rotate(-22deg)',
+                  transformOrigin: 'center top',
+                }}
+              >
+                {entry.shortDate}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

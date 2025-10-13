@@ -5,10 +5,11 @@ import Deletion from '../common/Deletion';
 import DisbursementTrends from '../analytics/disbursementAnalytics';
 import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
 import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
+import IssueReceiptSkeleton from '../ui/issuerecieptLoading';
 
 // Chart.js
 import Chart from 'chart.js/auto';
-// import { generateIssuedReceiptsPDF } from '../reports/pdf/IssuedReceiptsReportGenerator';
+import { generateIssuedReceiptsPDF } from '../reports/export/pdf/IssuedReceiptExport';
 
 // Helper function to convert numbers to words
 const numberToWords = (num) => {
@@ -53,6 +54,47 @@ const numberToWords = (num) => {
 };
 
 const RECEIPTS_PER_PAGE = 10;
+const FILTER_LABEL_MAP = {
+  all: 'All Receipts',
+  latest: 'Latest First',
+  oldest: 'Oldest First',
+  highest: 'Highest Amount',
+  lowest: 'Lowest Amount',
+};
+
+const normalizeAmount = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isNaN(value) ? null : value;
+  }
+
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^0-9.-]/g, '');
+    if (!cleaned.trim()) {
+      return null;
+    }
+    const parsed = parseFloat(cleaned);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
+};
+
+const formatCurrency = (value) => {
+  const amount = normalizeAmount(value);
+  if (amount === null) {
+    return '—';
+  }
+  return amount.toLocaleString('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
 const IssueReceipt = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -398,6 +440,7 @@ const IssueReceipt = () => {
         issueDate: new Date().toISOString().split('T')[0],
       });
 
+      setShowIssueFormModal(false);
       setShowReceiptModal(true);
       fetchInitialData(); // Refresh data
 
@@ -805,13 +848,61 @@ const IssueReceipt = () => {
   const displayStart = totalReceipts === 0 ? 0 : startIndex + 1;
   const displayEnd = Math.min(totalReceipts, startIndex + currentReceipts.length);
 
+  const receiptsSummary = useMemo(() => {
+    const totalReceiptsCount = sortedReceipts.length;
+    const totalAmountValue = sortedReceipts.reduce((sum, receipt) => {
+      const transaction = transactions.find((tx) => tx.id === receipt.transaction_id);
+      const amount = normalizeAmount(receipt.amount ?? transaction?.amount);
+      return sum + (amount ?? 0);
+    }, 0);
+
+    const averageAmountValue = totalReceiptsCount > 0 ? totalAmountValue / totalReceiptsCount : 0;
+
+    return {
+      totalReceipts: totalReceiptsCount,
+      totalAmount: totalAmountValue,
+      averageAmount: averageAmountValue,
+    };
+  }, [sortedReceipts, transactions]);
+
+  const receiptsForExport = useMemo(() => sortedReceipts.map((receipt) => {
+    const transaction = transactions.find((tx) => tx.id === receipt.transaction_id);
+    const amountValue = normalizeAmount(receipt.amount ?? transaction?.amount) ?? 0;
+
+    return {
+      ...receipt,
+      amount: amountValue,
+      payor: receipt.payer_name || transaction?.recipient || '',
+      payer: receipt.payer_name || transaction?.recipient || '',
+      payment_method: receipt.payment_method || transaction?.payment_method || '',
+      paymentMethod: receipt.paymentMethod || transaction?.payment_method || '',
+      cashier: receipt.cashier || transaction?.cashier || '',
+      issuedBy: receipt.issued_by || transaction?.cashier || '',
+      issue_date: receipt.issued_at || receipt.created_at,
+      dateIssued: receipt.issued_at || receipt.created_at,
+    };
+  }), [sortedReceipts, transactions]);
+
+  const exportFilters = useMemo(() => ({
+    'Sorting': FILTER_LABEL_MAP[filters.activeFilter] || FILTER_LABEL_MAP.all,
+    'Search Term': filters.searchTerm || 'None',
+    'Date From': filters.dateFrom || 'Any',
+    'Date To': filters.dateTo || 'Any',
+  }), [filters]);
+
   const handleExportPdf = () => {
     if (!sortedReceipts.length) {
       setShowExportDropdown(false);
       return;
     }
 
-    generateIssuedReceiptsPDF(sortedReceipts, transactions);
+    generateIssuedReceiptsPDF({
+      filters: exportFilters,
+      receipts: receiptsForExport,
+      summary: receiptsSummary,
+      generatedBy: (typeof window !== 'undefined' && localStorage.getItem('user_name')) || 'System',
+      reportTitle: 'Issued Receipts Report',
+    });
     setShowExportDropdown(false);
   };
 
@@ -824,14 +915,13 @@ const IssueReceipt = () => {
     const headers = ['Receipt ID', 'Receipt Number', 'Transaction', 'Payer Name', 'Amount', 'Issue Date'];
     const rows = sortedReceipts.map((receipt) => {
       const transaction = transactions.find(tx => tx.id === receipt.transaction_id);
-      const amountValue = transaction ? Math.abs(parseFloat(transaction.amount || 0)) : 0;
-      const amountPrefix = transaction && (transaction.type === 'Disbursement' || (transaction.amount && transaction.amount < 0)) ? '-' : '';
+      const amountValue = normalizeAmount(receipt.amount ?? transaction?.amount) ?? 0;
       return [
         `#${receipt.id}`,
         receipt.receipt_number,
         `#${receipt.transaction_id}`,
         receipt.payer_name,
-        `${amountPrefix}₱${amountValue.toLocaleString()}`,
+        formatCurrency(amountValue),
         new Date(receipt.issued_at || receipt.created_at).toLocaleDateString()
       ].map((value) => `"${(value || '').toString().replace(/"/g, '""')}"`).join(',');
     });
@@ -850,12 +940,7 @@ const IssueReceipt = () => {
   };
 
   if (loading && transactions.length === 0) {
-    return (
-      <div className="issue-receipt-loading">
-        <div className="spinner"></div>
-        <div className="loading-text">Loading receipt management...</div>
-      </div>
-    );
+    return <IssueReceiptSkeleton />;
   }
 
   return (
@@ -1076,8 +1161,7 @@ const IssueReceipt = () => {
               onClick={() => setShowExportDropdown(prev => !prev)}
             >
               <i className="fas fa-download"></i>
-              <span>Export</span>
-              <i className={`fas fa-chevron-${showExportDropdown ? 'up' : 'down'} export-arrow`}></i>
+              
             </button>
             {showExportDropdown && (
               <div className="export-dropdown-menu">
@@ -1143,9 +1227,9 @@ const IssueReceipt = () => {
                       <td>
                         <div className="cell-content">
                           <div className="payer-info">
-                            <div className="payer-avatar">
+                            {/* <div className="payer-avatar">
                               <i className="fas fa-user"></i>
-                            </div>
+                            </div> */}
                             <span className="payer-name">{receipt.payer_name}</span>
                           </div>
                         </div>
@@ -1265,7 +1349,7 @@ const IssueReceipt = () => {
 
       {/* Confirmation Modal */}
       {showIssueModal && (
-        <div className="modal-overlay" onClick={() => setShowIssueModal(false)}>
+        <div className="modal-overlay confirmation-overlay" onClick={() => setShowIssueModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3><i className="fas fa-question-circle"></i> Confirm Receipt Issue</h3>
@@ -1588,7 +1672,10 @@ const IssueReceipt = () => {
 
       {/* Issue New Receipt Modal */}
       {showIssueFormModal && (
-        <div className="modal-overlay" onClick={() => setShowIssueFormModal(false)}>
+        <div
+          className={`modal-overlay ${showIssueModal ? 'issue-modal-underlay' : ''}`}
+          onClick={() => setShowIssueFormModal(false)}
+        >
           <div className="modal issue-receipt-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header modal-header-black">
               <h4><i className="fas fa-plus-circle"></i> Issue New Receipt</h4>

@@ -1577,9 +1577,9 @@ textarea {
 
 .card-graph {
   margin: 10px 0;
-  height: 80px;
+  height: 120px;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .card-graph .recharts-wrapper {
@@ -1703,7 +1703,7 @@ textarea {
   background: #ffffff;
   border-radius: 16px;
   padding: 16px 20px;
-  margin-top: 12px;
+  margin-top: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;

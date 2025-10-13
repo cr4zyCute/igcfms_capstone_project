@@ -92,6 +92,7 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
               onClick={() => toggleSection(section.title)}
             >
               <div className="admin-section-left">
+                <span className="admin-section-icon"><i className={section.icon}></i></span>
                 <span className="admin-section-title">{section.title}</span>
               </div>
               <div className="admin-section-right">

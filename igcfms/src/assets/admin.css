@@ -15,7 +15,6 @@
     --border: #e5e7eb;
 }
 
-/* Modern Minimal Sidebar Styles */
 .sidebar-content {
     background: #ffffff;
     border-right: 1px solid #f1f5f9;
@@ -25,11 +24,10 @@
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
 }
 
-/* Modern Minimal Admin Sidebar Header */
 .admin-sidebar-header {
     padding: 24px 20px;
     border-bottom: 1px solid #f1f5f9;
-    background: #ffffff;
+    background: #000000 !important;
     color: #1e293b;
     display: flex;
     align-items: center;

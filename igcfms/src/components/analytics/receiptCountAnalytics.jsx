@@ -99,12 +99,12 @@ const ReceiptCountAnalytics = ({
 
       const maxValue = dataPoints.reduce((max, value) => Math.max(max, value), 0);
       const gradientFill = ctx.createLinearGradient(0, 0, 0, lineChartRef.current?.clientHeight || 260);
-      gradientFill.addColorStop(0, 'rgba(17, 24, 39, 0.35)');
-      gradientFill.addColorStop(1, 'rgba(17, 24, 39, 0.05)');
+      gradientFill.addColorStop(0, 'rgba(0, 0, 0, 0.35)');
+      gradientFill.addColorStop(1, 'rgba(0, 0, 0, 0.05)');
 
       const borderGradient = ctx.createLinearGradient(0, 0, lineChartRef.current?.clientWidth || 320, 0);
-      borderGradient.addColorStop(0, '#0f172a');
-      borderGradient.addColorStop(1, '#1f2937');
+      borderGradient.addColorStop(0, '#000000');
+      borderGradient.addColorStop(1, '#000000');
 
       lineChartInstance.current = new Chart(ctx, {
         type: 'line',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import AdminSidebar from '../admin/AdminSidebar';
 import CashierSidebar from '../cashier/CashierSidebar';
@@ -9,6 +9,7 @@ import '../common/css/Sidebar.css';
 
 const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
   const { user } = useAuth();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const renderSidebarContent = () => {
     switch (user?.role) {
@@ -29,16 +30,25 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
     <>
       {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
       
-      <div className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
+      <div className={`sidebar ${isOpen ? 'sidebar-open' : ''} ${isCollapsed ? 'sidebar-collapsed' : ''}`}>
         <div className="sidebar-header">
-          <div className="logo-container">
+          <div className="logo-container" onClick={() => setIsCollapsed(!isCollapsed)}>
             <div className="logo-circle">
               <i className="fas fa-university"></i>
             </div>
-            <h2 className="system-title">IGCFMS</h2>
+            {!isCollapsed && <h2 className="system-title">IGCFMS</h2>}
           </div>
+          <button
+            className="collapse-toggle"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <i className={`fas fa-${isCollapsed ? 'angle-double-right' : 'angle-double-left'}`}></i>
+          </button>
         </div>
-        {renderSidebarContent()}
+        <div className="sidebar-content-wrapper">
+          {renderSidebarContent()}
+        </div>
       </div>
     </>
   );

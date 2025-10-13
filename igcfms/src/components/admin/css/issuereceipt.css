@@ -437,7 +437,7 @@
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 0;  
   background: radial-gradient(circle at 30% 20%, rgba(147, 51, 234, 0.1) 0%, transparent 50%),
               radial-gradient(circle at 70% 80%, rgba(34, 211, 238, 0.1) 0%, transparent 50%);
   pointer-events: none;
@@ -1503,7 +1503,7 @@
 .receipts-table-section {
   background: #ffffff;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   border: 2px solid #000000;
   margin-top: 18px;
@@ -1729,6 +1729,20 @@
   z-index: 1100;
 }
 
+.modal-overlay.confirmation-overlay {
+  z-index: 1500;
+}
+
+.modal-overlay.confirmation-overlay .modal-content {
+  position: relative;
+  z-index: 1501;
+}
+
+.issue-modal-underlay {
+  z-index: 900;
+  backdrop-filter: blur(2px);
+}
+
 .modal-content {
   background: #ffffff;
   border-radius: 12px;
@@ -1754,7 +1768,7 @@
 .modal-header h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #000000;
+  color: #ffffff !important; 
   margin: 0;
   display: flex;
   align-items: center;
@@ -1764,11 +1778,11 @@
 .modal-close {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 16px;
   color: #666666;
   cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
+  padding: 4px;
+  border-radius: 6px;
   transition: all 0.2s ease;
 }
 
@@ -2749,12 +2763,13 @@
 
 .selected-transaction {
   flex: 1;
+  min-width: 0;
   color: #333333;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.6;
-  max-width: 100%;
 }
 
 .transaction-select-btn i {
@@ -2767,8 +2782,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 48px;
+  width: 20px !important;
+  height: 20px !important;
   border: 2px solid #e5e5e5;
   border-radius: 6px;
   background: #ffffff;
@@ -3346,7 +3361,7 @@
   border: 2px solid #000000 !important;
   border-radius: 6px;
   background: #ffffff;
-  color: #6b7280;
+  color: #000000 !important;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -4179,7 +4194,7 @@ input[type="text"].edit-form-input:disabled {
 
 .export-option:hover {
   background: #111827;
-  color: #ffffff;
+  color: #000000 !important;
   border-color: #000000;
   transform: translateY(-1px);
 }

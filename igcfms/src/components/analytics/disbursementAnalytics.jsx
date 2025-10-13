@@ -131,9 +131,9 @@ const DisbursementTrends = ({
 
     // Monochrome gradient for horizontal bars
     const gradient = ctx.createLinearGradient(0, 0, 480, 0);
-    gradient.addColorStop(0, '#0f172a');
-    gradient.addColorStop(0.45, '#1f2937');
-    gradient.addColorStop(1, '#374151');
+    gradient.addColorStop(0, '#000000');
+    gradient.addColorStop(0.45, '#000000');
+    gradient.addColorStop(1, '#000000');
 
     const formatAxisValue = (value) => {
       if (Math.abs(value) >= 1000000) {

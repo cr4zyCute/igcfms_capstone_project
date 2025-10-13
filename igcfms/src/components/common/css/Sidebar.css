@@ -18,7 +18,95 @@
   z-index: 1000;
   font-family: 'Inter', sans-serif;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s ease;
+}
+
+
+.sidebar-collapsed {
+  width: 88px;
+}
+
+.sidebar-content-wrapper {
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar-collapsed .sidebar-content-wrapper {
+  padding: 12px 0;
+}
+
+.sidebar-header {
+  position: relative;
+}
+
+
+.sidebar-collapsed .sidebar-header {
+  padding-right: 12px;
+}
+
+.sidebar-collapsed .logo-container {
+  justify-content: center;
+  gap: 0;
+  width: auto;
+}
+
+.sidebar-collapsed .system-title {
+  display: none;
+}
+
+.sidebar-collapsed .admin-sidebar-content {
+  padding: 16px 12px;
+}
+
+.sidebar-collapsed .admin-section-header {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.sidebar-collapsed .admin-section-icon {
+  margin: 0;
+}
+
+.sidebar-collapsed .admin-section-title,
+.sidebar-collapsed .admin-section-arrow {
+  display: none;
+}
+
+.sidebar-collapsed .admin-sidebar-menu {
+  padding: 0;
+}
+
+.sidebar-collapsed .admin-sidebar-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.sidebar-collapsed .admin-item-label,
+.sidebar-collapsed .admin-sidebar-item .notification-badge {
+  display: none;
+}
+
+.sidebar-collapsed .collapse-toggle {
+  transform: rotate(180deg);
+}
+
+.collapse-toggle {
+  margin-left: auto;
+  background: rgba(15, 23, 42, 0.06);
+  border: none;
+  color: #111827;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collapse-toggle:hover {
+  background: rgba(59, 130, 246, 0.15);
 }
 
 .sidebar-header {
