@@ -101,7 +101,7 @@ const PayerDistributionAnalytics = ({
   return (
     <div className="dashboard-box box-2 box-2-dark-theme">
       <div className="box-header box-2-dark-header">
-        <h3 className="box-title">Box 2</h3>
+        <h3 className="box-title">Top Payer Performance</h3>
         <span className="box-subtitle">TOP 3 PAYERS</span>
       </div>
       <div className="box-content">

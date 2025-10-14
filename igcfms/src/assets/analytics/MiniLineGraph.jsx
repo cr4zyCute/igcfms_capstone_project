@@ -50,7 +50,7 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
         absAmount,
         barValue: scaledValue,
         isCollection,
-        color: isCollection ? '#22c55e' : '#ef4444',
+        color: isCollection ? '#198754' : '#b02a37',
         shortDate: new Date(point.date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',

@@ -216,7 +216,7 @@ const ReceiptCountAnalytics = ({
     <div className="dashboard-box box-3">
       <div className="box-header">
         <div className="box-title-with-indicator">
-          <h3 className="box-title">Receipt Count</h3>
+          <h3 className="box-title">Issued Receipts Summary</h3>
         </div>
       </div>
       <div className="box-content">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import "./css/issuemoney.css";
 import notificationService from "../../services/notificationService";
@@ -13,6 +13,14 @@ const IssueMoney = () => {
   const [fundAccounts, setFundAccounts] = useState([]);
   const [recipientAccounts, setRecipientAccounts] = useState([]);
   const [recentDisbursements, setRecentDisbursements] = useState([]);
+  const [filteredDisbursements, setFilteredDisbursements] = useState([]);
+  const [filters, setFilters] = useState({
+    activeFilter: "all",
+    searchTerm: "",
+    showFilterDropdown: false
+  });
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const exportDropdownRef = useRef(null);
   
   // Form states
   const [formData, setFormData] = useState({
@@ -117,8 +125,7 @@ const IssueMoney = () => {
       const allTransactions = transactionsRes.data || [];
       const disbursements = allTransactions
         .filter(tx => tx.type === 'Disbursement')
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 5);
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setRecentDisbursements(disbursements);
 
     } catch (err) {
@@ -284,6 +291,219 @@ const IssueMoney = () => {
     }
 
     return true;
+  };
+
+  const parseAmountValue = (value) => {
+    const parsed = Number.parseFloat(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const applyFilters = () => {
+    if (!Array.isArray(recentDisbursements)) {
+      setFilteredDisbursements([]);
+      return;
+    }
+
+    let data = [...recentDisbursements];
+
+    if (filters.searchTerm) {
+      const searchLower = filters.searchTerm.toLowerCase();
+      data = data.filter((disbursement) => {
+        const recipient = disbursement.recipient || '';
+        const reference = disbursement.reference || disbursement.reference_no || disbursement.receipt_no || '';
+        const purpose = disbursement.purpose || '';
+        return (
+          recipient.toLowerCase().includes(searchLower) ||
+          reference.toString().toLowerCase().includes(searchLower) ||
+          purpose.toLowerCase().includes(searchLower) ||
+          disbursement.id?.toString().includes(searchLower)
+        );
+      });
+    }
+
+    if (filters.activeFilter === 'latest') {
+      data.sort((a, b) => new Date(b.created_at || b.updated_at) - new Date(a.created_at || a.updated_at));
+    } else if (filters.activeFilter === 'oldest') {
+      data.sort((a, b) => new Date(a.created_at || a.updated_at) - new Date(b.created_at || b.updated_at));
+    } else if (filters.activeFilter === 'highest') {
+      data.sort((a, b) => parseAmountValue(b.amount) - parseAmountValue(a.amount));
+    } else if (filters.activeFilter === 'lowest') {
+      data.sort((a, b) => parseAmountValue(a.amount) - parseAmountValue(b.amount));
+    }
+
+    setFilteredDisbursements(data);
+  };
+
+  useEffect(() => {
+    applyFilters();
+  }, [recentDisbursements, filters]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target)) {
+        setShowExportDropdown(false);
+      }
+      if (!event.target.closest('.filter-dropdown-container')) {
+        setFilters(prev => ({ ...prev, showFilterDropdown: false }));
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const formatCurrency = (value) => {
+    const normalized = parseAmountValue(value);
+    return `₱${Math.abs(normalized).toLocaleString()}`;
+  };
+
+  const exportFilters = useMemo(() => ({
+    Sorting: filters.activeFilter,
+    Search: filters.searchTerm || 'None'
+  }), [filters]);
+
+  const disbursementsForExport = useMemo(() => (
+    filteredDisbursements.map((disbursement) => ({
+      id: disbursement.id,
+      reference: disbursement.reference || disbursement.reference_no || disbursement.receipt_no || `#${disbursement.id}`,
+      recipient: disbursement.recipient || 'N/A',
+      amount: parseAmountValue(disbursement.amount),
+      mode_of_payment: disbursement.mode_of_payment || 'N/A',
+      created_at: disbursement.created_at || disbursement.updated_at
+    }))
+  ), [filteredDisbursements]);
+
+  const disbursementSummary = useMemo(() => {
+    const totalCount = filteredDisbursements.length;
+    const totalAmount = filteredDisbursements.reduce((sum, item) => sum + parseAmountValue(item.amount), 0);
+    const averageAmount = totalCount > 0 ? totalAmount / totalCount : 0;
+
+    return {
+      totalCount,
+      totalAmount,
+      averageAmount
+    };
+  }, [filteredDisbursements]);
+
+  const handleExportCsv = () => {
+    if (!filteredDisbursements.length) {
+      setShowExportDropdown(false);
+      return;
+    }
+
+    const headers = ['Disbursement ID', 'Reference', 'Recipient', 'Amount', 'Payment Mode', 'Date'];
+    const rows = disbursementsForExport.map((item) => (
+      [
+        `#${item.id}`,
+        item.reference,
+        item.recipient,
+        formatCurrency(item.amount),
+        item.mode_of_payment,
+        item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'
+      ].map((value) => `"${(value || '').toString().replace(/"/g, '""')}"`).join(',')
+    ));
+
+    const csvContent = [headers.map((h) => `"${h}"`).join(','), ...rows].join('\n');
+    const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `recent_disbursements_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setShowExportDropdown(false);
+  };
+
+  const handleExportPdf = () => {
+    if (!filteredDisbursements.length) {
+      setShowExportDropdown(false);
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const pdfWindow = window.open('', '_blank');
+    if (!pdfWindow) {
+      return;
+    }
+
+    const generatedBy = (typeof window !== 'undefined' && localStorage.getItem('user_name')) || 'System';
+    const summaryRows = `
+      <p><strong>Total Disbursements:</strong> ${disbursementSummary.totalCount}</p>
+      <p><strong>Total Amount:</strong> ${formatCurrency(disbursementSummary.totalAmount)}</p>
+      <p><strong>Average Amount:</strong> ${formatCurrency(disbursementSummary.averageAmount)}</p>
+    `;
+
+    const rows = disbursementsForExport.map((item) => `
+      <tr>
+        <td>#${item.id}</td>
+        <td>${item.reference}</td>
+        <td>${item.recipient}</td>
+        <td>${formatCurrency(item.amount)}</td>
+        <td>${item.mode_of_payment}</td>
+        <td>${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}</td>
+      </tr>
+    `).join('');
+
+    pdfWindow.document.write(`
+      <html>
+        <head>
+          <title>Recent Disbursements Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+            h1 { font-size: 24px; margin-bottom: 8px; }
+            h2 { font-size: 18px; margin-top: 24px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+            th, td { border: 1px solid #d1d5db; padding: 8px 12px; text-align: left; }
+            th { background: #111827; color: #ffffff; text-transform: uppercase; font-size: 12px; }
+            td { font-size: 13px; }
+          </style>
+        </head>
+        <body>
+          <h1>Recent Disbursements Report</h1>
+          <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+          <p><strong>Generated By:</strong> ${generatedBy}</p>
+          <h2>Filters</h2>
+          <p><strong>Sorting:</strong> ${exportFilters.Sorting}</p>
+          <p><strong>Search:</strong> ${exportFilters.Search}</p>
+          <h2>Summary</h2>
+          ${summaryRows}
+          <h2>Disbursements</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Disbursement ID</th>
+                <th>Reference</th>
+                <th>Recipient</th>
+                <th>Amount</th>
+                <th>Payment Mode</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    pdfWindow.document.close();
+    pdfWindow.focus();
+    pdfWindow.print();
+    setShowExportDropdown(false);
   };
 
   const handleSubmit = async (e) => {
@@ -750,47 +970,196 @@ const IssueMoney = () => {
             </div>
           </form>
         </div>
+      </div>
 
-        {/* Recent Disbursements */}
-        <div className="recent-disbursements-section">
-          <div className="section-header">
-            <h3><i className="fas fa-history"></i> Recent Disbursements</h3>
+      {/* Recent Disbursements */}
+      <div className="recent-disbursements-section">
+        <div className="section-header">
+          <div className="section-title-group">
+            <h3>
+              <i className="fas fa-history"></i>
+              Recent Disbursements
+              <span className="section-count">({filteredDisbursements.length})</span>
+            </h3>
           </div>
-          
-          <div className="disbursements-list">
-            {recentDisbursements.length > 0 ? (
-              recentDisbursements.map((disbursement) => (
-                <div key={disbursement.id} className="disbursement-card">
-                  <div className="disbursement-header">
-                    <span className="disbursement-id">#{disbursement.id}</span>
-                    <span className="disbursement-amount">₱{parseFloat(disbursement.amount || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="disbursement-details">
-                    <div className="detail-row">
-                      <span className="label">Payee:</span>
-                      <span className="value">{disbursement.recipient || 'N/A'}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="label">Department:</span>
-                      <span className="value">{disbursement.department || 'N/A'}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="label">Mode:</span>
-                      <span className="value">{disbursement.mode_of_payment || 'N/A'}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="label">Date:</span>
-                      <span className="value">{new Date(disbursement.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="no-data">
-                <i className="fas fa-inbox"></i>
-                <p>No recent disbursements found.</p>
+          <div className="header-controls">
+            <div className="search-filter-container">
+              <div className="account-search-container">
+                <input
+                  type="text"
+                  placeholder="Search disbursements..."
+                  value={filters.searchTerm}
+                  onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                  className="account-search-input"
+                />
+                <i className="fas fa-search account-search-icon"></i>
               </div>
-            )}
+
+              <div className="filter-dropdown-container">
+                <button
+                  className="filter-dropdown-btn"
+                  onClick={() => handleFilterChange('showFilterDropdown', !filters.showFilterDropdown)}
+                  title="Filter disbursements"
+                  type="button"
+                >
+                  <i className="fas fa-filter"></i>
+                  <span className="filter-label">
+                    {filters.activeFilter === 'all' ? 'All Disbursements' :
+                     filters.activeFilter === 'latest' ? 'Latest First' :
+                     filters.activeFilter === 'oldest' ? 'Oldest First' :
+                     filters.activeFilter === 'highest' ? 'Lowest Amount' :
+                     'Highest Amount'}
+                  </span>
+                  <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
+                </button>
+
+                {filters.showFilterDropdown && (
+                  <div className="filter-dropdown-menu">
+                    <button
+                      className={`filter-option ${filters.activeFilter === 'all' ? 'active' : ''}`}
+                      onClick={() => { handleFilterChange('activeFilter', 'all'); handleFilterChange('showFilterDropdown', false); }}
+                      type="button"
+                    >
+                      <i className="fas fa-list"></i>
+                      <span>All Disbursements</span>
+                      {filters.activeFilter === 'all' && <i className="fas fa-check filter-check"></i>}
+                    </button>
+                    <button
+                      className={`filter-option ${filters.activeFilter === 'latest' ? 'active' : ''}`}
+                      onClick={() => { handleFilterChange('activeFilter', 'latest'); handleFilterChange('showFilterDropdown', false); }}
+                      type="button"
+                    >
+                      <i className="fas fa-arrow-down"></i>
+                      <span>Latest First</span>
+                      {filters.activeFilter === 'latest' && <i className="fas fa-check filter-check"></i>}
+                    </button>
+                    <button
+                      className={`filter-option ${filters.activeFilter === 'oldest' ? 'active' : ''}`}
+                      onClick={() => { handleFilterChange('activeFilter', 'oldest'); handleFilterChange('showFilterDropdown', false); }}
+                      type="button"
+                    >
+                      <i className="fas fa-arrow-up"></i>
+                      <span>Oldest First</span>
+                      {filters.activeFilter === 'oldest' && <i className="fas fa-check filter-check"></i>}
+                    </button>
+                    <button
+                      className={`filter-option ${filters.activeFilter === 'highest' ? 'active' : ''}`}
+                      onClick={() => { handleFilterChange('activeFilter', 'highest'); handleFilterChange('showFilterDropdown', false); }}
+                      type="button"
+                    >
+                      <i className="fas fa-sort-amount-down"></i>
+                      <span>Lowest Amount</span>
+                      {filters.activeFilter === 'highest' && <i className="fas fa-check filter-check"></i>}
+                    </button>
+                    <button
+                      className={`filter-option ${filters.activeFilter === 'lowest' ? 'active' : ''}`}
+                      onClick={() => { handleFilterChange('activeFilter', 'lowest'); handleFilterChange('showFilterDropdown', false); }}
+                      type="button"
+                    >
+                      <i className="fas fa-sort-amount-up"></i>
+                      <span>Highest Amount</span>
+                      {filters.activeFilter === 'lowest' && <i className="fas fa-check filter-check"></i>}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="action-buttons" ref={exportDropdownRef}>
+              <button
+                className="btn-icon export-btn"
+                title="Export Disbursements"
+                type="button"
+                onClick={() => setShowExportDropdown(prev => !prev)}
+              >
+                <i className="fas fa-download"></i>
+              </button>
+              {showExportDropdown && (
+                <div className="export-dropdown-menu">
+                  <button type="button" className="export-option" onClick={handleExportPdf}>
+                    <i className="fas fa-file-pdf"></i>
+                    <span>Download PDF</span>
+                  </button>
+                  <button type="button" className="export-option" onClick={handleExportCsv}>
+                    <i className="fas fa-file-excel"></i>
+                    <span>Download CSV</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="disbursements-table-section">
+          <div className="disbursements-table-container">
+            <table className="disbursements-table receipts-table">
+              <thead>
+                <tr>
+                  <th><i className="fas fa-hashtag"></i> DISBURSEMENT ID</th>
+                  <th><i className="fas fa-file-invoice"></i> TRANSACTION</th>
+                  <th><i className="fas fa-user"></i> RECIPIENT</th>
+                  <th><i className="fas fa-money-bill"></i> AMOUNT</th>
+                  <th><i className="fas fa-wallet"></i> PAYMENT MODE</th>
+                  <th><i className="fas fa-calendar"></i> DATE</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDisbursements.length > 0 ? (
+                  filteredDisbursements.map((disbursement) => {
+                    const rawAmount = Number.parseFloat(disbursement.amount ?? 0);
+                    const amountValue = Number.isFinite(rawAmount) ? rawAmount : 0;
+                    const amountClass = amountValue < 0 ? "amount-negative" : "amount-positive";
+                    const formattedAmount = `₱${Math.abs(amountValue).toLocaleString()}`;
+                    const transactionRef = disbursement.reference || disbursement.reference_no || disbursement.receipt_no || `#${disbursement.id}`;
+                    const formattedDate = disbursement.created_at ? new Date(disbursement.created_at).toLocaleDateString() : "N/A";
+
+                    return (
+                      <tr key={disbursement.id} className="table-row">
+                        <td>
+                          <div className="cell-content">
+                            <span className="receipt-id">#{disbursement.id}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cell-content">
+                            <span className="transaction-ref">{transactionRef}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cell-content">
+                            <span className="payer-name">{disbursement.recipient || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cell-content">
+                            <span className={`amount ${amountClass}`}>
+                              {amountValue < 0 ? '-' : ''}{formattedAmount}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cell-content">
+                            <span className="transaction-mode">{disbursement.mode_of_payment || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cell-content">
+                            <span className="issue-date">{formattedDate}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="no-data">
+                      <i className="fas fa-inbox"></i>
+                      <p>No recent disbursements found.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

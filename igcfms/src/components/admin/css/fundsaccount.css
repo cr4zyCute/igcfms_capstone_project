@@ -1773,11 +1773,11 @@ textarea {
 }
 
 .amount-text.positive {
-  color: #059669;
+  color: #198754;
 }
 
 .amount-text.negative {
-  color: #dc2626;
+  color: #b02a37;
 }
 
 .view-all-button {
@@ -3308,6 +3308,7 @@ table tr:last-child td {
 .filter-dropdown-btn:hover {
   border-color: #000000;
   background: #f8f8f8;
+  color: #000000 !important;
 }
 
 .filter-dropdown-btn:focus {

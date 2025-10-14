@@ -56,7 +56,7 @@
 /* Content Grid */
 .im-content-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr;
   gap: 30px;
   margin-bottom: 30px;
 }
@@ -167,15 +167,19 @@
 /* Recent Disbursements Section */
 .recent-disbursements-section {
   background: #ffffff;
-  border: 2px solid #f0f0f0;
   border-radius: 12px;
-  padding: 25px;
+  border: 2px solid #000000;
+  padding: 25px 25px 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .section-header {
   margin-bottom: 20px;
   padding-bottom: 15px;
   border-bottom: 2px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .section-header h3 {
@@ -188,70 +192,298 @@
   gap: 8px;
 }
 
-.disbursements-list {
+.section-header .section-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-left: auto;
+}
+
+.section-title-group {
   display: flex;
-  flex-direction: column;
-  gap: 15px;
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-.disbursement-card {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-  border-radius: 8px;
-  padding: 15px;
-  transition: all 0.2s ease;
-}
-
-.disbursement-card:hover {
-  border-color: #cccccc;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.disbursement-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  gap: 8px;
 }
 
-.disbursement-id {
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-search-container {
+  position: relative;
+  width: 240px;
+}
+
+.account-search-input {
+  width: 100%;
+  padding: 10px 32px 10px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.account-search-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.account-search-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.filter-dropdown-container {
+  position: relative;
+}
+
+.filter-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 2px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.filter-dropdown-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(17, 24, 39, 0.2);
+}
+
+.filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  font-weight: 700;
+}
+
+.filter-arrow {
+  font-size: 12px;
+}
+
+.filter-dropdown-menu {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  background: #ffffff;
+  border: 2px solid #111827;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+  padding: 10px 0;
+  width: 220px;
+  z-index: 10;
+}
+
+.filter-option {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.filter-option i {
+  width: 16px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.filter-option:hover {
+  background: #f1f5f9;
+}
+
+.filter-option.active {
+  background: #111827;
+  color: #ffffff;
+}
+
+.filter-option.active i {
+  color: #ffffff;
+}
+
+.filter-check {
+  margin-left: auto;
+  color: #22c55e;
+}
+
+.action-buttons {
+  position: relative;
+}
+
+.btn-icon {
+  background: #ffffff;
+  border: 2px solid #111827;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #111827;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-icon:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(17, 24, 39, 0.15);
+}
+
+.export-dropdown-menu {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  background: #ffffff;
+  border: 2px solid #111827;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+  padding: 10px 0;
+  width: 200px;
+  z-index: 10;
+}
+
+.export-option {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.export-option i {
+  width: 16px;
+  text-align: center;
   color: #2563eb;
 }
 
-.disbursement-amount {
+.export-option:hover {
+  background: #f1f5f9;
+}
+
+.disbursements-table-section {
+  background: #ffffff;
+  border-radius: 12px;
+  overflow: visible;
+  border: 2px solid #000000;
+}
+
+.disbursements-table-container {
+  max-height: 500px;
+  overflow: auto;
+}
+
+.disbursements-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  background: #ffffff;
+}
+
+.disbursements-table thead {
+  background: #000000 !important;
+}
+
+.disbursements-table th {
+  padding: 12px 20px 10px !important;
+  text-align: left !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  border: none !important;
+  white-space: nowrap !important;
+  background: #1f2937 !important;
+}
+
+.disbursements-table th i {
+  margin-right: 8px;
+  opacity: 0.8;
+  color: #ffffff !important;
+}
+
+.disbursements-table tbody tr {
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+
+.disbursements-table tbody tr:nth-child(even) {
+  background: #ffffff;
+}
+
+.disbursements-table tbody tr:hover {
+  background: #f9fafb !important;
+}
+
+.disbursements-table td {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
   font-size: 14px;
-  font-weight: 700;
-  color: #dc2626;
+  color: #1f2937;
+  vertical-align: middle;
+  background: #ffffff;
 }
 
-.disbursement-details {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.table-row:last-child td {
+  border-bottom: none;
 }
 
-.detail-row {
+.cell-content {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
-.detail-row .label {
-  font-size: 11px;
-  color: #666666;
+.receipt-id,
+.transaction-ref,
+.payer-name,
+.transaction-mode,
+.issue-date {
+  font-size: 14px;
   font-weight: 500;
+  color: #1f2937;
 }
 
-.detail-row .value {
-  font-size: 11px;
-  color: #000000;
-  font-weight: 500;
-  text-align: right;
+.amount-positive {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.amount-negative {
+  color: #ef4444;
+  font-weight: 600;
 }
 
 /* No Data State */
