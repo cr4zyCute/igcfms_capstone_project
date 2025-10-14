@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import axios from "axios";
 import "./css/issuereceipt.css";
 import Deletion from '../common/Deletion';
 import DisbursementTrends from '../analytics/disbursementAnalytics';
 import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
 import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
 import IssueReceiptSkeleton from '../ui/issuerecieptLoading';
+import {
+  useReceipts,
+  useCollectionTransactions,
+  useCreateReceipt,
+  useUpdateReceipt,
+  useDeleteReceipt
+} from '../../hooks/useReceipts';
 
 // Chart.js
 import Chart from 'chart.js/auto';
@@ -96,11 +102,8 @@ const formatCurrency = (value) => {
   });
 };
 const IssueReceipt = () => {
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [transactions, setTransactions] = useState([]);
-  const [receipts, setReceipts] = useState([]);
   const [filteredReceipts, setFilteredReceipts] = useState([]);
   const [analyticsData, setAnalyticsData] = useState({
     monthlyTrend: [],
@@ -147,7 +150,6 @@ const IssueReceipt = () => {
   const [receiptToDelete, setReceiptToDelete] = useState(null);
   const [receiptResult, setReceiptResult] = useState(null);
   const [transactionSearch, setTransactionSearch] = useState("");
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [trendPeriod, setTrendPeriod] = useState('month');
   const [disbursementPeriod, setDisbursementPeriod] = useState('week'); // week, month, year
   const [editFormData, setEditFormData] = useState({
@@ -158,16 +160,43 @@ const IssueReceipt = () => {
     transactionId: ""
   });
   const [showExportDropdown, setShowExportDropdown] = useState(false);
-  const API_BASE = "http://localhost:8000/api";
-  const token = localStorage.getItem("token");
+
+  const {
+    data: receiptsData = [],
+    isLoading: receiptsLoading,
+    error: receiptsError
+  } = useReceipts();
+
+  const {
+    data: collectionTransactions = [],
+    isLoading: transactionsLoading,
+    error: transactionsError
+  } = useCollectionTransactions();
+
+  const createReceiptMutation = useCreateReceipt();
+  const updateReceiptMutation = useUpdateReceipt();
+  const deleteReceiptMutation = useDeleteReceipt();
+
+  const receipts = useMemo(() => receiptsData || [], [receiptsData]);
+  const transactions = useMemo(() => collectionTransactions || [], [collectionTransactions]);
+  const isInitialLoading = receiptsLoading || transactionsLoading;
+  const mutationLoading = createReceiptMutation.isPending || updateReceiptMutation.isPending || deleteReceiptMutation.isPending;
 
   useEffect(() => {
-    fetchInitialData();
-  }, [token]);
+    if (receiptsError) {
+      setError(receiptsError.message || 'Failed to load receipts');
+    }
+  }, [receiptsError]);
+
+  useEffect(() => {
+    if (transactionsError) {
+      setError(transactionsError.message || 'Failed to load collection transactions');
+    }
+  }, [transactionsError]);
 
   useEffect(() => {
     applyFilters();
-  }, [filters, receipts]);
+  }, [filters, receipts, transactions]);
 
   useEffect(() => {
     if (receipts.length > 0 && transactions.length > 0) {
@@ -200,35 +229,6 @@ const IssueReceipt = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        return;
-      }
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Fetch collection transactions and receipts
-      const [transactionsRes, receiptsRes] = await Promise.all([
-        axios.get(`${API_BASE}/transactions?type=Collection`, { headers }),
-        axios.get(`${API_BASE}/receipts`, { headers }).catch(() => ({ data: [] }))
-      ]);
-
-      setTransactions(transactionsRes.data || []);
-      setReceipts(receiptsRes.data || []);
-
-    } catch (err) {
-      console.error('Issue receipt error:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const applyFilters = () => {
     let filtered = [...receipts];
@@ -283,23 +283,24 @@ const IssueReceipt = () => {
     setFilteredReceipts(filtered);
   };
 
-  const filterTransactions = () => {
-    let filtered = [...transactions];
+  const filteredTransactions = useMemo(() => {
+    const base = Array.isArray(transactions) ? transactions : [];
 
-    if (transactionSearch.trim()) {
-      const searchLower = transactionSearch.toLowerCase();
-      filtered = filtered.filter(tx => 
-        tx.id.toString().includes(searchLower) ||
-        tx.description?.toLowerCase().includes(searchLower) ||
-        tx.recipient?.toLowerCase().includes(searchLower) ||
-        tx.amount?.toString().includes(searchLower) ||
-        tx.department?.toLowerCase().includes(searchLower) ||
-        tx.category?.toLowerCase().includes(searchLower)
-      );
+    if (!transactionSearch.trim()) {
+      return base;
     }
 
-    setFilteredTransactions(filtered);
-  };
+    const searchLower = transactionSearch.toLowerCase();
+    return base.filter(tx => 
+      tx.id?.toString().includes(searchLower) ||
+      tx.description?.toLowerCase().includes(searchLower) ||
+      tx.recipient?.toLowerCase().includes(searchLower) ||
+      tx.payer_name?.toLowerCase().includes(searchLower) ||
+      tx.amount?.toString().includes(searchLower) ||
+      tx.department?.toLowerCase().includes(searchLower) ||
+      tx.category?.toLowerCase().includes(searchLower)
+    );
+  }, [transactions, transactionSearch]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({
@@ -338,7 +339,6 @@ const IssueReceipt = () => {
 
   const openTransactionModal = () => {
     setTransactionSearch("");
-    setFilteredTransactions(transactions);
     setShowTransactionModal(true);
   };
 
@@ -410,29 +410,26 @@ const IssueReceipt = () => {
   };
 
   const confirmIssueReceipt = async () => {
-    setLoading(true);
     setShowIssueModal(false);
-    
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
 
+    try {
       const payload = {
-        transaction_id: parseInt(formData.transactionId),
+        transaction_id: parseInt(formData.transactionId, 10),
         payer_name: formData.payerName.trim(),
         receipt_number: formData.receiptNumber.trim(),
       };
 
-      const response = await axios.post(`${API_BASE}/receipts`, payload, { headers });
+      const response = await createReceiptMutation.mutateAsync(payload);
+      const createdReceipt = response?.data || response || {};
 
       setReceiptResult({
-        id: response.data.id || response.data.data?.id,
-        receiptNumber: formData.receiptNumber,
-        payerName: formData.payerName,
-        transactionId: formData.transactionId,
-        issueDate: formData.issueDate
+        id: createdReceipt.id || createdReceipt.data?.id,
+        receiptNumber: createdReceipt.receipt_number || formData.receiptNumber,
+        payerName: createdReceipt.payer_name || formData.payerName,
+        transactionId: String(createdReceipt.transaction_id || formData.transactionId),
+        issueDate: createdReceipt.issued_at || formData.issueDate
       });
 
-      // Reset form
       setFormData({
         transactionId: "",
         payerName: "",
@@ -442,20 +439,17 @@ const IssueReceipt = () => {
 
       setShowIssueFormModal(false);
       setShowReceiptModal(true);
-      fetchInitialData(); // Refresh data
+      showMessage('Receipt issued successfully!', 'success');
 
     } catch (err) {
       console.error("Error issuing receipt:", err);
-      if (err.response?.status === 422 && err.response.data?.errors) {
-        const errorMessages = Object.values(err.response.data.errors)
-          .flat()
-          .join(", ");
+      const validationErrors = err?.response?.data?.errors;
+      if (validationErrors) {
+        const errorMessages = Object.values(validationErrors).flat().join(", ");
         showMessage(`Validation error: ${errorMessages}`, 'error');
       } else {
-        showMessage(err.response?.data?.message || "Failed to issue receipt.", 'error');
+        showMessage(err?.response?.data?.message || err.message || "Failed to issue receipt.", 'error');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -509,45 +503,35 @@ const IssueReceipt = () => {
   // Submit edit receipt
   const submitEditReceipt = async () => {
     try {
-      setLoading(true);
-      const headers = { Authorization: `Bearer ${token}` };
-
       const payload = {
         payer_name: editFormData.payerName.trim(),
         receipt_number: editFormData.receiptNumber.trim(),
         issued_at: editFormData.issueDate
       };
 
-      await axios.put(`${API_BASE}/receipts/${editFormData.id}`, payload, { headers });
-      
+      await updateReceiptMutation.mutateAsync({ id: editFormData.id, data: payload });
+
       showMessage('Receipt updated successfully!', 'success');
       setShowEditModal(false);
-      fetchInitialData(); // Refresh data
     } catch (err) {
       console.error('Error updating receipt:', err);
-      showMessage(err.response?.data?.message || 'Failed to update receipt.', 'error');
-    } finally {
-      setLoading(false);
+      showMessage(err?.response?.data?.message || err.message || 'Failed to update receipt.', 'error');
     }
   };
 
   // Delete receipt
   const deleteReceipt = async () => {
-    try {
-      setLoading(true);
-      const headers = { Authorization: `Bearer ${token}` };
+    if (!receiptToDelete) return;
 
-      await axios.delete(`${API_BASE}/receipts/${receiptToDelete.id}`, { headers });
-      
+    try {
+      await deleteReceiptMutation.mutateAsync(receiptToDelete.id);
+
       showMessage('Receipt deleted successfully!', 'success');
       setShowDeleteModal(false);
       setReceiptToDelete(null);
-      fetchInitialData(); // Refresh data
     } catch (err) {
       console.error('Error deleting receipt:', err);
-      showMessage(err.response?.data?.message || 'Failed to delete receipt.', 'error');
-    } finally {
-      setLoading(false);
+      showMessage(err?.response?.data?.message || err.message || 'Failed to delete receipt.', 'error');
     }
   };
 
@@ -939,7 +923,7 @@ const IssueReceipt = () => {
     setShowExportDropdown(false);
   };
 
-  if (loading && transactions.length === 0) {
+  if (isInitialLoading) {
     return <IssueReceiptSkeleton />;
   }
 
@@ -979,7 +963,7 @@ const IssueReceipt = () => {
       {error && (
         <div className="error-banner">
           <i className="fas fa-exclamation-triangle"></i>
-          {error}
+          {error} 
         </div>
       )}
 
@@ -1392,9 +1376,9 @@ const IssueReceipt = () => {
                 type="button"
                 className="confirm-btn"
                 onClick={confirmIssueReceipt}
-                disabled={loading}
+                disabled={mutationLoading}
               >
-                {loading ? (
+                {mutationLoading ? (
                   <i className="fas fa-spinner fa-spin"></i>
                 ) : (
                   <>
@@ -1770,9 +1754,9 @@ const IssueReceipt = () => {
                 <button
                   type="submit"
                   className="submit-btn issue-receipt-btn"
-                  disabled={loading || powerNameError}
+                  disabled={mutationLoading || powerNameError}
                 >
-                  {loading ? (
+                  {mutationLoading ? (
                     <>
                       <i className="fas fa-spinner fa-spin"></i> Processing...
                     </>
@@ -1897,13 +1881,12 @@ const IssueReceipt = () => {
 
                 {/* Modal Footer */}
                 <div className="edit-modal-footer">
-              
                   <button
                     type="submit"
                     className="edit-btn edit-btn-save"
-                    disabled={loading}
+                    disabled={mutationLoading}
                   >
-                    {loading ? (
+                    {mutationLoading ? (
                       <>
                         <i className="fas fa-spinner fa-spin"></i>
                         Updating...
@@ -1927,7 +1910,7 @@ const IssueReceipt = () => {
           isOpen={showDeleteModal && !!receiptToDelete}
           onClose={() => setShowDeleteModal(false)}
           onConfirm={deleteReceipt}
-          loading={loading}
+          loading={mutationLoading}
           title="CONFIRM DELETION"
           message="Are you sure you want to delete this receipt? This action cannot be undone and will permanently remove all associated data."
           itemDetails={receiptToDelete ? [

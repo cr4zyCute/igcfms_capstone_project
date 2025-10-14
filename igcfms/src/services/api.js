@@ -128,6 +128,56 @@ const api = axios.create({
     }
   };
 
+  // Receipts API
+  export const getReceipts = async (params = {}) => {
+    try {
+      const response = await api.get('/receipts', { params });
+      const data = response.data;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.data)) return data.data;
+      return data?.receipts ?? [];
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  export const createReceipt = async (receiptData) => {
+    try {
+      const response = await api.post('/receipts', receiptData);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  export const updateReceipt = async (id, receiptData) => {
+    try {
+      const response = await api.put(`/receipts/${id}`, receiptData);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  export const deleteReceipt = async (id) => {
+    try {
+      const response = await api.delete(`/receipts/${id}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  export const getCollectionTransactions = async (params = {}) => {
+    try {
+      const response = await getTransactions({ type: 'Collection', ...params });
+      if (Array.isArray(response)) return response;
+      return response?.data || response?.transactions || [];
+    } catch (error) {
+      throw error;
+    }
+  };
+
   // Override Requests API
   export const getOverrideRequests = async () => {
     try {
