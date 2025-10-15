@@ -175,7 +175,7 @@
 /* Minimal Black & White Stat Card Styles */
 .minimal-stat-card {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border: 2px solid #000000;
   border-radius: 8px;
   padding: 16px;
   display: flex;
