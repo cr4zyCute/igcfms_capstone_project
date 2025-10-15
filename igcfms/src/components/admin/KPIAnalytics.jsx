@@ -5,6 +5,8 @@ import './css/kpiAnalytics.css';
 const KPIAnalytics = ({ disbursements = [], isLoading = false }) => {
   const dpoChartRef = useRef(null);
   const dpoChartInstance = useRef(null);
+  const paymentMethodChartRef = useRef(null);
+  const paymentMethodChartInstance = useRef(null);
 
   // Calculate KPI metrics
   const kpiMetrics = useMemo(() => {
@@ -55,8 +57,8 @@ const KPIAnalytics = ({ disbursements = [], isLoading = false }) => {
         // - Missing recipient information  
         // - Invalid payment methods
         const hasAmountError = !d.amount || parseFloat(d.amount) <= 0;
-        const hasRecipientError = !d.recipient && !d.payer_name && !d.description;
-        const hasPaymentMethodError = !d.mode_of_payment && !d.category;
+        const hasRecipientError = !d.recipient && !d.description && !d.purpose;
+        const hasPaymentMethodError = !d.mode_of_payment;
         
         return hasAmountError || hasRecipientError || hasPaymentMethodError;
       }).length;
@@ -182,28 +184,8 @@ const KPIAnalytics = ({ disbursements = [], isLoading = false }) => {
     }));
   }, [kpiMetrics.dpo]);
 
-  // Calculate pie chart angles
-  const pieChartData = useMemo(() => {
-    let cumulativeAngle = 0;
-    return kpiMetrics.paymentMethodDistribution.map((method) => {
-      const angle = (method.percentage / 100) * 360;
-      const startAngle = cumulativeAngle;
-      const endAngle = cumulativeAngle + angle;
-      cumulativeAngle += angle;
-      
-      return {
-        ...method,
-        startAngle,
-        endAngle,
-        angle,
-        color: method.method === 'Cash' ? '#10b981' :
-               method.method === 'Cheque' ? '#f59e0b' :
-               method.method === 'Bank Transfer' ? '#3b82f6' : '#6b7280'
-      };
-    });
-  }, [kpiMetrics.paymentMethodDistribution]);
 
-  // Initialize DPO Chart
+  // Initialize Charts
   useEffect(() => {
     if (!isLoading && dpoChartRef.current && dpoTrendData.length > 0) {
       initializeDPOChart();
@@ -215,6 +197,18 @@ const KPIAnalytics = ({ disbursements = [], isLoading = false }) => {
       }
     };
   }, [dpoTrendData, isLoading]);
+
+  useEffect(() => {
+    if (!isLoading && paymentMethodChartRef.current && kpiMetrics.paymentMethodDistribution.length > 0) {
+      initializePaymentMethodChart();
+    }
+    
+    return () => {
+      if (paymentMethodChartInstance.current) {
+        paymentMethodChartInstance.current.destroy();
+      }
+    };
+  }, [kpiMetrics.paymentMethodDistribution, isLoading]);
 
   const initializeDPOChart = () => {
     if (!dpoChartRef.current) return;
@@ -339,6 +333,87 @@ const KPIAnalytics = ({ disbursements = [], isLoading = false }) => {
         }
       }
     });
+  };
+
+  const initializePaymentMethodChart = () => {
+    if (!paymentMethodChartRef.current) return;
+    
+    // Wait for the canvas to be properly mounted
+    setTimeout(() => {
+      if (!paymentMethodChartRef.current || !kpiMetrics.paymentMethodDistribution.length) return;
+
+      const ctx = paymentMethodChartRef.current.getContext('2d');
+      // Destroy existing chart
+      if (paymentMethodChartInstance.current) {
+        paymentMethodChartInstance.current.destroy();
+      }
+
+      const baseColors = ['#0f172a', '#1f2937', '#374151', '#4b5563', '#6b7280', '#9ca3af'];
+      const hoverPalette = ['#111c2d', '#253149', '#3a465d', '#4a576d', '#627083', '#8b94a3'];
+      const backgroundColors = baseColors.slice(0, kpiMetrics.paymentMethodDistribution.length);
+      const hoverColors = backgroundColors.map((_, index) => hoverPalette[index] || '#111827');
+
+      paymentMethodChartInstance.current = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: kpiMetrics.paymentMethodDistribution.map(d => d.method),
+          datasets: [{
+            label: 'Payment Methods',
+            data: kpiMetrics.paymentMethodDistribution.map(d => d.count),
+            backgroundColor: backgroundColors,
+            hoverBackgroundColor: hoverColors,
+            borderColor: '#e2e8f0',
+            borderWidth: 3,
+            hoverBorderColor: '#0f172a',
+            hoverBorderWidth: 4,
+            hoverOffset: 10
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            animateRotate: true,
+            animateScale: true,
+            duration: 1500,
+            easing: 'easeInOutQuart'
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              borderColor: '#3b82f6',
+              borderWidth: 1,
+              cornerRadius: 8,
+              displayColors: true,
+              titleFont: { size: 12, weight: 'bold' },
+              bodyFont: { size: 11 },
+              callbacks: {
+                title: (context) => context[0].label,
+                label: (context) => {
+                  const dataPoint = kpiMetrics.paymentMethodDistribution[context.dataIndex];
+                  return [
+                    `Transactions: ${dataPoint.count}`,
+                    `Amount: ₱${dataPoint.amount.toLocaleString()}`,
+                    `Share: ${dataPoint.percentage}%`
+                  ];
+                }
+              }
+            }
+          },
+          interaction: {
+            intersect: false
+          },
+          onHover: (event, activeElements) => {
+            event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+          }
+        }
+      });
+    }, 100); // setTimeout delay
   };
 
   const renderDPOCard = () => {
@@ -515,95 +590,50 @@ const KPIAnalytics = ({ disbursements = [], isLoading = false }) => {
     </div>
   );
 
-  const createPieSlice = (data, index) => {
-    const { startAngle, endAngle, color } = data;
-    const radius = 45;
-    const centerX = 60;
-    const centerY = 60;
-    
-    const startAngleRad = (startAngle - 90) * (Math.PI / 180);
-    const endAngleRad = (endAngle - 90) * (Math.PI / 180);
-    
-    const x1 = centerX + radius * Math.cos(startAngleRad);
-    const y1 = centerY + radius * Math.sin(startAngleRad);
-    const x2 = centerX + radius * Math.cos(endAngleRad);
-    const y2 = centerY + radius * Math.sin(endAngleRad);
-    
-    const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
-    
-    const pathData = [
-      `M ${centerX} ${centerY}`,
-      `L ${x1} ${y1}`,
-      `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-      'Z'
-    ].join(' ');
-    
-    return (
-      <path
-        key={index}
-        d={pathData}
-        fill={color}
-        stroke="white"
-        strokeWidth="2"
-      />
-    );
-  };
 
   const renderPaymentMethodCard = () => {
     return (
-      <div className="kpi-card payment-method-card">
-        <div className="kpi-header">
-          <div className="kpi-icon">
-            <i className="fas fa-chart-pie"></i>
-          </div>
-          <div className="kpi-title">
-            <h3>Payment Method Distribution</h3>
-            <p>Pie chart breakdown by payment type</p>
-          </div>
+      <div className="dashboard-box payment-method-pie-card">
+        <div className="box-header payment-method-header">
+          <h3 className="box-title">Payment Method Distribution</h3>
+          <span className="box-subtitle">TOP 3 METHODS</span>
         </div>
-        <div className="kpi-content">
+        <div className="box-content">
           {isLoading ? (
-            <div className="kpi-loading">
-              <i className="fas fa-spinner fa-spin"></i>
+            <div className="chart-loading">
+              <i className="fas fa-chart-pie"></i>
+              <span>Loading distribution...</span>
+            </div>
+          ) : kpiMetrics.paymentMethodDistribution.length === 0 ? (
+            <div className="chart-error">
+              <i className="fas fa-exclamation-triangle"></i>
+              <span>No payment method data available</span>
             </div>
           ) : (
-            <div className="payment-method-visualization">
-              {kpiMetrics.paymentMethodDistribution.length > 0 ? (
-                <>
-                  {/* Pie Chart */}
-                  <div className="pie-chart-container">
-                    <svg viewBox="0 0 120 120" className="pie-chart">
-                      {pieChartData.map((data, index) => createPieSlice(data, index))}
-                    </svg>
-                    <div className="pie-chart-center">
-                      <span className="total-methods">{kpiMetrics.paymentMethodDistribution.length}</span>
-                      <span className="methods-label">Methods</span>
-                    </div>
-                  </div>
-                  
-                  {/* Legend and Details */}
-                  <div className="payment-method-legend">
-                    {pieChartData.map((method, index) => (
-                      <div key={index} className="legend-item">
-                        <div className="legend-color" style={{ backgroundColor: method.color }}></div>
-                        <div className="legend-info">
-                          <div className="legend-name">{method.method}</div>
-                          <div className="legend-stats">
-                            <span className="legend-percentage">{method.percentage}%</span>
-                            <span className="legend-count">({method.count} transactions)</span>
-                          </div>
-                        </div>
-                        <div className="legend-amount">₱{method.amount.toLocaleString()}</div>
+            <div className="payment-method-pie-layout">
+              <div className="pie-chart-large-section">
+                <canvas ref={paymentMethodChartRef} id="paymentMethodChart"></canvas>
+              </div>
+              <div className="payment-methods-small-cards">
+                <h4 className="small-cards-title">TOP 3 METHODS</h4>
+                <div className="small-cards-container">
+                  {kpiMetrics.paymentMethodDistribution.slice(0, 3).map((method, index) => (
+                    <div key={index} className="payment-method-small-card">
+                      <div className="small-card-header">
+                        <div className={`small-card-badge badge-${index + 1}`}>#{index + 1}</div>
+                        <div className="small-card-method">{method.method}</div>
                       </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="no-data">
-                  <i className="fas fa-chart-pie"></i>
-                  <p>No payment method data available</p>
+                      <div className="small-card-stats">
+                        <div className="small-card-amount">₱{method.amount.toLocaleString()}</div>
+                        <div className="small-card-details">
+                          <span className="small-card-count">{method.count} transactions</span>
+                          <span className="small-card-percentage">{method.percentage}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -613,13 +643,7 @@ const KPIAnalytics = ({ disbursements = [], isLoading = false }) => {
 
   return (
     <div className="kpi-analytics-container">
-      <div className="kpi-section-header">
-        <h2>
-          <i className="fas fa-chart-line"></i>
-          Key Performance Indicators (KPIs)
-        </h2>
-        <p>Disbursement process efficiency and reliability metrics</p>
-      </div>
+  
       
       <div className="kpi-custom-layout">
         {/* Top Section - Days Payable Outstanding (Full Width) */}

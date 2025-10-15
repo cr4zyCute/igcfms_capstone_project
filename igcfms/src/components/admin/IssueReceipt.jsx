@@ -982,46 +982,40 @@ const IssueReceipt = () => {
           <div className="left-column">
             {/* Top Stats Cards */}
             <div className="left-stats-cards">
-              <div className="stat-card-modern">
-                <div className="stat-card-content">
-                  {analyticsData.isLoading ? (
-                    <div className="loading-indicator">
-                      <i className="fas fa-spinner fa-spin"></i>
-                      <span>Loading...</span>
+              <div className="minimal-stat-card">
+                {analyticsData.isLoading ? (
+                  <div className="loading-indicator">
+                    <i className="fas fa-spinner fa-spin"></i>
+                    <span>Loading...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="minimal-stat-value">₱{analyticsData.totalAmount.toLocaleString()}</div>
+                    <div className="minimal-stat-label">{receipts.length} receipts issued</div>
+                    <div className="minimal-stat-change">
+                      <i className="fas fa-arrow-up"></i>
+                      100.0%
                     </div>
-                  ) : (
-                    <>
-                      <div className="stat-card-value">₱{analyticsData.totalAmount.toLocaleString()}</div>
-                      <div className="stat-card-label">{receipts.length} receipts issued</div>
-                      {analyticsData.revenueGrowth !== 0 && (
-                        <div className={`stat-growth-badge ${analyticsData.revenueGrowth > 0 ? 'positive' : 'negative'}`}>
-                          <i className={`fas fa-arrow-${analyticsData.revenueGrowth > 0 ? 'up' : 'down'}`}></i>
-                          {Math.abs(analyticsData.revenueGrowth).toFixed(1)}%
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
               
-              <div className="stat-card-modern">
-                <div className="stat-card-content">
-                  {analyticsData.isLoading ? (
-                    <div className="loading-indicator">
-                      <i className="fas fa-spinner fa-spin"></i>
-                      <span>Loading...</span>
+              <div className="minimal-stat-card">
+                {analyticsData.isLoading ? (
+                  <div className="loading-indicator">
+                    <i className="fas fa-spinner fa-spin"></i>
+                    <span>Loading...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="minimal-stat-value">₱{analyticsData.averageAmount.toLocaleString()}</div>
+                    <div className="minimal-stat-label">Average per receipt</div>
+                    <div className="minimal-stat-updated">
+                      <i className="fas fa-clock"></i>
+                      Updated {new Date(analyticsData.lastUpdated).toLocaleTimeString()}
                     </div>
-                  ) : (
-                    <>
-                      <div className="stat-card-value">₱{analyticsData.averageAmount.toLocaleString()}</div>
-                      <div className="stat-card-label">Average per receipt</div>
-                      <div className="stat-card-updated">
-                        <i className="fas fa-clock"></i>
-                        Updated {new Date(analyticsData.lastUpdated).toLocaleTimeString()}
-                      </div>
-                    </>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             </div>
 
