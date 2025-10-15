@@ -21,6 +21,30 @@ const DisburserHome = () => {
   const [dailyDisbursementTrend, setDailyDisbursementTrend] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [fundBalances, setFundBalances] = useState([]);
+  const [dashboardMetrics, setDashboardMetrics] = useState({
+    dpo: {
+      average: 0,
+      last30Average: 0,
+      last7Average: 0,
+      latest: 0,
+      sampleSize: 0,
+      trend: []
+    },
+    paymentAccuracy: {
+      rate: 0,
+      errors: 0,
+      total: 0,
+      pending: 0,
+      resolved: 0
+    },
+    vendorPerformance: {
+      topVendors: []
+    },
+    paymentMethods: {
+      total: 0,
+      breakdown: []
+    }
+  });
 
   useEffect(() => {
     const fetchDisburserData = async () => {

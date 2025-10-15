@@ -78,7 +78,7 @@
 .form-header h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #000000;
+  color: #ffffff !important;
   margin: 0;
   display: flex;
   align-items: center;
@@ -397,6 +397,114 @@
   border-radius: 12px;
   overflow: visible;
   border: 2px solid #000000;
+}
+
+.financial-trend-card {
+  margin-bottom: 28px;
+  background: #ffffff;
+  border: 2px solid #111111;
+  border-radius: 14px;
+  padding: 24px 28px;
+  box-shadow: 0 14px 30px rgba(17, 17, 17, 0.08);
+}
+
+.trend-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #d4d4d4;
+  margin-bottom: 18px;
+}
+
+.trend-title-group h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111111;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trend-title-group .trend-subtitle {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.trend-legend-pills {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.legend-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border: 1px solid #111111;
+  color: #111111;
+  background: #ffffff;
+}
+
+.legend-analysis {
+  background: #111111;
+  color: #ffffff;
+}
+
+.legend-dpo {
+  border-color: #6b7280;
+  color: #6b7280;
+}
+
+.legend-liquidity {
+  border-color: #b0b0b0;
+  color: #4b5563;
+}
+
+.trend-chart-body {
+  min-height: 320px;
+}
+
+.trend-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #4b5563;
+  padding: 60px 20px;
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.trend-empty-state i {
+  font-size: 32px;
+  color: #111111;
+}
+
+@media (max-width: 768px) {
+  .financial-trend-card {
+    padding: 20px;
+  }
+
+  .trend-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .trend-legend-pills {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 .disbursements-table-container {

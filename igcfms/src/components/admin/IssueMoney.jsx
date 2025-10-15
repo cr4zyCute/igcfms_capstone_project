@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import "./css/issuemoney.css";
-import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
 import { broadcastFundTransaction } from "../../services/fundTransactionChannel";
+import IssueDisbursementTrends from "../analytics/issueDisbursementAnalytics";
+import ReceiptCountAnalytics from "../analytics/receiptCountAnalytics";
+import PayerDistributionAnalytics from "../analytics/payerDistributionAnalytics";
 
 const IssueMoney = () => {
   const [loading, setLoading] = useState(false);
@@ -14,6 +16,17 @@ const IssueMoney = () => {
   const [recipientAccounts, setRecipientAccounts] = useState([]);
   const [recentDisbursements, setRecentDisbursements] = useState([]);
   const [filteredDisbursements, setFilteredDisbursements] = useState([]);
+  const [analyticsData, setAnalyticsData] = useState({
+    monthlyTrend: [],
+    payerDistribution: [],
+    totalAmount: 0,
+    averageAmount: 0,
+    revenueGrowth: 0,
+    lastUpdated: new Date(),
+    isLoading: false,
+    error: null
+  });
+  const [disbursementPeriod, setDisbursementPeriod] = useState("week");
   const [filters, setFilters] = useState({
     activeFilter: "all",
     searchTerm: "",
@@ -58,6 +71,7 @@ const IssueMoney = () => {
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showFormModal, setShowFormModal] = useState(false);
   const [disbursementResult, setDisbursementResult] = useState(null);
 
   const API_BASE = "http://localhost:8000/api";
@@ -70,11 +84,9 @@ const IssueMoney = () => {
     return Math.round(parsed * 100) / 100;
   };
 
-  useEffect(() => {
-    fetchInitialData();
-  }, [token]);
+  const disbursementChartTransactions = useMemo(() => recentDisbursements, [recentDisbursements]);
 
-  const fetchInitialData = async ({ showLoader = true } = {}) => {
+  const fetchInitialData = useCallback(async ({ showLoader = true } = {}) => {
     try {
       if (showLoader) setLoading(true);
       setError("");
@@ -134,7 +146,11 @@ const IssueMoney = () => {
     } finally {
       if (showLoader) setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -298,7 +314,7 @@ const IssueMoney = () => {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     if (!Array.isArray(recentDisbursements)) {
       setFilteredDisbursements([]);
       return;
@@ -332,11 +348,11 @@ const IssueMoney = () => {
     }
 
     setFilteredDisbursements(data);
-  };
+  }, [recentDisbursements, filters]);
 
   useEffect(() => {
     applyFilters();
-  }, [recentDisbursements, filters]);
+  }, [applyFilters]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -518,7 +534,7 @@ const IssueMoney = () => {
   const confirmDisbursement = async () => {
     setSubmitting(true);
     setShowConfirmModal(false);
-    
+
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -710,6 +726,7 @@ const IssueMoney = () => {
         purpose: "",
       });
 
+      setShowFormModal(false);
       setShowSuccessModal(true);
       fetchInitialData({ showLoader: false }); // Refresh data without blocking UI spinner
 
@@ -728,6 +745,113 @@ const IssueMoney = () => {
     }
   };
 
+  useEffect(() => {
+    if (!Array.isArray(recentDisbursements)) {
+      return;
+    }
+
+    const generateAnalyticsData = () => {
+      setAnalyticsData((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        const totalAmount = recentDisbursements.reduce((sum, item) => sum + parseAmountValue(item.amount), 0);
+        const totalCount = recentDisbursements.length;
+        const averageAmount = totalCount > 0 ? totalAmount / totalCount : 0;
+
+        const periodKeyFormatter = (date) => {
+          const dateObj = new Date(date);
+          if (Number.isNaN(dateObj.getTime())) return null;
+          if (disbursementPeriod === "week") {
+            const weekStart = new Date(dateObj);
+            weekStart.setDate(dateObj.getDate() - dateObj.getDay());
+            return weekStart.toISOString().split("T")[0];
+          }
+          return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}`;
+        };
+
+        const trendsMap = recentDisbursements.reduce((map, item) => {
+          const dateKey = periodKeyFormatter(item.created_at || item.updated_at);
+          if (!dateKey) return map;
+          const amount = parseAmountValue(item.amount);
+          const entry = map.get(dateKey) || { amount: 0, count: 0 };
+          entry.amount += amount;
+          entry.count += 1;
+          map.set(dateKey, entry);
+          return map;
+        }, new Map());
+
+        const sortedKeys = Array.from(trendsMap.keys()).sort();
+        const monthlyTrend = sortedKeys.map((key) => {
+          const entry = trendsMap.get(key);
+          if (disbursementPeriod === "week") {
+            const dateObj = new Date(key);
+            const label = `W${Math.ceil((dateObj.getDate() + 1) / 7)} ${dateObj.toLocaleDateString(undefined, { month: "short" })}`;
+            return {
+              period: label,
+              amount: entry.amount,
+              count: entry.count
+            };
+          }
+          const [year, month] = key.split("-");
+          const displayDate = new Date(Number(year), Number(month) - 1, 1);
+          return {
+            period: displayDate.toLocaleDateString(undefined, { month: "short", year: "numeric" }),
+            amount: entry.amount,
+            count: entry.count
+          };
+        });
+
+        const payerMap = recentDisbursements.reduce((map, item) => {
+          const payer = item.recipient || item.payee_name || "Unknown";
+          const entry = map.get(payer) || { amount: 0, count: 0 };
+          entry.amount += parseAmountValue(item.amount);
+          entry.count += 1;
+          map.set(payer, entry);
+          return map;
+        }, new Map());
+
+        const payerDistributionEntries = Array.from(payerMap.entries()).map(([name, value]) => {
+          const amountValue = parseAmountValue(value.amount);
+          return {
+            name,
+            amount: amountValue,
+            count: value.count
+          };
+        });
+
+        const totalPayerAmount = payerDistributionEntries.reduce((sum, entry) => sum + entry.amount, 0);
+        const payerDistribution = payerDistributionEntries
+          .map((entry) => ({
+            ...entry,
+            fullName: entry.name,
+            value: entry.amount,
+            percentage: totalPayerAmount > 0 ? Number(((entry.amount / totalPayerAmount) * 100).toFixed(1)) : 0
+          }))
+          .sort((a, b) => b.amount - a.amount);
+
+        const previousPeriodAmount = monthlyTrend.length > 1 ? monthlyTrend[monthlyTrend.length - 2].amount : 0;
+        const revenueGrowth = previousPeriodAmount === 0
+          ? (monthlyTrend.length > 1 ? 100 : 0)
+          : ((monthlyTrend[monthlyTrend.length - 1].amount - previousPeriodAmount) / previousPeriodAmount) * 100;
+
+        setAnalyticsData({
+          monthlyTrend,
+          payerDistribution,
+          totalAmount,
+          averageAmount,
+          revenueGrowth,
+          lastUpdated: new Date(),
+          isLoading: false,
+          error: null
+        });
+      } catch (err) {
+        setAnalyticsData((prev) => ({ ...prev, isLoading: false, error: "Failed to generate analytics" }));
+      }
+    };
+
+    generateAnalyticsData();
+  }, [recentDisbursements, disbursementPeriod]);
+
   // Department and category removed as requested - using default values in backend
 
   if (loading && (!Array.isArray(fundAccounts) || fundAccounts.length === 0)) {
@@ -739,6 +863,219 @@ const IssueMoney = () => {
     );
   }
 
+  const renderDisbursementForm = () => (
+    <form onSubmit={handleSubmit} className="disbursement-form">
+      <div className="form-row">
+        <div className="form-group">
+          <label>Recipient Account</label>
+          <select
+            value={formData.recipientAccountId}
+            onChange={(e) => handleRecipientAccountSelect(e.target.value)}
+          >
+            <option value="">-- Select Recipient Account ({recipientAccounts.length} available) --</option>
+            {Array.isArray(recipientAccounts) && recipientAccounts.length > 0 ? (
+              recipientAccounts.map((recipient) => (
+                <option key={recipient.id} value={recipient.id}>
+                  {recipient.name} ({recipient.fund_code}) - {recipient.contact_person}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>No recipient accounts available</option>
+            )}
+          </select>
+          <small className="field-hint">
+            <i className="fas fa-info-circle"></i>
+            Selecting a recipient account will auto-fill the payee name.
+          </small>
+        </div>
+        <div className="form-group">
+          <label>
+            Payee Name
+            {formData.recipientAccountId && formData.payeeName && (
+              <span className="autofill-badge">Auto-filled</span>
+            )}
+          </label>
+          <input
+            type="text"
+            placeholder={formData.recipientAccountId ? "Auto-filled from recipient account" : "Enter payee name"}
+            value={formData.payeeName}
+            onChange={(e) => handleInputChange('payeeName', e.target.value)}
+            style={formData.recipientAccountId && formData.payeeName ? {
+              backgroundColor: '#f8f9fa',
+              borderColor: '#28a745',
+              color: '#495057'
+            } : {}}
+          />
+          <small className="field-hint">
+            <i className="fas fa-info-circle"></i>
+            {formData.recipientAccountId
+              ? "Auto-filled from the selected account. You can modify if needed."
+              : "Enter the payee name if no recipient account is selected."}
+          </small>
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Reference Number * <span className="autofill-badge">Auto-generated</span></label>
+          <input
+            type="text"
+            placeholder="Auto-generated reference number"
+            value={formData.referenceNo}
+            readOnly
+            style={{
+              backgroundColor: '#f8f9fa',
+              borderColor: '#28a745',
+              color: '#495057'
+            }}
+          />
+          <small className="field-hint">
+            <i className="fas fa-info-circle"></i>
+            Reference number is automatically generated for each disbursement.
+          </small>
+        </div>
+        <div className="form-group">
+          <label>Amount *</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            placeholder="Enter amount (e.g., 1000.00)"
+            value={formData.amount}
+            onChange={(e) => handleInputChange('amount', e.target.value)}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label>Purpose of Payment *</label>
+          <select
+            value={formData.purpose}
+            onChange={(e) => handleInputChange('purpose', e.target.value)}
+            required
+          >
+            <option value="">-- Select Purpose --</option>
+            <option value="Salary">Salary Payment</option>
+            <option value="Reimbursement">Reimbursement</option>
+            <option value="Supplier Payment">Supplier Payment</option>
+            <option value="Contractor Payment">Contractor Payment</option>
+            <option value="Utility Bills">Utility Bills</option>
+            <option value="Office Supplies">Office Supplies</option>
+            <option value="Professional Services">Professional Services</option>
+            <option value="Travel Expenses">Travel Expenses</option>
+            <option value="Equipment Purchase">Equipment Purchase</option>
+            <option value="Maintenance">Maintenance & Repairs</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Fund Account (Source) *</label>
+          <select
+            value={formData.fundAccountId}
+            onChange={(e) => handleInputChange('fundAccountId', e.target.value)}
+            required
+          >
+            <option value="">-- Select Fund Account --</option>
+            {Array.isArray(fundAccounts) && fundAccounts.length > 0 ? (
+              fundAccounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.name} ({acc.code}) - ₱{parseFloat(acc.current_balance || 0).toLocaleString()}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>No fund accounts available</option>
+            )}
+          </select>
+          {formData.fundAccountId && (
+            <div className="balance-info">
+              {(() => {
+                const selectedFund = fundAccounts.find(f => f.id === parseInt(formData.fundAccountId));
+                return selectedFund ? (
+                  <small className="balance-display">
+                    <i className="fas fa-wallet"></i>
+                    Available: ₱{parseFloat(selectedFund.current_balance || 0).toLocaleString()}
+                  </small>
+                ) : null;
+              })()}
+            </div>
+          )}
+        </div>
+        <div className="form-group">
+          <label>Payment Mode *</label>
+          <select
+            value={formData.modeOfPayment}
+            onChange={(e) => handleInputChange('modeOfPayment', e.target.value)}
+            required
+          >
+            <option value="Cash">Cash</option>
+            <option value="Cheque">Cheque</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="form-row">
+        {formData.modeOfPayment === "Cheque" ? (
+          <>
+            <div className="form-group">
+              <label>Cheque Number *</label>
+              <input
+                type="text"
+                placeholder="Enter cheque number"
+                value={formData.chequeNumber}
+                onChange={(e) => handleInputChange('chequeNumber', e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Description</label>
+              <textarea
+                placeholder="Enter disbursement description (optional)"
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                rows="3"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="form-group full-width">
+            <label>Description</label>
+            <textarea
+              placeholder="Enter disbursement description (optional)"
+              value={formData.description}
+              onChange={(e) => handleInputChange('description', e.target.value)}
+              rows="3"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="form-actions">
+        <button
+          type="submit"
+          className="submit-btn"
+          disabled={loading || submitting}
+        >
+          {submitting ? (
+            <>
+              <i className="fas fa-spinner fa-spin"></i> Processing...
+            </>
+          ) : (
+            <>
+              <i className="fas fa-paper-plane"></i> Create Disbursement
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
+
+  const handlePeriodChange = (period) => {
+    setDisbursementPeriod(period);
+  };
+
   return (
     <div className="issue-money-page">
       <div className="im-header">
@@ -748,6 +1085,25 @@ const IssueMoney = () => {
         <p className="im-subtitle">
           Create disbursement transactions for payments and fund transfers
         </p>
+        <div className="im-header-actions">
+          <button
+            type="button"
+            className="create-disbursement-btn"
+            onClick={() => setShowFormModal(true)}
+          >
+            <i className="fas fa-plus-circle"></i>
+            New Disbursement
+          </button>
+          <button
+            type="button"
+            className="refresh-btn"
+            onClick={() => fetchInitialData()}
+            disabled={loading}
+            title="Refresh fund balances and recipient accounts"
+          >
+            <i className="fas fa-sync-alt"></i> Refresh Data
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -764,213 +1120,86 @@ const IssueMoney = () => {
         </div>
       )}
 
-      <div className="im-content-grid">
-        {/* Disbursement Form */}
-        <div className="disbursement-form-section">
-          <div className="form-header">
-            <h3><i className="fas fa-plus-circle"></i> Create New Disbursement</h3>
-            <button 
-              type="button" 
-              className="refresh-btn"
-              onClick={() => fetchInitialData()}
-              disabled={loading}
-              title="Refresh fund balances"
-            >
-              <i className="fas fa-sync-alt"></i> Refresh
-            </button>
-          </div>
-          
-          <form onSubmit={handleSubmit} className="disbursement-form">
-            <div className="form-row">
-              <div className="form-group">
-                <label>Recipient Account</label>
-                <select
-                  value={formData.recipientAccountId}
-                  onChange={(e) => handleRecipientAccountSelect(e.target.value)}
-                >
-                  <option value="">-- Select Recipient Account ({recipientAccounts.length} available) --</option>
-                  {Array.isArray(recipientAccounts) && recipientAccounts.length > 0 ? (
-                    recipientAccounts.map((recipient) => (
-                      <option key={recipient.id} value={recipient.id}>
-                        {recipient.name} ({recipient.fund_code}) - {recipient.contact_person}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>No recipient accounts available</option>
+      <div className="issue-money-analytics-section">
+        <div className="issue-money-analytics-grid">
+          <div className="analytics-left">
+            <div className="analytics-stat-card">
+              {analyticsData.isLoading ? (
+                <div className="loading-indicator">
+                  <i className="fas fa-spinner fa-spin"></i>
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="stat-card-value">₱{analyticsData.totalAmount.toLocaleString()}</div>
+                  <div className="stat-card-label">Total disbursement amount</div>
+                  {analyticsData.revenueGrowth !== 0 && (
+                    <div className={`stat-growth-badge ${analyticsData.revenueGrowth > 0 ? 'positive' : 'negative'}`}>
+                      <i className={`fas fa-arrow-${analyticsData.revenueGrowth > 0 ? 'up' : 'down'}`}></i>
+                      {Math.abs(analyticsData.revenueGrowth).toFixed(1)}%
+                    </div>
                   )}
-                </select>
-                <small className="field-hint">
-                  <i className="fas fa-info-circle"></i> 
-                  Selecting a recipient account will auto-fill the payee name.
-                </small>
-              </div>
-              <div className="form-group">
-                <label>Payee Name {formData.recipientAccountId && formData.payeeName && <span style={{color: '#28a745', fontSize: '12px'}}>(Auto-filled)</span>}</label>
-                <input
-                  type="text"
-                  placeholder={formData.recipientAccountId ? "Auto-filled from recipient account" : "Enter payee name"}
-                  value={formData.payeeName}
-                  onChange={(e) => handleInputChange('payeeName', e.target.value)}
-                  style={formData.recipientAccountId && formData.payeeName ? {
-                    backgroundColor: '#f8f9fa',
-                    borderColor: '#28a745',
-                    color: '#495057'
-                  } : {}}
-                />
-                <small className="field-hint">
-                  <i className="fas fa-info-circle"></i> 
-                  {formData.recipientAccountId 
-                    ? "Auto-filled from the selected account. You can modify if needed."
-                    : "Enter the payee name if no recipient account is selected."}
-                </small>
-              </div>
+                </>
+              )}
             </div>
-
-            <div className="form-group">
-              <label>Reference Number * <span style={{color: '#28a745', fontSize: '12px'}}>(Auto-generated)</span></label>
-              <input
-                type="text"
-                placeholder="Auto-generated reference number"
-                value={formData.referenceNo}
-                readOnly
-                style={{
-                  backgroundColor: '#f8f9fa',
-                  borderColor: '#28a745',
-                  color: '#495057'
-                }}
-              />
-              <small className="field-hint">
-                <i className="fas fa-info-circle"></i> 
-                Reference number is automatically generated for each disbursement.
-              </small>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Amount *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="Enter amount (e.g., 1000.00)"
-                  value={formData.amount}
-                  onChange={(e) => handleInputChange('amount', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Purpose of Payment *</label>
-                <select
-                  value={formData.purpose}
-                  onChange={(e) => handleInputChange('purpose', e.target.value)}
-                  required
-                >
-                  <option value="">-- Select Purpose --</option>
-                  <option value="Salary">Salary Payment</option>
-                  <option value="Reimbursement">Reimbursement</option>
-                  <option value="Supplier Payment">Supplier Payment</option>
-                  <option value="Contractor Payment">Contractor Payment</option>
-                  <option value="Utility Bills">Utility Bills</option>
-                  <option value="Office Supplies">Office Supplies</option>
-                  <option value="Professional Services">Professional Services</option>
-                  <option value="Travel Expenses">Travel Expenses</option>
-                  <option value="Equipment Purchase">Equipment Purchase</option>
-                  <option value="Maintenance">Maintenance & Repairs</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Fund Account (Source) *</label>
-                <select
-                  value={formData.fundAccountId}
-                  onChange={(e) => handleInputChange('fundAccountId', e.target.value)}
-                  required
-                >
-                  <option value="">-- Select Fund Account --</option>
-                  {Array.isArray(fundAccounts) && fundAccounts.length > 0 ? (
-                    fundAccounts.map((acc) => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.code}) - ₱{parseFloat(acc.current_balance || 0).toLocaleString()}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>No fund accounts available</option>
-                  )}
-                </select>
-                {formData.fundAccountId && (
-                  <div className="balance-info">
-                    {(() => {
-                      const selectedFund = fundAccounts.find(f => f.id === parseInt(formData.fundAccountId));
-                      return selectedFund ? (
-                        <small className="balance-display">
-                          <i className="fas fa-wallet"></i> 
-                          Available: ₱{parseFloat(selectedFund.current_balance || 0).toLocaleString()}
-                        </small>
-                      ) : null;
-                    })()}
+            <div className="analytics-stat-card">
+              {analyticsData.isLoading ? (
+                <div className="loading-indicator">
+                  <i className="fas fa-spinner fa-spin"></i>
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="stat-card-value">₱{analyticsData.averageAmount.toLocaleString()}</div>
+                  <div className="stat-card-label">Average disbursement</div>
+                  <div className="stat-card-updated">
+                    <i className="fas fa-clock"></i>
+                    Updated {new Date(analyticsData.lastUpdated).toLocaleTimeString()}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
-
-            <div className="form-group">
-              <label>Payment Mode *</label>
-              <select
-                value={formData.modeOfPayment}
-                onChange={(e) => handleInputChange('modeOfPayment', e.target.value)}
-                required
-              >
-                <option value="Cash">Cash</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-              </select>
-            </div>
-
-            {formData.modeOfPayment === "Cheque" && (
-              <div className="form-group">
-                <label>Cheque Number *</label>
-                <input
-                  type="text"
-                  placeholder="Enter cheque number"
-                  value={formData.chequeNumber}
-                  onChange={(e) => handleInputChange('chequeNumber', e.target.value)}
-                  required
-                />
-              </div>
-            )}
-
-            {/* Fund Account selection moved above with Purpose */}
-
-            <div className="form-group">
-              <label>Description</label>
-              <textarea
-                placeholder="Enter disbursement description (optional)"
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                rows="3"
-              />
-            </div>
-
-            <div className="form-actions">
-              <button
-                type="submit"
-                className="submit-btn"
-                disabled={loading || submitting}
-              >
-                {submitting ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i> Processing...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-paper-plane"></i> Create Disbursement
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+            <IssueDisbursementTrends
+              disbursements={recentDisbursements}
+              transactions={disbursementChartTransactions}
+              disbursementPeriod={disbursementPeriod}
+              onPeriodChange={handlePeriodChange}
+            />
+          </div>
+          <div className="analytics-right">
+            <PayerDistributionAnalytics analyticsData={analyticsData} />
+            <ReceiptCountAnalytics receipts={recentDisbursements} analyticsData={analyticsData} />
+          </div>
         </div>
       </div>
+
+      {/* Disbursement Form Modal */}
+      {showFormModal && (
+        <div className="modal-overlay" onClick={() => setShowFormModal(false)}>
+          <div className="modal-content xl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><i className="fas fa-plus-circle"></i> Create New Disbursement</h3>
+              <div className="modal-header-actions">
+                <button
+                  type="button"
+                  className="refresh-btn"
+                  onClick={() => fetchInitialData()}
+                  disabled={loading}
+                  title="Refresh fund balances"
+                >
+                  <i className="fas fa-sync-alt"></i>
+                </button>
+                <button className="modal-close" onClick={() => setShowFormModal(false)}>
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div className="modal-body">
+              {renderDisbursementForm()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Recent Disbursements */}
       <div className="recent-disbursements-section">

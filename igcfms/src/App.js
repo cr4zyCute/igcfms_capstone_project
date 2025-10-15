@@ -2,9 +2,8 @@ import './App.css';
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import api from './services/api'; 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { queryClient } from './lib/queryClient';
 import Login from './components/pages/Login.jsx'; 
@@ -18,10 +17,24 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 function App() {
   // const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  const [ReactQueryDevtoolsComponent, setReactQueryDevtoolsComponent] = useState(null);
+
   useEffect(() => {
     api.get('/test')
       .then(response => console.log("API is Connected", response.data))
       .catch(error => console.log("API FAIL", error));
+  }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      import('@tanstack/react-query-devtools')
+        .then(({ ReactQueryDevtools }) => {
+          setReactQueryDevtoolsComponent(() => ReactQueryDevtools);
+        })
+        .catch(error => {
+          console.warn('React Query Devtools failed to load', error);
+        });
+    }
   }, []);
 
   return (
@@ -54,7 +67,9 @@ function App() {
           </Router>
         </AuthProvider>
         {/* React Query Devtools - only shows in development */}
-        <ReactQueryDevtools initialIsOpen={false} />
+        {ReactQueryDevtoolsComponent ? (
+          <ReactQueryDevtoolsComponent initialIsOpen={false} />
+        ) : null}
       </QueryClientProvider>
     </ErrorBoundary>
   );
