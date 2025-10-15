@@ -3,9 +3,7 @@ import axios from "axios";
 import "./css/issuemoney.css";
 import balanceService from "../../services/balanceService";
 import { broadcastFundTransaction } from "../../services/fundTransactionChannel";
-import IssueDisbursementTrends from "../analytics/issueDisbursementAnalytics";
-import ReceiptCountAnalytics from "../analytics/receiptCountAnalytics";
-import PayerDistributionAnalytics from "../analytics/payerDistributionAnalytics";
+import KPIAnalytics from "./KPIAnalytics";
 
 const IssueMoney = () => {
   const [loading, setLoading] = useState(false);
@@ -16,17 +14,7 @@ const IssueMoney = () => {
   const [recipientAccounts, setRecipientAccounts] = useState([]);
   const [recentDisbursements, setRecentDisbursements] = useState([]);
   const [filteredDisbursements, setFilteredDisbursements] = useState([]);
-  const [analyticsData, setAnalyticsData] = useState({
-    monthlyTrend: [],
-    payerDistribution: [],
-    totalAmount: 0,
-    averageAmount: 0,
-    revenueGrowth: 0,
-    lastUpdated: new Date(),
-    isLoading: false,
-    error: null
-  });
-  const [disbursementPeriod, setDisbursementPeriod] = useState("week");
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [filters, setFilters] = useState({
     activeFilter: "all",
     searchTerm: "",
@@ -84,7 +72,6 @@ const IssueMoney = () => {
     return Math.round(parsed * 100) / 100;
   };
 
-  const disbursementChartTransactions = useMemo(() => recentDisbursements, [recentDisbursements]);
 
   const fetchInitialData = useCallback(async ({ showLoader = true } = {}) => {
     try {
@@ -745,112 +732,10 @@ const IssueMoney = () => {
     }
   };
 
+  // Analytics loading state management
   useEffect(() => {
-    if (!Array.isArray(recentDisbursements)) {
-      return;
-    }
-
-    const generateAnalyticsData = () => {
-      setAnalyticsData((prev) => ({ ...prev, isLoading: true, error: null }));
-
-      try {
-        const totalAmount = recentDisbursements.reduce((sum, item) => sum + parseAmountValue(item.amount), 0);
-        const totalCount = recentDisbursements.length;
-        const averageAmount = totalCount > 0 ? totalAmount / totalCount : 0;
-
-        const periodKeyFormatter = (date) => {
-          const dateObj = new Date(date);
-          if (Number.isNaN(dateObj.getTime())) return null;
-          if (disbursementPeriod === "week") {
-            const weekStart = new Date(dateObj);
-            weekStart.setDate(dateObj.getDate() - dateObj.getDay());
-            return weekStart.toISOString().split("T")[0];
-          }
-          return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}`;
-        };
-
-        const trendsMap = recentDisbursements.reduce((map, item) => {
-          const dateKey = periodKeyFormatter(item.created_at || item.updated_at);
-          if (!dateKey) return map;
-          const amount = parseAmountValue(item.amount);
-          const entry = map.get(dateKey) || { amount: 0, count: 0 };
-          entry.amount += amount;
-          entry.count += 1;
-          map.set(dateKey, entry);
-          return map;
-        }, new Map());
-
-        const sortedKeys = Array.from(trendsMap.keys()).sort();
-        const monthlyTrend = sortedKeys.map((key) => {
-          const entry = trendsMap.get(key);
-          if (disbursementPeriod === "week") {
-            const dateObj = new Date(key);
-            const label = `W${Math.ceil((dateObj.getDate() + 1) / 7)} ${dateObj.toLocaleDateString(undefined, { month: "short" })}`;
-            return {
-              period: label,
-              amount: entry.amount,
-              count: entry.count
-            };
-          }
-          const [year, month] = key.split("-");
-          const displayDate = new Date(Number(year), Number(month) - 1, 1);
-          return {
-            period: displayDate.toLocaleDateString(undefined, { month: "short", year: "numeric" }),
-            amount: entry.amount,
-            count: entry.count
-          };
-        });
-
-        const payerMap = recentDisbursements.reduce((map, item) => {
-          const payer = item.recipient || item.payee_name || "Unknown";
-          const entry = map.get(payer) || { amount: 0, count: 0 };
-          entry.amount += parseAmountValue(item.amount);
-          entry.count += 1;
-          map.set(payer, entry);
-          return map;
-        }, new Map());
-
-        const payerDistributionEntries = Array.from(payerMap.entries()).map(([name, value]) => {
-          const amountValue = parseAmountValue(value.amount);
-          return {
-            name,
-            amount: amountValue,
-            count: value.count
-          };
-        });
-
-        const totalPayerAmount = payerDistributionEntries.reduce((sum, entry) => sum + entry.amount, 0);
-        const payerDistribution = payerDistributionEntries
-          .map((entry) => ({
-            ...entry,
-            fullName: entry.name,
-            value: entry.amount,
-            percentage: totalPayerAmount > 0 ? Number(((entry.amount / totalPayerAmount) * 100).toFixed(1)) : 0
-          }))
-          .sort((a, b) => b.amount - a.amount);
-
-        const previousPeriodAmount = monthlyTrend.length > 1 ? monthlyTrend[monthlyTrend.length - 2].amount : 0;
-        const revenueGrowth = previousPeriodAmount === 0
-          ? (monthlyTrend.length > 1 ? 100 : 0)
-          : ((monthlyTrend[monthlyTrend.length - 1].amount - previousPeriodAmount) / previousPeriodAmount) * 100;
-
-        setAnalyticsData({
-          monthlyTrend,
-          payerDistribution,
-          totalAmount,
-          averageAmount,
-          revenueGrowth,
-          lastUpdated: new Date(),
-          isLoading: false,
-          error: null
-        });
-      } catch (err) {
-        setAnalyticsData((prev) => ({ ...prev, isLoading: false, error: "Failed to generate analytics" }));
-      }
-    };
-
-    generateAnalyticsData();
-  }, [recentDisbursements, disbursementPeriod]);
+    setAnalyticsLoading(loading);
+  }, [loading]);
 
   // Department and category removed as requested - using default values in backend
 
@@ -917,60 +802,6 @@ const IssueMoney = () => {
 
       <div className="form-row">
         <div className="form-group">
-          <label>Reference Number * <span className="autofill-badge">Auto-generated</span></label>
-          <input
-            type="text"
-            placeholder="Auto-generated reference number"
-            value={formData.referenceNo}
-            readOnly
-            style={{
-              backgroundColor: '#f8f9fa',
-              borderColor: '#28a745',
-              color: '#495057'
-            }}
-          />
-          <small className="field-hint">
-            <i className="fas fa-info-circle"></i>
-            Reference number is automatically generated for each disbursement.
-          </small>
-        </div>
-        <div className="form-group">
-          <label>Amount *</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="Enter amount (e.g., 1000.00)"
-            value={formData.amount}
-            onChange={(e) => handleInputChange('amount', e.target.value)}
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>Purpose of Payment *</label>
-          <select
-            value={formData.purpose}
-            onChange={(e) => handleInputChange('purpose', e.target.value)}
-            required
-          >
-            <option value="">-- Select Purpose --</option>
-            <option value="Salary">Salary Payment</option>
-            <option value="Reimbursement">Reimbursement</option>
-            <option value="Supplier Payment">Supplier Payment</option>
-            <option value="Contractor Payment">Contractor Payment</option>
-            <option value="Utility Bills">Utility Bills</option>
-            <option value="Office Supplies">Office Supplies</option>
-            <option value="Professional Services">Professional Services</option>
-            <option value="Travel Expenses">Travel Expenses</option>
-            <option value="Equipment Purchase">Equipment Purchase</option>
-            <option value="Maintenance">Maintenance & Repairs</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="form-row">
-        <div className="form-group">
           <label>Fund Account (Source) *</label>
           <select
             value={formData.fundAccountId}
@@ -1001,6 +832,63 @@ const IssueMoney = () => {
               })()}
             </div>
           )}
+        </div>
+        <div className="form-group">
+          <label>Amount *</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            placeholder="Enter amount (e.g., 1000.00)"
+            value={formData.amount}
+            onChange={(e) => handleInputChange('amount', e.target.value)}
+            required
+          />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Reference Number * <span className="autofill-badge">Auto-generated</span></label>
+          <input
+            type="text"
+            placeholder="Auto-generated reference number"
+            value={formData.referenceNo}
+            readOnly
+            style={{
+              backgroundColor: '#f8f9fa',
+              borderColor: '#28a745',
+              color: '#495057'
+            }}
+          />
+          <small className="field-hint">
+            <i className="fas fa-info-circle"></i>
+            Reference number is automatically generated for each disbursement.
+          </small>
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Purpose of Payment *</label>
+          <select
+            value={formData.purpose}
+            onChange={(e) => handleInputChange('purpose', e.target.value)}
+            required
+          >
+            <option value="">-- Select Purpose --</option>
+            <option value="Salary">Salary Payment</option>
+            <option value="Reimbursement">Reimbursement</option>
+            <option value="Supplier Payment">Supplier Payment</option>
+            <option value="Contractor Payment">Contractor Payment</option>
+            <option value="Utility Bills">Utility Bills</option>
+            <option value="Office Supplies">Office Supplies</option>
+            <option value="Professional Services">Professional Services</option>
+            <option value="Travel Expenses">Travel Expenses</option>
+            <option value="Equipment Purchase">Equipment Purchase</option>
+            <option value="Maintenance">Maintenance & Repairs</option>
+            <option value="Other">Other</option>
+          </select>
         </div>
         <div className="form-group">
           <label>Payment Mode *</label>
@@ -1072,9 +960,6 @@ const IssueMoney = () => {
     </form>
   );
 
-  const handlePeriodChange = (period) => {
-    setDisbursementPeriod(period);
-  };
 
   return (
     <div className="issue-money-page">
@@ -1082,9 +967,7 @@ const IssueMoney = () => {
         <h2 className="im-title">
           <i className="fas fa-money-check-alt"></i> Issue Money / Disbursement
         </h2>
-        <p className="im-subtitle">
-          Create disbursement transactions for payments and fund transfers
-        </p>
+ 
         <div className="im-header-actions">
           <button
             type="button"
@@ -1120,58 +1003,11 @@ const IssueMoney = () => {
         </div>
       )}
 
-      <div className="issue-money-analytics-section">
-        <div className="issue-money-analytics-grid">
-          <div className="analytics-left">
-            <div className="analytics-stat-card">
-              {analyticsData.isLoading ? (
-                <div className="loading-indicator">
-                  <i className="fas fa-spinner fa-spin"></i>
-                  <span>Loading...</span>
-                </div>
-              ) : (
-                <>
-                  <div className="stat-card-value">₱{analyticsData.totalAmount.toLocaleString()}</div>
-                  <div className="stat-card-label">Total disbursement amount</div>
-                  {analyticsData.revenueGrowth !== 0 && (
-                    <div className={`stat-growth-badge ${analyticsData.revenueGrowth > 0 ? 'positive' : 'negative'}`}>
-                      <i className={`fas fa-arrow-${analyticsData.revenueGrowth > 0 ? 'up' : 'down'}`}></i>
-                      {Math.abs(analyticsData.revenueGrowth).toFixed(1)}%
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="analytics-stat-card">
-              {analyticsData.isLoading ? (
-                <div className="loading-indicator">
-                  <i className="fas fa-spinner fa-spin"></i>
-                  <span>Loading...</span>
-                </div>
-              ) : (
-                <>
-                  <div className="stat-card-value">₱{analyticsData.averageAmount.toLocaleString()}</div>
-                  <div className="stat-card-label">Average disbursement</div>
-                  <div className="stat-card-updated">
-                    <i className="fas fa-clock"></i>
-                    Updated {new Date(analyticsData.lastUpdated).toLocaleTimeString()}
-                  </div>
-                </>
-              )}
-            </div>
-            <IssueDisbursementTrends
-              disbursements={recentDisbursements}
-              transactions={disbursementChartTransactions}
-              disbursementPeriod={disbursementPeriod}
-              onPeriodChange={handlePeriodChange}
-            />
-          </div>
-          <div className="analytics-right">
-            <PayerDistributionAnalytics analyticsData={analyticsData} />
-            <ReceiptCountAnalytics receipts={recentDisbursements} analyticsData={analyticsData} />
-          </div>
-        </div>
-      </div>
+      {/* KPI Analytics Section */}
+      <KPIAnalytics 
+        disbursements={recentDisbursements} 
+        isLoading={analyticsLoading}
+      />
 
       {/* Disbursement Form Modal */}
       {showFormModal && (
