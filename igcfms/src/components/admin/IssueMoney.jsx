@@ -3,7 +3,7 @@ import axios from "axios";
 import "./css/issuemoney.css";
 import balanceService from "../../services/balanceService";
 import { broadcastFundTransaction } from "../../services/fundTransactionChannel";
-import KPIAnalytics from "./KPIAnalytics";
+import Chart from 'chart.js/auto';
 
 const IssueMoney = () => {
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,6 @@ const IssueMoney = () => {
   const [recipientAccounts, setRecipientAccounts] = useState([]);
   const [recentDisbursements, setRecentDisbursements] = useState([]);
   const [filteredDisbursements, setFilteredDisbursements] = useState([]);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [filters, setFilters] = useState({
     activeFilter: "all",
     searchTerm: "",
@@ -22,6 +21,8 @@ const IssueMoney = () => {
   });
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const exportDropdownRef = useRef(null);
+  const dpoChartRef = useRef(null);
+  const dpoChartInstance = useRef(null);
   
   // Form states
   const [formData, setFormData] = useState({
@@ -357,6 +358,202 @@ const IssueMoney = () => {
     };
   }, []);
 
+  // Initialize DPO Chart
+  useEffect(() => {
+    initializeDPOChart();
+    
+    return () => {
+      if (dpoChartInstance.current) {
+        dpoChartInstance.current.destroy();
+      }
+    };
+  }, [recentDisbursements]);
+
+  const initializeDPOChart = () => {
+    if (!dpoChartRef.current) {
+      return;
+    }
+
+    // Wait for canvas to be properly mounted
+    setTimeout(() => {
+      if (!dpoChartRef.current) {
+        return;
+      }
+
+      const ctx = dpoChartRef.current.getContext('2d');
+      
+      // Destroy existing chart
+      if (dpoChartInstance.current) {
+        dpoChartInstance.current.destroy();
+      }
+
+      // Calculate DPO data
+      const calculateDPO = () => {
+        if (recentDisbursements.length === 0) {
+          // Sample data when no disbursements
+          return [
+            { date: 'Sep 28', value: 7 },
+            { date: 'Sep 29', value: 11 },
+            { date: 'Sep 30', value: 1 },
+            { date: 'Oct 2', value: 1 },
+            { date: 'Oct 4', value: 1 },
+            { date: 'Oct 6', value: 3 },
+            { date: 'Oct 8', value: 3 },
+            { date: 'Oct 10', value: 4 },
+            { date: 'Oct 12', value: 4 },
+            { date: 'Oct 14', value: 2 }
+          ];
+        }
+
+        // Group disbursements by date and calculate average DPO
+        const groupedByDate = recentDisbursements.reduce((acc, disbursement) => {
+          const createdDate = new Date(disbursement.created_at);
+          const dateKey = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          
+          // Calculate days between creation and now (simplified DPO)
+          const now = new Date();
+          const daysDiff = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+          
+          if (!acc[dateKey]) {
+            acc[dateKey] = { totalDays: 0, count: 0, date: dateKey };
+          }
+          
+          acc[dateKey].totalDays += daysDiff;
+          acc[dateKey].count += 1;
+          
+          return acc;
+        }, {});
+
+        return Object.values(groupedByDate)
+          .map(group => ({
+            date: group.date,
+            value: Math.round(group.totalDays / group.count)
+          }))
+          .sort((a, b) => new Date(a.date) - new Date(b.date))
+          .slice(-10);
+      };
+
+      const dpoData = calculateDPO();
+      const labels = dpoData.map(d => d.date);
+      const dataPoints = dpoData.map(d => d.value);
+      const maxValue = Math.max(...dataPoints, 15);
+      // Round up to nearest 5 for cleaner scale
+      const suggestedMax = Math.ceil(maxValue / 5) * 5;
+
+      // Create gradients matching the Issued Receipts Summary style
+      const gradientFill = ctx.createLinearGradient(0, 0, 0, dpoChartRef.current?.clientHeight || 250);
+      gradientFill.addColorStop(0, 'rgba(0, 0, 0, 0.35)');
+      gradientFill.addColorStop(1, 'rgba(0, 0, 0, 0.05)');
+
+      const borderGradient = ctx.createLinearGradient(0, 0, dpoChartRef.current?.clientWidth || 320, 0);
+      borderGradient.addColorStop(0, '#000000');
+      borderGradient.addColorStop(1, '#000000');
+
+      dpoChartInstance.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'DPO (Days)',
+              data: dataPoints,
+              borderColor: borderGradient,
+              backgroundColor: gradientFill,
+              borderWidth: 3,
+              fill: 'start',
+              tension: 0,
+              pointRadius: 0,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#0f172a',
+              pointBorderColor: '#f9fafb',
+              pointBorderWidth: 2,
+              pointHitRadius: 12,
+              spanGaps: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: 1400,
+            easing: 'easeInOutCubic'
+          },
+          layout: {
+            padding: {
+              top: 16,
+              bottom: 8,
+              left: 8,
+              right: 16
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: '#111827',
+              titleColor: '#f9fafb',
+              bodyColor: '#f3f4f6',
+              borderColor: '#0f172a',
+              borderWidth: 1,
+              cornerRadius: 8,
+              displayColors: false,
+              padding: 12,
+              titleFont: { size: 12, weight: '700' },
+              bodyFont: { size: 11, weight: '500' },
+              callbacks: {
+                title: (context) => context[0].label,
+                label: (context) => `DPO: ${context.parsed.y} days`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              suggestedMax: suggestedMax,
+              ticks: {
+                color: '#1f2937',
+                font: { size: 11, weight: '600' },
+                padding: 10,
+                precision: 0,
+                stepSize: 5
+              },
+              grid: {
+                color: 'rgba(17, 24, 39, 0.08)',
+                drawBorder: false,
+                tickLength: 0
+              }
+            },
+            x: {
+              ticks: {
+                color: '#1f2937',
+                font: { size: 11, weight: '600' },
+                padding: 8,
+                maxRotation: 0,
+                minRotation: 0
+              },
+              grid: {
+                color: 'rgba(17, 24, 39, 0.06)',
+                drawBorder: false,
+                tickLength: 0
+              }
+            }
+          },
+          elements: {
+            line: {
+              borderJoinStyle: 'round'
+            }
+          },
+          interaction: {
+            intersect: false,
+            mode: 'index'
+          }
+        }
+      });
+    }, 100);
+  };
+
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({
       ...prev,
@@ -396,6 +593,48 @@ const IssueMoney = () => {
       averageAmount
     };
   }, [filteredDisbursements]);
+
+  const vendorPerformance = useMemo(() => {
+    if (!Array.isArray(recentDisbursements) || recentDisbursements.length === 0) {
+      return [];
+    }
+
+    const stats = recentDisbursements.reduce((acc, disbursement) => {
+      const vendorName = disbursement.recipient || "Unknown Vendor";
+      const amountValue = parseAmountValue(disbursement.amount);
+
+      if (!acc[vendorName]) {
+        acc[vendorName] = {
+          name: vendorName,
+          transactions: 0,
+          totalAmount: 0
+        };
+      }
+
+      acc[vendorName].transactions += 1;
+      acc[vendorName].totalAmount += Math.abs(amountValue);
+      return acc;
+    }, {});
+
+    const vendors = Object.values(stats);
+    if (!vendors.length) {
+      return [];
+    }
+
+    const highestAmount = Math.max(...vendors.map(v => v.totalAmount), 0);
+
+    return vendors
+      .map(vendor => ({
+        name: vendor.name,
+        transactions: vendor.transactions,
+        amount: formatCurrency(vendor.totalAmount),
+        percentage: highestAmount > 0
+          ? Math.round((vendor.totalAmount / highestAmount) * 100)
+          : 0
+      }))
+      .sort((a, b) => b.percentage - a.percentage || b.transactions - a.transactions)
+      .slice(0, 6);
+  }, [recentDisbursements]);
 
   const handleExportCsv = () => {
     if (!filteredDisbursements.length) {
@@ -732,10 +971,6 @@ const IssueMoney = () => {
     }
   };
 
-  // Analytics loading state management
-  useEffect(() => {
-    setAnalyticsLoading(loading);
-  }, [loading]);
 
   // Department and category removed as requested - using default values in backend
 
@@ -1003,11 +1238,300 @@ const IssueMoney = () => {
         </div>
       )}
 
-      {/* KPI Analytics Section */}
-      <KPIAnalytics 
-        disbursements={recentDisbursements} 
-        isLoading={analyticsLoading}
-      />
+      {/* Dashboard Layout - 5 Box Exact Layout */}
+      <div className="issue-money-dashboard">
+        <div className="issue-money-box-1">
+          <div className="total-disbursement-card">
+            <h3>Total disbursement</h3>
+            <div className="disbursement-amount">
+              {(() => {
+                const totalAmount = recentDisbursements.reduce((sum, item) => {
+                  const amount = parseFloat(item.amount || 0);
+                  return sum + (isNaN(amount) ? 0 : Math.abs(amount));
+                }, 0);
+                return `₱${totalAmount.toLocaleString()}`;
+              })()} 
+            </div>
+          </div>
+        </div>
+
+        <div className="issue-money-box-2">
+          <div className="payment-accuracy-card">
+            <div className="box-header">
+              <div className="box-title-with-indicator">
+                <h3 className="box-title">Payment Accuracy Rate</h3>
+              </div>
+            </div>
+            <div className="box-content">
+              {(() => {
+                // Calculate Payment Accuracy Rate
+                const totalPayments = recentDisbursements.length;
+                
+                // Assume all successfully stored disbursements are "correct"
+                // In a real system, you'd filter by status or error flags
+                const correctPayments = recentDisbursements.filter(d => {
+                  // Filter out any disbursements with errors or issues
+                  // For now, we assume all are correct unless they have specific error indicators
+                  return d.amount && d.recipient && d.reference;
+                }).length;
+                
+                const accuracyRate = totalPayments > 0 
+                  ? ((correctPayments / totalPayments) * 100).toFixed(1)
+                  : 100;
+                
+                // Determine status based on accuracy rate (Black & White theme)
+                const getAccuracyStatus = (rate) => {
+                  if (rate >= 98) return { label: 'EXCELLENT' };
+                  if (rate >= 90) return { label: 'NEEDS REVIEW' };
+                  return { label: 'CRITICAL' };
+                };
+                
+                const status = getAccuracyStatus(parseFloat(accuracyRate));
+                
+                return (
+                  <div className="accuracy-content-compact">
+                    <div className="accuracy-gauge-compact">
+                      <svg viewBox="0 0 100 60" className="gauge-svg-compact">
+                        {/* Background arc */}
+                        <path
+                          d="M 10 50 A 40 40 0 0 1 90 50"
+                          fill="none"
+                          stroke="#e5e7eb"
+                          strokeWidth="10"
+                          strokeLinecap="round"
+                        />
+                        {/* Black arc based on accuracy */}
+                        <path
+                          d="M 10 50 A 40 40 0 0 1 90 50"
+                          fill="none"
+                          stroke="#000000"
+                          strokeWidth="10"
+                          strokeLinecap="round"
+                          strokeDasharray={`${(parseFloat(accuracyRate) / 100) * 125.6} 125.6`}
+                          style={{ transition: 'stroke-dasharray 1s ease' }}
+                        />
+                        {/* Center text */}
+                        <text x="50" y="40" textAnchor="middle" fontSize="18" fontWeight="700" fill="#000000">
+                          {accuracyRate}%
+                        </text>
+                        <text x="50" y="52" textAnchor="middle" fontSize="7" fontWeight="600" fill="#6b7280">
+                          Accuracy
+                        </text>
+                      </svg>
+                    </div>
+                    
+                    <div className="accuracy-status-compact">
+                      <span className="status-label-compact">
+                        {status.label}
+                      </span>
+                    </div>
+                    
+                    <div className="accuracy-details-compact">
+                      <div className="detail-item-compact">
+                        <span className="detail-label-compact">CORRECT</span>
+                        <span className="detail-value-compact">{correctPayments}</span>
+                      </div>
+                      <div className="detail-divider"></div>
+                      <div className="detail-item-compact">
+                        <span className="detail-label-compact">TOTAL</span>
+                        <span className="detail-value-compact">{totalPayments}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+
+        <div className="issue-money-box-3">
+          <div className="payment-method-chart">
+            <div className="box-header">
+              <div className="box-title-with-indicator">
+                <h3 className="box-title">Payment Method Distribution</h3>
+              </div>
+            </div>
+            <div className="box-content">
+            {(() => {
+              // Calculate payment method distribution from real disbursement data
+              const calculatePaymentMethodData = () => {
+                // Black and white color scheme
+                const colorMap = {
+                  'Cash': '#000000',           // Pure black for Cash
+                  'Cheque': '#374151',         // Dark gray
+                  'Bank Transfer': '#4b5563',  // Darker gray
+                  'Bank': '#4b5563',           // Darker gray
+                  'Check': '#374151'           // Dark gray (alternative spelling)
+                };
+                
+                if (recentDisbursements.length === 0) {
+                  // Default data with black and white theme
+                  return [
+                    { method: 'Cash', count: 25, percentage: 62.5, color: '#000000' },
+                    { method: 'Cheque', count: 10, percentage: 25, color: '#374151' },
+                    { method: 'Bank Transfer', count: 5, percentage: 12.5, color: '#4b5563' }
+                  ];
+                }
+
+                // Group disbursements by payment method
+                const methodCounts = recentDisbursements.reduce((acc, disbursement) => {
+                  const method = disbursement.mode_of_payment || 'Cash';
+                  acc[method] = (acc[method] || 0) + 1;
+                  return acc;
+                }, {});
+
+                const total = Object.values(methodCounts).reduce((sum, count) => sum + count, 0);
+                
+                return Object.entries(methodCounts)
+                  .map(([method, count]) => ({
+                    method,
+                    count,
+                    percentage: total > 0 ? (count / total) * 100 : 0,
+                    color: colorMap[method] || '#d1d5db' // Default to lightest gray
+                  }))
+                  .sort((a, b) => b.count - a.count);
+              };
+
+              const data = calculatePaymentMethodData();
+              const total = data.reduce((sum, item) => sum + item.count, 0);
+              const svgSize = 400;
+              const radius = 160;
+              const centerX = svgSize / 2;
+              const centerY = svgSize / 2;
+
+              let cumulativePercentage = 0;
+
+              return (
+                <div className="pie-chart-container">
+                  <svg width="100%" height="100%" viewBox={`0 0 ${svgSize} ${svgSize}`} className="large-pie-chart">
+                    {/* Pie chart slices */}
+                    {data.map((item, index) => {
+                      const startAngle = (cumulativePercentage / 100) * 2 * Math.PI - Math.PI / 2;
+                      const endAngle = ((cumulativePercentage + item.percentage) / 100) * 2 * Math.PI - Math.PI / 2;
+                      
+                      const x1 = centerX + radius * Math.cos(startAngle);
+                      const y1 = centerY + radius * Math.sin(startAngle);
+                      const x2 = centerX + radius * Math.cos(endAngle);
+                      const y2 = centerY + radius * Math.sin(endAngle);
+                      
+                      const largeArcFlag = item.percentage > 50 ? 1 : 0;
+                      
+                      const pathData = [
+                        `M ${centerX} ${centerY}`,
+                        `L ${x1} ${y1}`,
+                        `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                        'Z'
+                      ].join(' ');
+
+                      // Calculate label position
+                      const labelAngle = startAngle + (endAngle - startAngle) / 2;
+                      const labelRadius = radius + 40;
+                      const labelX = centerX + labelRadius * Math.cos(labelAngle);
+                      const labelY = centerY + labelRadius * Math.sin(labelAngle);
+
+                      cumulativePercentage += item.percentage;
+
+                      return (
+                        <g key={index}>
+                          <path
+                            d={pathData}
+                            fill={item.color}
+                            stroke="#ffffff"
+                            strokeWidth="3"
+                          />
+                          {/* Label outside the pie */}
+                          <text
+                            x={labelX}
+                            y={labelY}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fontSize="14"
+                            fontWeight="600"
+                            fill="#374151"
+                          >
+                            <tspan x={labelX} dy="0">{item.method}</tspan>
+                            <tspan x={labelX} dy="16">{item.percentage.toFixed(1)}%</tspan>
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              );
+            })()}
+            </div>
+          </div>
+        </div>
+
+        <div className="issue-money-box-4">
+          <div className="vendor-performance-card">
+            <div className="vendor-header">
+              <i className="fas fa-star"></i>
+              <div>
+                <h3>Vendor Performance Ratings</h3>
+                <p>Bar chart by vendor performance</p>
+              </div>
+            </div>
+            <div className="vendor-list">
+              {vendorPerformance.length === 0 ? (
+                <div className="vendor-item">
+                  <div className="vendor-info">
+                    <span className="vendor-name">No vendor performance data yet</span>
+                  </div>
+                </div>
+              ) : (
+                vendorPerformance.map((vendor, index) => (
+                  <div key={index} className="vendor-item">
+                    <div className="vendor-info">
+                      <span className="vendor-name">{vendor.name}</span>
+                      <span className="vendor-percentage">{vendor.percentage}%</span>
+                    </div>
+                    <div className="vendor-details">
+                      <span className="vendor-transactions">{vendor.transactions} transactions</span>
+                      <span className="vendor-amount">{vendor.amount}</span>
+                    </div>
+                    <div className="progress-bar-container">
+                      <div
+                        className="progress-bar"
+                        style={{
+                          width: `${vendor.percentage}%`,
+                          backgroundColor: vendor.percentage < 50 ? '#1f2937' : '#d1d5db'
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="issue-money-box-5">
+          <div className="dashboard-box box-dpo">
+            <div className="box-header">
+              <div className="box-title-with-indicator">
+                <h3 className="box-title">Days Payable Outstanding (DPO)</h3>
+              </div>
+            </div>
+            <div className="box-content">
+              <div className="chart-container" style={{ 
+                height: '250px', 
+                width: '100%',
+                position: 'relative',
+                padding: '10px'
+              }}>
+                <canvas 
+                  ref={dpoChartRef}
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '100%' 
+                  }}
+                ></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Disbursement Form Modal */}
       {showFormModal && (

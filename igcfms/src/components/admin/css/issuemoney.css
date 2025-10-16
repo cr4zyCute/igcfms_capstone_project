@@ -94,6 +94,697 @@
   margin-bottom: 30px;
 }
 
+/* IssueMoney Dashboard Layout - 5 Box Custom Layout */
+.issue-money-dashboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 20px;
+  min-height: 600px;
+  margin-top: -2%;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+/* Box 1 - Top Left */
+.issue-money-box-1 {
+  grid-row: 1;
+  grid-column: 1;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 20px;
+  width: 85%;
+  height: 55%;
+  margin-left: -5%;
+  /* min-width: 85%;
+  max-width: 85%;
+  min-height: 45%;
+  max-height: 45%; */
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Box 2 - Below Box 1 */
+.issue-money-box-2 {
+  grid-row: 2;
+  grid-column: 1;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 20px;
+  width: 85%;
+  height: 65%;
+  margin-left: -5%;
+  margin-top: -46%;
+  /* min-width: 85%;
+  max-width: 85%;
+  min-height: 45%;
+  max-height: 45%; */
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Box 3 - Center spanning two rows */
+.issue-money-box-3 {
+  grid-row: 1 / 3;
+  grid-column: 2;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 0px;
+  height: 60% !important;
+  width: 126%;
+  margin-left: -23%;
+
+  box-sizing: border-box;
+  overflow: hidden;
+  
+}
+
+/* Box 4 - Right spanning two rows */
+.issue-money-box-4 {
+  grid-row: 1 / 3;
+  grid-column: 3;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 0px;
+  width: 105%;
+  height: 114% !important;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Box 5 - Bottom spanning under Box 2 and Box 3 only */
+.issue-money-box-5 {
+  grid-row: 3;
+  grid-column: 1 / 3;
+  border-radius: 12px;
+  padding: 20px;
+  width: 109%;
+  height: 120%;
+  margin-top: -43%;
+  margin-left: -5%;
+  /* min-width: 103%;
+  max-width: 103%;
+  min-height: 109%;
+  max-height: 109%; */
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Payment Method Pie Chart Styles */
+.payment-method-pie-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pie-chart-header {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.pie-chart-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+}
+
+.pie-chart-header p {
+  font-size: 10px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.pie-chart-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.pie-chart-svg-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.payment-pie-chart {
+  max-width: 100%;
+  height: auto;
+}
+
+.pie-chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  order: -1;
+  margin-bottom: 5px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-text {
+  font-size: 11px;
+  color: #374151;
+  font-weight: 500;
+}
+
+/* DPO Box Styling - Matching Issued Receipts Summary */
+.dashboard-box.box-dpo {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-box.box-dpo:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+.dashboard-box.box-dpo .box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.dashboard-box.box-dpo .box-title-with-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-box.box-dpo .box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.dashboard-box.box-dpo .box-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* DPO Line Chart - Minimal styling */
+.dpo-chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+}
+
+.dpo-chart-wrapper h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 15px 0;
+}
+
+.dpo-line-chart-container {
+  margin-top: 10px;
+  flex: 1;
+  display: flex;
+}
+
+.dpo-line-chart-container svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* IssueMoney Dashboard Stat Card Styles */
+.issue-money-stat-card {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  min-height: 120px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.issue-money-stat-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.issue-money-stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.2;
+  margin-bottom: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.issue-money-stat-label {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 4px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+/* IssueMoney Days Payable Outstanding Chart Styles */
+.issue-money-days-payable-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.issue-money-days-payable-icon {
+  color: #6b7280;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.issue-money-days-payable-info {
+  flex: 1;
+}
+
+.issue-money-days-payable-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+}
+
+.issue-money-days-payable-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.issue-money-days-payable-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+  text-align: right;
+}
+
+.issue-money-days-payable-unit {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+  text-align: right;
+  margin-top: 4px;
+}
+
+.issue-money-chart-trend-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #10b981;
+}
+
+.issue-money-chart-trend-info i {
+  font-size: 10px;
+}
+
+.issue-money-chart-area-container {
+  flex: 1;
+  min-height: 220px;
+  position: relative;
+  margin-top: 16px;
+}
+
+.issue-money-line-chart-container {
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.issue-money-line-chart-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* IssueMoney Vendor Performance Ratings Styles */
+.issue-money-vendor-performance-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.issue-money-vendor-performance-header i {
+  color: #6b7280;
+  font-size: 16px;
+}
+
+.issue-money-vendor-performance-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.issue-money-vendor-performance-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  margin-left: auto;
+}
+
+.issue-money-vendor-performance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Top Section - Horizontal Progress Bars */
+.issue-money-vendor-top-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.issue-money-vendor-top-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.issue-money-vendor-top-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.issue-money-vendor-top-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.issue-money-vendor-top-percentage {
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.issue-money-vendor-top-progress-container {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.issue-money-vendor-top-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #d1d5db 0%, #9ca3af 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Detailed Section - Vendor Cards */
+.issue-money-vendor-detailed-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.issue-money-vendor-detailed-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.issue-money-vendor-detailed-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.issue-money-vendor-detailed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.issue-money-vendor-detailed-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.issue-money-vendor-detailed-percentage {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  background: #f3f4f6;
+  padding: 4px 8px;
+  border-radius: 6px;
+  min-width: 45px;
+  text-align: center;
+}
+
+.issue-money-vendor-detailed-percentage.low-performance {
+  background: #1f2937;
+  color: #ffffff;
+}
+
+.issue-money-vendor-detailed-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.issue-money-vendor-transactions {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.issue-money-vendor-amount {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* Legacy styles for backward compatibility */
+.issue-money-vendor-performance-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.issue-money-vendor-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.issue-money-vendor-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.issue-money-vendor-percentage {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  background: #f3f4f6;
+  padding: 4px 8px;
+  border-radius: 6px;
+  min-width: 45px;
+  text-align: center;
+}
+
+.issue-money-vendor-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.issue-money-progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.issue-money-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.issue-money-progress-bar.high-performance {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.issue-money-progress-bar.medium-performance {
+  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+}
+
+.issue-money-progress-bar.low-performance {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+/* IssueMoney Pie Chart Section Styles */
+.issue-money-pie-chart-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.issue-money-pie-chart-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  
+  margin: 0;
+}
+
+.issue-money-pie-chart-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.issue-money-pie-chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 20px;
+}
+
+.issue-money-pie-chart-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.issue-money-pie-chart-svg-container {
+  position: relative;
+  width: 100%;
+  height: 500%;
+}
+
+.issue-money-pie-chart-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+}
+
+.issue-money-pie-chart-label {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  white-space: nowrap;
+  user-select: none;
+  line-height: 1.2;
+}
+
+.issue-money-pie-chart-label div:first-child {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.issue-money-pie-chart-label div:last-child {
+  font-weight: 700;
+  color: #374151;
+  margin-top: 2px;
+}
+
+/* Legacy styles for backward compatibility */
+.issue-money-pie-chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.issue-money-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.issue-money-legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.issue-money-legend-label {
+  color: #6b7280;
+  flex: 1;
+}
+
+.issue-money-legend-percentage {
+  font-weight: 600;
+  color: #1f2937;
+}
+
 /* Disbursement Form Section */
 .disbursement-form-section {
   background: #ffffff;
@@ -203,6 +894,7 @@
   border-radius: 12px;
   border: 2px solid #000000;
   padding: 18px;
+  margin-top: -26%;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
 }
@@ -959,15 +1651,51 @@
   color: #555;
 }
 
-/* Responsive Design */
+/* IssueMoney Dashboard Responsive design */
 @media (max-width: 768px) {
-  .issue-money-page {
+  .issue-money-dashboard {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(5, auto);
+    gap: 15px;
     padding: 15px;
   }
+  
+  .issue-money-box-1,
+  .issue-money-box-2,
+  .issue-money-box-3,
+  .issue-money-box-4,
+  .issue-money-box-5 {
+    grid-column: 1;
+  }
+  
+  .issue-money-box-1 { grid-row: 1; }
+  .issue-money-box-2 { grid-row: 2; }
+  .issue-money-box-3 { grid-row: 3; }
+  .issue-money-box-4 { grid-row: 4; }
+  .issue-money-box-5 { grid-row: 5; }
   
   .im-content-grid {
     grid-template-columns: 1fr;
     gap: 20px;
+  }
+  
+  .issue-money-stats-cards {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  
+  .issue-money-pie-chart-container {
+    width: 200px;
+    height: 200px;
+  }
+  
+  .issue-money-stat-card {
+    padding: 20px;
+    min-height: 100px;
+  }
+  
+  .issue-money-stat-value {
+    font-size: 24px;
   }
   
   .form-row {
@@ -1014,5 +1742,356 @@
   
   .modal-header h3 {
     font-size: 16px;
+  }
+}
+
+/* Payment Method Pie Chart Styles */
+.payment-method-chart {
+  display: flex;
+  flex-direction: column;
+  height: 110%;
+  width: 100%;
+  max-height: 100%;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.payment-method-chart .box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.payment-method-chart .box-title-with-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.payment-method-chart .box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+  text-align: left;
+}
+
+.payment-method-chart .box-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.payment-method-chart h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 15px 0;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.pie-chart-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.large-pie-chart {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* Total Disbursement Card (Box 1) */
+.total-disbursement-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+}
+
+.total-disbursement-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 20px 0;
+}
+
+.disbursement-amount {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+/* Payment Accuracy Card (Box 2) */
+.payment-accuracy-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+}
+
+.payment-accuracy-card .box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.payment-accuracy-card .box-title-with-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.payment-accuracy-card .box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+  text-align: left;
+}
+
+.payment-accuracy-card .box-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Compact Black & White Theme */
+.accuracy-content-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  justify-content: center;
+  padding: 5px;
+}
+
+.accuracy-gauge-compact {
+  width: 100%;
+  max-width: 100px;
+}
+
+.gauge-svg-compact {
+  width: 100%;
+  height: auto;
+}
+
+.accuracy-status-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  background: #000000;
+  border-radius: 4px;
+}
+
+.status-label-compact {
+  font-size: 9px;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.accuracy-details-compact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+.detail-item-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.detail-label-compact {
+  font-size: 8px;
+  color: #6b7280;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.detail-value-compact {
+  font-size: 14px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.detail-divider {
+  width: 1px;
+  height: 24px;
+  background: #e5e7eb;
+}
+
+.accuracy-placeholder p {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Vendor Performance Card (Box 4) */
+.vendor-performance-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+}
+
+.vendor-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.vendor-header i {
+  color: #6b7280;
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+.vendor-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+}
+
+.vendor-header p {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.vendor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  flex: 1;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.vendor-list::-webkit-scrollbar {
+  display: none;
+}
+
+.vendor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.vendor-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.vendor-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.vendor-percentage {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #1f2937;
+  padding: 4px 8px;
+  border-radius: 6px;
+  min-width: 45px;
+  text-align: center;
+}
+
+.vendor-percentage[style*="42%"] {
+  background: #1f2937 !important;
+}
+
+.vendor-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.vendor-transactions {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.vendor-amount {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Responsive adjustments for pie chart */
+@media (max-width: 768px) {
+  .payment-method-chart {
+    padding: 10px;
+  }
+  
+  .payment-method-chart h3 {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  
+  .vendor-performance-card {
+    padding: 15px;
+  }
+  
+  .disbursement-amount {
+    font-size: 24px;
   }
 }
