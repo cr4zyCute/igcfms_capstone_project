@@ -117,10 +117,6 @@
   width: 85%;
   height: 55%;
   margin-left: -5%;
-  /* min-width: 85%;
-  max-width: 85%;
-  min-height: 45%;
-  max-height: 45%; */
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -130,17 +126,12 @@
   grid-row: 2;
   grid-column: 1;
   background: #ffffff;
-  border: 2px solid #000000;
   border-radius: 12px;
-  padding: 20px;
+  padding: 0;
   width: 85%;
   height: 65%;
   margin-left: -5%;
   margin-top: -46%;
-  /* min-width: 85%;
-  max-width: 85%;
-  min-height: 45%;
-  max-height: 45%; */
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -156,7 +147,6 @@
   height: 60% !important;
   width: 126%;
   margin-left: -23%;
-
   box-sizing: border-box;
   overflow: hidden;
   
@@ -186,10 +176,6 @@
   height: 120%;
   margin-top: -43%;
   margin-left: -5%;
-  /* min-width: 103%;
-  max-width: 103%;
-  min-height: 109%;
-  max-height: 109%; */
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -274,7 +260,7 @@
 .dashboard-box.box-dpo {
   background: #ffffff;
   border-radius: 12px;
-  padding: 20px;
+  padding: 15px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   border: 1px solid #e5e7eb;
   transition: all 0.3s ease;
@@ -292,8 +278,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
   border-bottom: 2px solid #f1f5f9;
 }
 
@@ -1239,7 +1225,76 @@
 
 .disbursements-table-container {
   max-height: 500px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.disbursements-table-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Pagination Controls - Matching IssueReceipt Style */
+.table-pagination {
+  margin-top: 12px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #f5f3ff 100%);
+  border-top: 2px solid #000000;
+  border-radius: 0 0 12px 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.pagination-info {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination-button {
+  min-width: 90px;
+  padding: 8px 14px;
+  border: 2px solid #000000;
+  border-radius: 9999px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+.pagination-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.15);
+  background: #111111;
+}
+
+.pagination-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+  transform: none;
+}
+
+.pagination-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.2);
 }
 
 .disbursements-table {
@@ -1820,22 +1875,74 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
+  justify-content: space-between;
+  height: 130%;
+  width: 125%;
+  margin-left: -15%;
   text-align: center;
+  padding: 15px 10px 10px 10px;
 }
 
 .total-disbursement-card h3 {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: #1f2937;
-  margin: 0 0 20px 0;
+  margin: 0 0 10px 0;
 }
 
 .disbursement-amount {
-  font-size: 32px;
+  font-size: 20px;
   font-weight: 700;
   color: #1f2937;
+  margin-bottom: 10px;
+}
+
+/* Mini Graph for Total Disbursement */
+.disbursement-mini-graph {
+  width: 100%;
+  height: 90px;
+  margin-top: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  cursor: grab;
+  user-select: none;
+}
+
+.disbursement-mini-graph::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.mini-graph-svg {
+  min-width: 300px;
+  width: auto;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.mini-graph-svg circle {
+  pointer-events: auto;
+}
+
+/* Hide dots by default */
+.mini-graph-svg circle {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Show dots on hover */
+.disbursement-mini-graph:hover .mini-graph-svg circle {
+  opacity: 1;
+}
+
+.no-graph-data {
+  font-size: 11px;
+  color: #9ca3af;
+  text-align: center;
+  padding: 10px;
 }
 
 /* Payment Accuracy Card (Box 2) */
@@ -1843,13 +1950,17 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
   padding: 20px;
+  box-sizing: border-box;
+  border: 2px solid #000000;
+  border-radius: 12px;
 }
 
 .payment-accuracy-card .box-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: flex-start;
   margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 2px solid #f1f5f9;
@@ -1874,6 +1985,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  padding: 0;
 }
 
 /* Compact Black & White Theme */
@@ -1881,15 +1993,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   height: 100%;
   justify-content: center;
-  padding: 5px;
+  padding: 10px;
 }
 
 .accuracy-gauge-compact {
   width: 100%;
-  max-width: 100px;
+  max-width: 150px;
 }
 
 .gauge-svg-compact {
@@ -1901,26 +2013,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 10px;
+  padding: 6px 16px;
   background: #000000;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 .status-label-compact {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: #ffffff;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.8px;
 }
 
 .accuracy-details-compact {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 20px;
   width: 100%;
   justify-content: center;
-  padding-top: 4px;
+  padding-top: 8px;
 }
 
 .detail-item-compact {
@@ -1931,22 +2043,22 @@
 }
 
 .detail-label-compact {
-  font-size: 8px;
+  font-size: 10px;
   color: #6b7280;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.5px;
 }
 
 .detail-value-compact {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   color: #000000;
 }
 
 .detail-divider {
-  width: 1px;
-  height: 24px;
+  width: 2px;
+  height: 30px;
   background: #e5e7eb;
 }
 

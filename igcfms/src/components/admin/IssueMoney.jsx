@@ -4,16 +4,47 @@ import "./css/issuemoney.css";
 import balanceService from "../../services/balanceService";
 import { broadcastFundTransaction } from "../../services/fundTransactionChannel";
 import Chart from 'chart.js/auto';
+import IssueMoneySkeletonLoader from "../ui/issuemoneySL";
+import { useQueryClient } from '@tanstack/react-query';
+import { 
+  useDisbursements, 
+  useFundAccountsForDisbursement, 
+  useRecipientAccountsForDisbursement,
+  useCreateDisbursement 
+} from '../../hooks/useDisbursements';
 
 const IssueMoney = () => {
-  const [loading, setLoading] = useState(false);
+  // TanStack Query hooks
+  const queryClient = useQueryClient();
+  const { 
+    data: disbursementsData, 
+    isLoading: disbursementsLoading, 
+    error: disbursementsError 
+  } = useDisbursements();
+  
+  const { 
+    data: fundAccountsData, 
+    isLoading: fundAccountsLoading 
+  } = useFundAccountsForDisbursement();
+  
+  const { 
+    data: recipientAccountsData, 
+    isLoading: recipientAccountsLoading 
+  } = useRecipientAccountsForDisbursement();
+  
+  const createDisbursementMutation = useCreateDisbursement();
+  
+  // Local state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [fundAccounts, setFundAccounts] = useState([]);
-  const [recipientAccounts, setRecipientAccounts] = useState([]);
-  const [recentDisbursements, setRecentDisbursements] = useState([]);
   const [filteredDisbursements, setFilteredDisbursements] = useState([]);
+  
+  // Derived data from React Query
+  const recentDisbursements = disbursementsData || [];
+  const fundAccounts = fundAccountsData || [];
+  const recipientAccounts = recipientAccountsData || [];
+  const loading = disbursementsLoading || fundAccountsLoading || recipientAccountsLoading;
   const [filters, setFilters] = useState({
     activeFilter: "all",
     searchTerm: "",
@@ -23,6 +54,10 @@ const IssueMoney = () => {
   const exportDropdownRef = useRef(null);
   const dpoChartRef = useRef(null);
   const dpoChartInstance = useRef(null);
+  const miniGraphRef = useRef(null);
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
   // Form states
   const [formData, setFormData] = useState({
@@ -73,72 +108,6 @@ const IssueMoney = () => {
     return Math.round(parsed * 100) / 100;
   };
 
-
-  const fetchInitialData = useCallback(async ({ showLoader = true } = {}) => {
-    try {
-      if (showLoader) setLoading(true);
-      setError("");
-
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        return;
-      }
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Fetch fund accounts, recipient accounts, and recent disbursements
-      const [fundsRes, recipientsRes, transactionsRes] = await Promise.all([
-        axios.get(`${API_BASE}/fund-accounts`, { headers }),
-        axios.get(`${API_BASE}/recipient-accounts?status=active`, { headers }).then(response => {
-          return response;
-        }).catch((err) => {
-
-
-        }),
-        axios.get(`${API_BASE}/transactions`, { headers })
-      ]);
-
-      // Ensure data is always an array
-      const fundAccountsData = Array.isArray(fundsRes.data) ? fundsRes.data : (fundsRes.data?.data || []);
-      
-      // Handle recipient accounts response format with detailed logging
-      let recipientAccountsData = [];
-  
-      
-      if (recipientsRes.data?.success && Array.isArray(recipientsRes.data.data)) {
-        recipientAccountsData = recipientsRes.data.data;
-        
-      } else if (Array.isArray(recipientsRes.data)) {
-        recipientAccountsData = recipientsRes.data;
-       
-      } else if (recipientsRes.data?.data && Array.isArray(recipientsRes.data.data)) {
-        recipientAccountsData = recipientsRes.data.data;
-        
-      } else {
-       
-      }
-
-      setFundAccounts(fundAccountsData);
-      setRecipientAccounts(recipientAccountsData);
-      
-      // Filter recent disbursements
-      const allTransactions = transactionsRes.data || [];
-      const disbursements = allTransactions
-        .filter(tx => tx.type === 'Disbursement')
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setRecentDisbursements(disbursements);
-
-    } catch (err) {
-      console.error('Issue money error:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load data');
-    } finally {
-      if (showLoader) setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -340,6 +309,7 @@ const IssueMoney = () => {
 
   useEffect(() => {
     applyFilters();
+    setCurrentPage(1); // Reset to first page when filters change
   }, [applyFilters]);
 
   useEffect(() => {
@@ -358,200 +328,250 @@ const IssueMoney = () => {
     };
   }, []);
 
+  // Mouse drag scrolling for mini graph
+  useEffect(() => {
+    const graphContainer = miniGraphRef.current;
+    if (!graphContainer) return;
+
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+
+    const handleMouseDown = (e) => {
+      isDown = true;
+      graphContainer.style.cursor = 'grabbing';
+      startX = e.pageX - graphContainer.offsetLeft;
+      scrollLeft = graphContainer.scrollLeft;
+    };
+
+    const handleMouseLeave = () => {
+      isDown = false;
+      graphContainer.style.cursor = 'grab';
+    };
+
+    const handleMouseUp = () => {
+      isDown = false;
+      graphContainer.style.cursor = 'grab';
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - graphContainer.offsetLeft;
+      const walk = (x - startX) * 2; // Scroll speed
+      graphContainer.scrollLeft = scrollLeft - walk;
+    };
+
+    graphContainer.addEventListener('mousedown', handleMouseDown);
+    graphContainer.addEventListener('mouseleave', handleMouseLeave);
+    graphContainer.addEventListener('mouseup', handleMouseUp);
+    graphContainer.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      graphContainer.removeEventListener('mousedown', handleMouseDown);
+      graphContainer.removeEventListener('mouseleave', handleMouseLeave);
+      graphContainer.removeEventListener('mouseup', handleMouseUp);
+      graphContainer.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
   // Initialize DPO Chart
   useEffect(() => {
-    initializeDPOChart();
+    // Only initialize chart after ALL loading is complete (not just disbursements)
+    // This ensures the skeleton loader is removed and canvas is in DOM
+    if (!loading && dpoChartRef.current) {
+      // Small delay to ensure DOM is fully updated after skeleton removal
+      const timeoutId = setTimeout(() => {
+        initializeDPOChart();
+      }, 150);
+      
+      return () => clearTimeout(timeoutId);
+    }
     
     return () => {
       if (dpoChartInstance.current) {
         dpoChartInstance.current.destroy();
       }
     };
-  }, [recentDisbursements]);
+  }, [recentDisbursements, loading]);
 
   const initializeDPOChart = () => {
     if (!dpoChartRef.current) {
+      console.warn('DPO Chart: Canvas ref not available');
       return;
     }
 
-    // Wait for canvas to be properly mounted
-    setTimeout(() => {
-      if (!dpoChartRef.current) {
-        return;
+    const ctx = dpoChartRef.current.getContext('2d');
+    
+    // Destroy existing chart
+    if (dpoChartInstance.current) {
+      dpoChartInstance.current.destroy();
+    }
+
+    // Calculate DPO data
+    const calculateDPO = () => {
+      if (recentDisbursements.length === 0) {
+        // Sample data when no disbursements
+        return [
+          { date: 'Sep 28', value: 7 },
+          { date: 'Sep 29', value: 11 },
+          { date: 'Sep 30', value: 1 },
+          { date: 'Oct 2', value: 1 },
+          { date: 'Oct 4', value: 1 },
+          { date: 'Oct 6', value: 3 },
+          { date: 'Oct 8', value: 3 },
+          { date: 'Oct 10', value: 4 },
+          { date: 'Oct 12', value: 4 },
+          { date: 'Oct 14', value: 2 }
+        ];
       }
 
-      const ctx = dpoChartRef.current.getContext('2d');
-      
-      // Destroy existing chart
-      if (dpoChartInstance.current) {
-        dpoChartInstance.current.destroy();
-      }
-
-      // Calculate DPO data
-      const calculateDPO = () => {
-        if (recentDisbursements.length === 0) {
-          // Sample data when no disbursements
-          return [
-            { date: 'Sep 28', value: 7 },
-            { date: 'Sep 29', value: 11 },
-            { date: 'Sep 30', value: 1 },
-            { date: 'Oct 2', value: 1 },
-            { date: 'Oct 4', value: 1 },
-            { date: 'Oct 6', value: 3 },
-            { date: 'Oct 8', value: 3 },
-            { date: 'Oct 10', value: 4 },
-            { date: 'Oct 12', value: 4 },
-            { date: 'Oct 14', value: 2 }
-          ];
+      // Group disbursements by date and calculate average DPO
+      const groupedByDate = recentDisbursements.reduce((acc, disbursement) => {
+        const createdDate = new Date(disbursement.created_at);
+        const dateKey = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        
+        // Calculate days between creation and now (simplified DPO)
+        const now = new Date();
+        const daysDiff = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+        
+        if (!acc[dateKey]) {
+          acc[dateKey] = { totalDays: 0, count: 0, date: dateKey };
         }
+        
+        acc[dateKey].totalDays += daysDiff;
+        acc[dateKey].count += 1;
+        
+        return acc;
+      }, {});
 
-        // Group disbursements by date and calculate average DPO
-        const groupedByDate = recentDisbursements.reduce((acc, disbursement) => {
-          const createdDate = new Date(disbursement.created_at);
-          const dateKey = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          
-          // Calculate days between creation and now (simplified DPO)
-          const now = new Date();
-          const daysDiff = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
-          
-          if (!acc[dateKey]) {
-            acc[dateKey] = { totalDays: 0, count: 0, date: dateKey };
+      return Object.values(groupedByDate)
+        .map(group => ({
+          date: group.date,
+          value: Math.round(group.totalDays / group.count)
+        }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .slice(-10);
+    };
+
+    const dpoData = calculateDPO();
+    const labels = dpoData.map(d => d.date);
+    const dataPoints = dpoData.map(d => d.value);
+    const maxValue = Math.max(...dataPoints, 15);
+    // Round up to nearest 5 for cleaner scale
+    const suggestedMax = Math.ceil(maxValue / 5) * 5;
+
+    // Create gradients matching the Issued Receipts Summary style
+    const gradientFill = ctx.createLinearGradient(0, 0, 0, dpoChartRef.current?.clientHeight || 250);
+    gradientFill.addColorStop(0, 'rgba(0, 0, 0, 0.35)');
+    gradientFill.addColorStop(1, 'rgba(0, 0, 0, 0.05)');
+
+    const borderGradient = ctx.createLinearGradient(0, 0, dpoChartRef.current?.clientWidth || 320, 0);
+    borderGradient.addColorStop(0, '#000000');
+    borderGradient.addColorStop(1, '#000000');
+
+    dpoChartInstance.current = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'DPO (Days)',
+            data: dataPoints,
+            borderColor: borderGradient,
+            backgroundColor: gradientFill,
+            borderWidth: 3,
+            fill: 'start',
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            pointBackgroundColor: '#0f172a',
+            pointBorderColor: '#f9fafb',
+            pointBorderWidth: 2,
+            pointHitRadius: 12,
+            spanGaps: true
           }
-          
-          acc[dateKey].totalDays += daysDiff;
-          acc[dateKey].count += 1;
-          
-          return acc;
-        }, {});
-
-        return Object.values(groupedByDate)
-          .map(group => ({
-            date: group.date,
-            value: Math.round(group.totalDays / group.count)
-          }))
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
-          .slice(-10);
-      };
-
-      const dpoData = calculateDPO();
-      const labels = dpoData.map(d => d.date);
-      const dataPoints = dpoData.map(d => d.value);
-      const maxValue = Math.max(...dataPoints, 15);
-      // Round up to nearest 5 for cleaner scale
-      const suggestedMax = Math.ceil(maxValue / 5) * 5;
-
-      // Create gradients matching the Issued Receipts Summary style
-      const gradientFill = ctx.createLinearGradient(0, 0, 0, dpoChartRef.current?.clientHeight || 250);
-      gradientFill.addColorStop(0, 'rgba(0, 0, 0, 0.35)');
-      gradientFill.addColorStop(1, 'rgba(0, 0, 0, 0.05)');
-
-      const borderGradient = ctx.createLinearGradient(0, 0, dpoChartRef.current?.clientWidth || 320, 0);
-      borderGradient.addColorStop(0, '#000000');
-      borderGradient.addColorStop(1, '#000000');
-
-      dpoChartInstance.current = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'DPO (Days)',
-              data: dataPoints,
-              borderColor: borderGradient,
-              backgroundColor: gradientFill,
-              borderWidth: 3,
-              fill: 'start',
-              tension: 0,
-              pointRadius: 0,
-              pointHoverRadius: 6,
-              pointBackgroundColor: '#0f172a',
-              pointBorderColor: '#f9fafb',
-              pointBorderWidth: 2,
-              pointHitRadius: 12,
-              spanGaps: true
-            }
-          ]
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+          duration: 1400,
+          easing: 'easeInOutCubic'
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: {
-            duration: 1400,
-            easing: 'easeInOutCubic'
-          },
-          layout: {
-            padding: {
-              top: 16,
-              bottom: 8,
-              left: 8,
-              right: 16
-            }
-          },
-          plugins: {
-            legend: {
-              display: false
-            },
-            tooltip: {
-              backgroundColor: '#111827',
-              titleColor: '#f9fafb',
-              bodyColor: '#f3f4f6',
-              borderColor: '#0f172a',
-              borderWidth: 1,
-              cornerRadius: 8,
-              displayColors: false,
-              padding: 12,
-              titleFont: { size: 12, weight: '700' },
-              bodyFont: { size: 11, weight: '500' },
-              callbacks: {
-                title: (context) => context[0].label,
-                label: (context) => `DPO: ${context.parsed.y} days`
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              suggestedMax: suggestedMax,
-              ticks: {
-                color: '#1f2937',
-                font: { size: 11, weight: '600' },
-                padding: 10,
-                precision: 0,
-                stepSize: 5
-              },
-              grid: {
-                color: 'rgba(17, 24, 39, 0.08)',
-                drawBorder: false,
-                tickLength: 0
-              }
-            },
-            x: {
-              ticks: {
-                color: '#1f2937',
-                font: { size: 11, weight: '600' },
-                padding: 8,
-                maxRotation: 0,
-                minRotation: 0
-              },
-              grid: {
-                color: 'rgba(17, 24, 39, 0.06)',
-                drawBorder: false,
-                tickLength: 0
-              }
-            }
-          },
-          elements: {
-            line: {
-              borderJoinStyle: 'round'
-            }
-          },
-          interaction: {
-            intersect: false,
-            mode: 'index'
+        layout: {
+          padding: {
+            top: 5,
+            bottom: 5,
+            left: 5,
+            right: 5
           }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#111827',
+            titleColor: '#f9fafb',
+            bodyColor: '#f3f4f6',
+            borderColor: '#0f172a',
+            borderWidth: 1,
+            cornerRadius: 8,
+            displayColors: false,
+            padding: 12,
+            titleFont: { size: 12, weight: '700' },
+            bodyFont: { size: 11, weight: '500' },
+            callbacks: {
+              title: (context) => context[0].label,
+              label: (context) => `DPO: ${context.parsed.y} days`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            suggestedMax: suggestedMax,
+            ticks: {
+              color: '#1f2937',
+              font: { size: 11, weight: '600' },
+              padding: 10,
+              precision: 0,
+              stepSize: 5
+            },
+            grid: {
+              color: 'rgba(17, 24, 39, 0.08)',
+              drawBorder: false,
+              tickLength: 0
+            }
+          },
+          x: {
+            ticks: {
+              color: '#1f2937',
+              font: { size: 11, weight: '600' },
+              padding: 8,
+              maxRotation: 0,
+              minRotation: 0
+            },
+            grid: {
+              color: 'rgba(17, 24, 39, 0.06)',
+              drawBorder: false,
+              tickLength: 0
+            }
+          }
+        },
+        elements: {
+          line: {
+            borderJoinStyle: 'round'
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
         }
-      });
-    }, 100);
+      }
+    });
   };
 
   const handleFilterChange = (key, value) => {
@@ -779,7 +799,6 @@ const IssueMoney = () => {
       const normalizedAmount = normalizeAmount(formData.amount);
       if (normalizedAmount <= 0) {
         showMessage("Please enter a valid amount.", 'error');
-        setLoading(false);
         return;
       }
 
@@ -869,14 +888,8 @@ const IssueMoney = () => {
         
         console.log('Balance service update completed:', balanceUpdateResult);
         
-        // Update local fund accounts state
-        setFundAccounts(prevAccounts => 
-          prevAccounts.map(account => 
-            account.id === parseInt(formData.fundAccountId)
-              ? { ...account, current_balance: balanceUpdateResult.newBalance }
-              : account
-          )
-        );
+        // Invalidate fund accounts cache to refetch updated balances
+        queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
 
         broadcastFundTransaction({
           accountId: parseInt(formData.fundAccountId),
@@ -903,14 +916,8 @@ const IssueMoney = () => {
             amount_deducted: amountToDeduct
           });
           
-          // Update local state
-          setFundAccounts(prevAccounts => 
-            prevAccounts.map(account => 
-              account.id === parseInt(formData.fundAccountId)
-                ? { ...account, current_balance: newBalance }
-                : account
-            )
-          );
+          // Invalidate fund accounts cache to refetch updated balances
+          queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
 
           broadcastFundTransaction({
             accountId: parseInt(formData.fundAccountId),
@@ -954,7 +961,10 @@ const IssueMoney = () => {
 
       setShowFormModal(false);
       setShowSuccessModal(true);
-      fetchInitialData({ showLoader: false }); // Refresh data without blocking UI spinner
+      
+      // Invalidate all queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['disbursements'] });
+      queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
 
     } catch (err) {
       console.error("Error creating disbursement:", err);
@@ -974,13 +984,8 @@ const IssueMoney = () => {
 
   // Department and category removed as requested - using default values in backend
 
-  if (loading && (!Array.isArray(fundAccounts) || fundAccounts.length === 0)) {
-    return (
-      <div className="issue-money-loading">
-        <div className="spinner"></div>
-        <div className="loading-text">Loading disbursement system...</div>
-      </div>
-    );
+  if (loading) {
+    return <IssueMoneySkeletonLoader />;
   }
 
   const renderDisbursementForm = () => (
@@ -1215,7 +1220,11 @@ const IssueMoney = () => {
           <button
             type="button"
             className="refresh-btn"
-            onClick={() => fetchInitialData()}
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['disbursements'] });
+              queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
+              queryClient.invalidateQueries({ queryKey: ['recipientAccounts'] });
+            }}
             disabled={loading}
             title="Refresh fund balances and recipient accounts"
           >
@@ -1251,6 +1260,124 @@ const IssueMoney = () => {
                 }, 0);
                 return `₱${totalAmount.toLocaleString()}`;
               })()} 
+            </div>
+            
+            {/* Small Line Graph */}
+            <div className="disbursement-mini-graph" ref={miniGraphRef}>
+              {(() => {
+                // Group disbursements by date and calculate daily totals
+                const dailyData = recentDisbursements.reduce((acc, item) => {
+                  const date = new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  const amount = parseFloat(item.amount || 0);
+                  
+                  if (!acc[date]) {
+                    acc[date] = 0;
+                  }
+                  acc[date] += Math.abs(amount);
+                  return acc;
+                }, {});
+                
+                // Get last 7 days of data
+                const sortedDates = Object.keys(dailyData).slice(-7);
+                const values = sortedDates.map(date => dailyData[date]);
+                const dates = sortedDates;
+                
+                if (values.length === 0) {
+                  return <div className="no-graph-data">No data available</div>;
+                }
+                
+                const maxValue = Math.max(...values, 1);
+                const minValue = Math.min(...values, 0);
+                const range = maxValue - minValue || 1;
+                
+                // Create SVG points - dynamic width based on data points
+                const pointWidth = 50; // Width per data point
+                const width = Math.max(values.length * pointWidth, 300);
+                const height = 50;
+                const padding = 10;
+                
+                const points = values.map((value, index) => {
+                  const x = padding + (index / (values.length - 1 || 1)) * (width - padding * 2);
+                  const y = padding + (height - padding * 2) - ((value - minValue) / range) * (height - padding * 2);
+                  return `${x},${y}`;
+                }).join(' ');
+                
+                return (
+                  <svg viewBox={`0 0 ${width} ${height}`} className="mini-graph-svg" preserveAspectRatio="xMidYMid meet">
+                    {/* Area fill */}
+                    <polygon
+                      points={`${padding},${height - padding} ${points} ${width - padding},${height - padding}`}
+                      fill="rgba(0, 0, 0, 0.1)"
+                    />
+                    {/* Line */}
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="#000000"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {/* Data points with hover */}
+                    {values.map((value, index) => {
+                      const x = padding + (index / (values.length - 1 || 1)) * (width - padding * 2);
+                      const y = padding + (height - padding * 2) - ((value - minValue) / range) * (height - padding * 2);
+                      return (
+                        <g key={index}>
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="8"
+                            fill="transparent"
+                            style={{ cursor: 'pointer' }}
+                            onMouseEnter={() => setHoveredPoint({ index, value, date: dates[index], x, y })}
+                            onMouseLeave={() => setHoveredPoint(null)}
+                          />
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="2"
+                            fill="#000000"
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        </g>
+                      );
+                    })}
+                    
+                    {/* Tooltip - position based on dot location */}
+                    {hoveredPoint && (() => {
+                      // If dot is in top half, show tooltip below; if in bottom half, show above
+                      const isTopHalf = hoveredPoint.y < height / 2;
+                      const tooltipY = isTopHalf ? hoveredPoint.y + 8 : hoveredPoint.y - 22;
+                      const textY = isTopHalf ? hoveredPoint.y + 20 : hoveredPoint.y - 10;
+                      
+                      return (
+                        <g style={{ pointerEvents: 'none' }}>
+                          <rect
+                            x={hoveredPoint.x - 25}
+                            y={tooltipY}
+                            width="50"
+                            height="18"
+                            fill="#000000"
+                            rx="3"
+                            opacity="0.95"
+                          />
+                          <text
+                            x={hoveredPoint.x}
+                            y={textY}
+                            textAnchor="middle"
+                            fill="#ffffff"
+                            fontSize="7"
+                            fontWeight="700"
+                          >
+                            ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </text>
+                        </g>
+                      );
+                    })()}
+                  </svg>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1311,7 +1438,7 @@ const IssueMoney = () => {
                           style={{ transition: 'stroke-dasharray 1s ease' }}
                         />
                         {/* Center text */}
-                        <text x="50" y="40" textAnchor="middle" fontSize="18" fontWeight="700" fill="#000000">
+                        <text x="50" y="40" textAnchor="middle" fontSize="14" fontWeight="700" fill="#000000">
                           {accuracyRate}%
                         </text>
                         <text x="50" y="52" textAnchor="middle" fontSize="7" fontWeight="600" fill="#6b7280">
@@ -1495,7 +1622,7 @@ const IssueMoney = () => {
                         className="progress-bar"
                         style={{
                           width: `${vendor.percentage}%`,
-                          backgroundColor: vendor.percentage < 50 ? '#1f2937' : '#d1d5db'
+                          backgroundColor: vendor.percentage === 100 ? '#1f2937' : (vendor.percentage < 50 ? '#1f2937' : '#d1d5db')
                         }}
                       ></div>
                     </div>
@@ -1515,10 +1642,10 @@ const IssueMoney = () => {
             </div>
             <div className="box-content">
               <div className="chart-container" style={{ 
-                height: '250px', 
+                height: '100%', 
                 width: '100%',
                 position: 'relative',
-                padding: '10px'
+                padding: '0'
               }}>
                 <canvas 
                   ref={dpoChartRef}
@@ -1543,7 +1670,10 @@ const IssueMoney = () => {
                 <button
                   type="button"
                   className="refresh-btn"
-                  onClick={() => fetchInitialData()}
+                  onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: ['disbursements'] });
+                    queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
+                  }}
                   disabled={loading}
                   title="Refresh fund balances"
                 >
@@ -1693,8 +1823,15 @@ const IssueMoney = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredDisbursements.length > 0 ? (
-                  filteredDisbursements.map((disbursement) => {
+                {(() => {
+                  // Calculate pagination
+                  const totalPages = Math.ceil(filteredDisbursements.length / itemsPerPage);
+                  const startIndex = (currentPage - 1) * itemsPerPage;
+                  const endIndex = startIndex + itemsPerPage;
+                  const paginatedData = filteredDisbursements.slice(startIndex, endIndex);
+                  
+                  return paginatedData.length > 0 ? (
+                    paginatedData.map((disbursement) => {
                     const rawAmount = Number.parseFloat(disbursement.amount ?? 0);
                     const amountValue = Number.isFinite(rawAmount) ? rawAmount : 0;
                     const amountClass = amountValue < 0 ? "amount-negative" : "amount-positive";
@@ -1746,10 +1883,46 @@ const IssueMoney = () => {
                       <p>No recent disbursements found.</p>
                     </td>
                   </tr>
-                )}
+                );
+                })()}
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination Controls */}
+          {filteredDisbursements.length > 0 && (() => {
+            const totalItems = filteredDisbursements.length;
+            const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+            const displayStart = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+            const displayEnd = Math.min(currentPage * itemsPerPage, totalItems);
+            
+            return (
+              <div className="table-pagination">
+                <div className="pagination-info">
+                  Showing {displayStart}-{displayEnd} of {totalItems} disbursements
+                </div>
+                <div className="pagination-controls">
+                  <button
+                    type="button"
+                    className="pagination-button"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  <span className="pagination-info">Page {currentPage} of {totalPages}</span>
+                  <button
+                    type="button"
+                    className="pagination-button"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage >= totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
