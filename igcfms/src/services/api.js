@@ -225,4 +225,36 @@ const api = axios.create({
     }
   };
 
+  // Cheques API
+  export const getCheques = async (params = {}) => {
+    try {
+      const response = await api.get('/cheques', { params });
+      const data = response.data;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.data)) return data.data;
+      return data?.cheques ?? [];
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  export const createCheque = async (chequeData) => {
+    try {
+      const response = await api.post('/cheques', chequeData);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  export const getDisbursementTransactions = async (params = {}) => {
+    try {
+      const response = await getTransactions({ type: 'Disbursement', ...params });
+      if (Array.isArray(response)) return response;
+      return response?.data || response?.transactions || [];
+    } catch (error) {
+      throw error;
+    }
+  };
+
   export default api;

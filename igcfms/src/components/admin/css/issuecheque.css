@@ -1,25 +1,101 @@
 /* Issue Cheque Styles */
 .issue-cheque-page {
-  padding: 20px;
-  background: #ffffff;
+  padding: 12px;
   min-height: 100vh;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  color: #1a202c;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
+/* Compact Header */
 .ic-header {
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #222222 0%, #393939 100%);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  color: white;
+}
+
+.ic-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.ic-header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.ic-btn-issue-new-cheque {
+  background: #ffffff;
+  color: #000000;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ic-btn-issue-new-cheque:hover {
+  background: #f0f0f0;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.ic-btn-issue-new-cheque i {
+  font-size: 16px;
 }
 
 .ic-title {
   font-size: 28px;
   font-weight: 700;
-  margin-bottom: 8px;
-  color: #000000;
+  margin: 0;
+  color: #ffffff;
   display: flex;
   align-items: center;
   gap: 12px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ic-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ic-live-badge i {
+  font-size: 8px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .ic-subtitle {
@@ -29,7 +105,7 @@
   font-weight: 400;
 }
 
-.error-banner {
+.ic-error-banner {
   background: #fef2f2;
   color: #991b1b;
   padding: 16px 20px;
@@ -41,7 +117,7 @@
   border: 1px solid #fecaca;
 }
 
-.success-banner {
+.ic-success-banner {
   background: #f0fdf4;
   color: #166534;
   padding: 16px 20px;
@@ -53,29 +129,583 @@
   border: 1px solid #bbf7d0;
 }
 
-/* Content Grid */
-.ic-content-grid {
+/* Dashboard Grid Layout */
+.ic-dashboard-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 30px;
-  margin-bottom: 30px;
+  grid-template-columns: 250px 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ic-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ic-right-column {
+  display: flex;
+  height: 100%;
+}
+
+/* Summary Cards (Left Column) */
+.ic-summary-card {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  height: 55%;
+  transition: all 0.3s ease;
+}
+
+.ic-summary-card:hover {
+  border-color: #000000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Combined Card - fits both metrics */
+.ic-combined-card {
+  height: 100% !important;
+  padding: 8px 5px 0 5px;
+  gap: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ic-combined-card .ic-card-title {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.ic-combined-card .ic-card-value {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.ic-combined-card .ic-card-subtitle {
+  font-size: 10px;
+  margin-bottom: 0;
+}
+
+.ic-card-divider {
+  width: 60%;
+  height: 1px;
+  background: #e5e7eb;
+  margin: 8px 0;
+}
+
+.ic-card-title {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.ic-card-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.ic-card-subtitle {
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+/* Chart Card (Right Column) */
+.ic-chart-card {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 10px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ic-chart-header {
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #000000;
+}
+
+.ic-chart-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #000000;
+  margin: 0;
+}
+
+.ic-chart-body {
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  flex: 1;
+}
+
+.ic-chart-stats-row {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-left: 25px;
+  min-width: 150px;
+}
+
+.ic-stat-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ic-stat-label {
+  font-size: 13px;
+  color: #000000;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.ic-stat-value-large {
+  font-size: 24px;
+  font-weight: 700;
+  color: #000000;
+  line-height: 1;
+}
+
+.ic-chart-visualization {
+  flex: 1;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+  height: 250px;
+  color: #9ca3af;
+  padding: 16px;
+  position: relative;
+}
+
+.ic-chart-visualization canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.ic-chart-visualization i {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.ic-chart-visualization p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #9ca3af;
+}
+
+/* Analytics Row (Bottom Cards) */
+.ic-analytics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ic-analytics-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ic-analytics-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #000000;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.ic-analytics-card {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 10px;
+  padding: 10px;
+  transition: all 0.3s ease;
+  flex: 1;
+  min-height: 320px;
+  max-height: 350px;
+}
+
+.ic-analytics-card:hover {
+  border-color: #000000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.ic-analytics-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  padding: 16px;
+}
+
+/* Donut Chart Container */
+.ic-donut-chart-container {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.ic-donut-chart-container canvas {
+  max-width: 180px;
+  max-height: 180px;
+}
+
+.ic-donut-center-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.ic-donut-percentage {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.ic-donut-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Outstanding Cheques - Side by Side Layout */
+.ic-analytics-content-horizontal {
+  display: flex;
+  padding: 10px;
+  height: 100%;
+}
+
+.ic-outstanding-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 16px;
+}
+
+.ic-outstanding-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.ic-outstanding-stats-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.ic-outstanding-rate {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+  
+}
+
+.ic-outstanding-label {
+  font-size: 11px;
+  color: #000000;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ic-outstanding-status {
+  margin-top: 6px;
+}
+
+.ic-outstanding-legend-section {
+  display: flex;
+  align-items: center;
+}
+
+.ic-outstanding-mini-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ic-mini-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ic-mini-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ic-mini-text {
+  color: #000000;
+  font-weight: 500;
+  min-width: 80px;
+}
+
+.ic-mini-value {
+  color: #000000;
+  font-weight: 700;
+  font-size: 14px;
+  min-width: 20px;
+  text-align: right;
+}
+
+.ic-outstanding-bottom {
+  flex: 1;
+  display: flex;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+.ic-outstanding-chart-full {
+  flex: 1;
+  height: 200px;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 10px;
+}
+
+.ic-outstanding-chart-full canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 200px;
+}
+
+/* Cheque Reconciliation Rate - Side by Side Layout */
+.ic-reconciliation-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 16px;
+}
+
+.ic-reconciliation-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.ic-reconciliation-stats-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.ic-reconciliation-rate {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.ic-reconciliation-label {
+  font-size: 11px;
+  color: #000000;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ic-reconciliation-status {
+  margin-top: 6px;
+}
+
+.ic-reconciliation-legend-section {
+  display: flex;
+  align-items: center;
+}
+
+.ic-reconciliation-mini-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ic-reconciliation-bottom {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+.ic-reconciliation-chart {
+  width: 160px;
+  height: 160px;
+  position: relative;
+}
+
+.ic-reconciliation-chart canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Cheque Processing Accuracy Rate - Side by Side Layout */
+.ic-accuracy-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 16px;
+}
+
+.ic-accuracy-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.ic-accuracy-stats-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.ic-accuracy-rate {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.ic-accuracy-label {
+  font-size: 11px;
+  color: #000000;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ic-accuracy-status {
+  margin-top: 6px;
+}
+
+.ic-accuracy-legend-section {
+  display: flex;
+  align-items: center;
+}
+
+.ic-accuracy-mini-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ic-accuracy-bottom {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+.ic-accuracy-chart {
+  width: 160px;
+  height: 160px;
+  position: relative;
+}
+
+.ic-accuracy-chart canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Chart Legend */
+.ic-chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ic-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ic-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ic-legend-text {
+  color: #4b5563;
+  font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .ic-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .ic-left-column {
+    flex-direction: row;
+  }
+  
+  .ic-analytics-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Issue Form Section */
-.issue-form-section {
+.ic-issue-form-section {
   background: #ffffff;
   border: 2px solid #f0f0f0;
   border-radius: 12px;
   padding: 25px;
 }
 
-.form-header {
+.ic-form-header {
   margin-bottom: 25px;
   padding-bottom: 15px;
   border-bottom: 2px solid #f0f0f0;
 }
 
-.form-header h3 {
+.ic-form-header h3 {
   font-size: 18px;
   font-weight: 700;
   color: #000000;
@@ -86,32 +716,32 @@
 }
 
 /* Form Styles */
-.cheque-form {
+.ic-cheque-form {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.form-row {
+.ic-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
 
-.form-group {
+.ic-form-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.form-group label {
+.ic-form-group label {
   font-size: 14px;
   font-weight: 600;
   color: #000000;
 }
 
-.form-group input,
-.form-group select {
+.ic-form-group input,
+.ic-form-group select {
   padding: 12px;
   border: 2px solid #f0f0f0;
   border-radius: 6px;
@@ -120,23 +750,23 @@
   transition: border-color 0.2s ease;
 }
 
-.form-group input:focus,
-.form-group select:focus {
+.ic-form-group input:focus,
+.ic-form-group select:focus {
   outline: none;
   border-color: #2563eb;
 }
 
 /* Cheque Number Input */
-.cheque-number-input {
+.ic-cheque-number-input {
   display: flex;
   gap: 8px;
 }
 
-.cheque-number-input input {
+.ic-cheque-number-input input {
   flex: 1;
 }
 
-.generate-btn {
+.ic-generate-btn {
   background: #f8f9fa;
   color: #666666;
   border: 1px solid #e5e5e5;
@@ -149,19 +779,19 @@
   justify-content: center;
 }
 
-.generate-btn:hover {
+.ic-generate-btn:hover {
   background: #2563eb;
   color: #ffffff;
   border-color: #2563eb;
 }
 
-.form-actions {
+.ic-form-actions {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
 }
 
-.submit-btn {
+.ic-submit-btn {
   background: #2563eb;
   color: #ffffff;
   border: none;
@@ -176,31 +806,31 @@
   gap: 8px;
 }
 
-.submit-btn:hover:not(:disabled) {
+.ic-submit-btn:hover:not(:disabled) {
   background: #1d4ed8;
   transform: translateY(-1px);
 }
 
-.submit-btn:disabled {
+.ic-submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 /* Cheque Statistics Section */
-.cheque-stats-section {
+.ic-cheque-stats-section {
   background: #ffffff;
   border: 2px solid #f0f0f0;
   border-radius: 12px;
   padding: 25px;
 }
 
-.section-header {
+.ic-section-header {
   margin-bottom: 20px;
   padding-bottom: 15px;
   border-bottom: 2px solid #f0f0f0;
 }
 
-.section-header h3 {
+.ic-section-header h3 {
   font-size: 18px;
   font-weight: 700;
   color: #000000;
@@ -210,13 +840,13 @@
   gap: 8px;
 }
 
-.stats-grid {
+.ic-stats-grid {
   display: flex;
   flex-direction: column;
   gap: 15px;
 }
 
-.stat-card {
+.ic-stat-card {
   background: #fafafa;
   border: 1px solid #f0f0f0;
   border-radius: 8px;
@@ -227,13 +857,13 @@
   transition: all 0.2s ease;
 }
 
-.stat-card:hover {
+.ic-stat-card:hover {
   border-color: #cccccc;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.stat-icon {
+.ic-stat-icon {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -245,18 +875,18 @@
   font-size: 16px;
 }
 
-.stat-content {
+.ic-stat-content {
   flex: 1;
 }
 
-.stat-value {
+.ic-stat-value {
   font-size: 20px;
   font-weight: 700;
   color: #000000;
   margin-bottom: 4px;
 }
 
-.stat-label {
+.ic-stat-label {
   font-size: 12px;
   color: #666666;
   font-weight: 500;
@@ -271,7 +901,7 @@
   margin-bottom: 30px;
 }
 
-.filters-header {
+.ic-filters-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -280,7 +910,7 @@
   border-bottom: 2px solid #f0f0f0;
 }
 
-.filters-header h3 {
+.ic-filters-header h3 {
   font-size: 18px;
   font-weight: 700;
   color: #000000;
@@ -290,7 +920,7 @@
   gap: 8px;
 }
 
-.clear-filters-btn {
+.ic-clear-filters-btn {
   background: #f8f9fa;
   color: #666666;
   border: 1px solid #e5e5e5;
@@ -305,31 +935,31 @@
   gap: 6px;
 }
 
-.clear-filters-btn:hover {
+.ic-clear-filters-btn:hover {
   background: #e5e5e5;
   color: #000000;
 }
 
-.filters-grid {
+.ic-filters-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
 }
 
-.filter-group {
+.ic-filter-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.filter-group label {
+.ic-filter-group label {
   font-size: 14px;
   font-weight: 600;
   color: #000000;
 }
 
-.filter-group input,
-.filter-group select {
+.ic-filter-group input,
+.ic-filter-group select {
   padding: 10px 12px;
   border: 2px solid #f0f0f0;
   border-radius: 6px;
@@ -338,8 +968,8 @@
   transition: border-color 0.2s ease;
 }
 
-.filter-group input:focus,
-.filter-group select:focus {
+.ic-filter-group input:focus,
+.ic-filter-group select:focus {
   outline: none;
   border-color: #2563eb;
 }
@@ -352,7 +982,7 @@
   padding: 25px;
 }
 
-.cheques-header {
+.ic-cheques-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -361,7 +991,7 @@
   border-bottom: 2px solid #f0f0f0;
 }
 
-.cheques-header h3 {
+.ic-cheques-header h3 {
   font-size: 18px;
   font-weight: 700;
   color: #000000;
@@ -371,25 +1001,25 @@
   gap: 8px;
 }
 
-.cheques-count {
+.ic-cheques-count {
   font-size: 12px;
   color: #666666;
   font-weight: 500;
 }
 
-.cheques-table-container {
+.ic-cheques-table-container {
   border-radius: 8px;
   border: 1px solid #f0f0f0;
   overflow: hidden;
 }
 
-.cheques-table {
+.ic-cheques-table {
   width: 100%;
   border-collapse: collapse;
   background: #ffffff;
 }
 
-.cheques-table th {
+.ic-cheques-table th {
   background: #f8f9fa;
   padding: 15px 12px;
   text-align: left;
@@ -402,7 +1032,7 @@
   z-index: 10;
 }
 
-.cheques-table td {
+.ic-cheques-table td {
   padding: 15px 12px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 14px;
@@ -410,31 +1040,31 @@
   vertical-align: middle;
 }
 
-.cheques-table tr:hover {
+.ic-cheques-table tr:hover {
   background: #fafafa;
 }
 
-.cheques-table tr:last-child td {
+.ic-cheques-table tr:last-child td {
   border-bottom: none;
 }
 
-.cheque-number {
+.ic-cheque-number {
   font-weight: 600;
   color: #2563eb;
 }
 
-.amount-negative {
+.ic-amount-negative {
   color: #dc2626;
   font-weight: 600;
 }
 
 /* Action Buttons */
-.action-buttons {
+.ic-action-buttons {
   display: flex;
   gap: 8px;
 }
 
-.view-btn, .print-btn {
+.ic-view-btn, .ic-print-btn {
   padding: 6px 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -443,49 +1073,49 @@
   border: 1px solid;
 }
 
-.view-btn {
+.ic-view-btn {
   background: #eff6ff;
   color: #2563eb;
   border-color: #bfdbfe;
 }
 
-.view-btn:hover {
+.ic-view-btn:hover {
   background: #2563eb;
   color: #ffffff;
 }
 
-.print-btn {
+.ic-print-btn {
   background: #f0fdf4;
   color: #16a34a;
   border-color: #bbf7d0;
 }
 
-.print-btn:hover {
+.ic-print-btn:hover {
   background: #16a34a;
   color: #ffffff;
 }
 
 /* No Data State */
-.no-data {
+.ic-no-data {
   text-align: center;
   color: #666666;
   padding: 40px 0;
 }
 
-.no-data i {
+.ic-no-data i {
   font-size: 48px;
   color: #cccccc;
   margin-bottom: 15px;
   display: block;
 }
 
-.no-data p {
+.ic-no-data p {
   margin: 0;
   font-size: 16px;
 }
 
 /* Modal Styles */
-.modal-overlay {
+.ic-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -499,7 +1129,7 @@
   backdrop-filter: blur(4px);
 }
 
-.modal-content {
+.ic-modal-content {
   background: #ffffff;
   border-radius: 12px;
   width: 90%;
@@ -507,52 +1137,70 @@
   max-height: 80vh;
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
 }
 
-.modal-content.success {
+.ic-modal-content::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.ic-modal-content.success {
   border-top: 4px solid #2563eb;
 }
 
-.modal-header {
+/* Form Modal - Wider for better form display */
+.ic-form-modal-content {
+  max-width: 1100px !important;
+  width: 95%;
+}
+
+.ic-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 20px 25px;
-  border-bottom: 2px solid #f0f0f0;
+  background: #000000;
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
 }
 
-.modal-header h3 {
+.ic-modal-header h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #000000;
+  color: #ffffff;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.modal-close {
+.ic-modal-header h3 i {
+  color: #ffffff;
+}
+
+.ic-modal-close {
   background: none;
   border: none;
   font-size: 18px;
-  color: #666666;
+  color: #ffffff;
   cursor: pointer;
   padding: 8px;
   border-radius: 4px;
   transition: all 0.2s ease;
 }
 
-.modal-close:hover {
-  background: #f0f0f0;
-  color: #000000;
+.ic-modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
-.modal-body {
+.ic-modal-body {
   padding: 25px;
 }
 
 /* Confirmation Details */
-.confirmation-details {
+.ic-confirmation-details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 15px;
@@ -562,26 +1210,26 @@
   border-radius: 8px;
 }
 
-.detail-item {
+.ic-detail-item {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.detail-item label {
+.ic-detail-item label {
   font-size: 12px;
   font-weight: 600;
   color: #666666;
   text-transform: uppercase;
 }
 
-.detail-item span {
+.ic-detail-item span {
   font-size: 14px;
   color: #000000;
   font-weight: 500;
 }
 
-.confirmation-message {
+.ic-confirmation-message {
   font-size: 16px;
   color: #000000;
   text-align: center;
@@ -590,14 +1238,14 @@
 }
 
 /* Modal Actions */
-.modal-actions {
+.ic-modal-actions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
   margin-top: 25px;
 }
 
-.cancel-btn {
+.ic-cancel-btn {
   background: #f8f9fa;
   color: #666666;
   border: 1px solid #e5e5e5;
@@ -609,12 +1257,12 @@
   transition: all 0.2s ease;
 }
 
-.cancel-btn:hover {
+.ic-cancel-btn:hover {
   background: #e5e5e5;
   color: #000000;
 }
 
-.confirm-btn {
+.ic-confirm-btn {
   background: #2563eb;
   color: #ffffff;
   border: none;
@@ -629,16 +1277,16 @@
   gap: 8px;
 }
 
-.confirm-btn:hover:not(:disabled) {
+.ic-confirm-btn:hover:not(:disabled) {
   background: #1d4ed8;
 }
 
-.confirm-btn:disabled {
+.ic-confirm-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.close-btn {
+.ic-close-btn {
   background: #f8f9fa;
   color: #666666;
   border: 1px solid #e5e5e5;
@@ -653,28 +1301,9 @@
   gap: 8px;
 }
 
-.close-btn:hover {
+.ic-close-btn:hover {
   background: #e5e5e5;
   color: #000000;
-}
-
-.print-btn {
-  background: #2563eb;
-  color: #ffffff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.print-btn:hover {
-  background: #1d4ed8;
 }
 
 /* Success Details */
@@ -808,5 +1437,671 @@
   .cheque-number-input {
     flex-direction: column;
     gap: 10px;
+  }
+}
+
+/* Mini Graph Styles for Cheque */
+.ic-cheque-mini-graph {
+  width: 110%;
+  height: 100px;
+  margin-top: 8px;
+  margin-bottom: -5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
+  margin-left: -5%;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  cursor: grab;
+  user-select: none;
+  position: relative;
+}
+
+.ic-cheque-mini-graph::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.ic-mini-graph-svg {
+  min-width: 300px;
+  width: auto;
+  height: 125%;
+  display: block;
+  pointer-events: none;
+}
+
+.ic-mini-graph-svg circle {
+  pointer-events: auto;
+}
+
+/* Hide dots by default */
+.ic-mini-graph-svg circle {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Show dots on hover */
+.ic-cheque-mini-graph:hover .ic-mini-graph-svg circle {
+  opacity: 1;
+}
+
+.ic-no-graph-data {
+  font-size: 11px;
+  color: #9ca3af;
+  text-align: center;
+  padding: 10px;
+}
+
+/* ========================================
+   TABLE HEADER SECTION - MODERN UI
+   ======================================== */
+
+.ic-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 30px;
+  padding: 16px 20px;
+  border: 2px solid #000000;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.section-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-title-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.section-title-group h3 i {
+  font-size: 18px;
+  color: #111827;
+}
+
+.section-title-group .section-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #000000;
+  padding: 4px 12px;
+  border-radius: 9999px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-search-container {
+  position: relative;
+  min-width: 280px;
+}
+
+.account-search-input {
+  width: 100%;
+  padding: 10px 40px 10px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.account-search-input:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+.account-search-input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.account-search-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.filter-dropdown-container {
+  position: relative;
+}
+
+.filter-dropdown-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.filter-dropdown-btn:hover {
+  border-color: #000000;
+  background: #f9fafb;
+}
+
+.filter-dropdown-btn i.fas.fa-filter {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.filter-label {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.filter-arrow {
+  font-size: 12px;
+  color: #9ca3af;
+  transition: transform 0.2s ease;
+}
+
+.filter-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  z-index: 1000;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+  position: relative;
+}
+
+.filter-option:hover {
+  background: #f3f4f6;
+}
+
+.filter-option.active {
+  background: #000000;
+  color: #ffffff;
+}
+
+.filter-option i:first-child {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
+.filter-option span {
+  flex: 1;
+}
+
+.filter-check {
+  font-size: 12px;
+  color: #10b981;
+}
+
+.filter-option.active .filter-check {
+  color: #ffffff;
+}
+
+.action-buttons {
+  position: relative;
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  padding: 10px 14px;
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon:hover {
+  background: #1f2937;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.export-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  z-index: 1000;
+  animation: slideDown 0.2s ease;
+}
+
+.export-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.export-option:hover {
+  background: #f3f4f6;
+}
+
+.export-option i {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
+/* ========================================
+   CHEQUES TABLE SECTION - MODERN UI
+   ======================================== */
+
+.ic-cheques-section {
+  background: #ffffff;
+  border-radius: 12px;
+  overflow: visible;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 2px solid #000000;
+  margin-top: 18px;
+  clear: both;
+}
+
+.ic-cheques-table-container {
+  overflow: visible;
+}
+
+.ic-cheques-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  background: #ffffff;
+  margin-top: -2px;
+  table-layout: fixed;
+}
+
+.ic-cheques-table thead {
+  background: #000000 !important;
+}
+
+.ic-cheques-table thead tr {
+  background: #1f2937 !important;
+}
+
+.ic-cheques-table th {
+  padding: 12px 16px 10px !important;
+  text-align: left !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  border: none !important;
+  white-space: nowrap !important;
+  background: #1f2937 !important;
+}
+
+/* Column width distribution */
+.ic-cheques-table th:nth-child(1) { width: 8%; }   /* Cheque ID */
+.ic-cheques-table th:nth-child(2) { width: 15%; }  /* Cheque Number */
+.ic-cheques-table th:nth-child(3) { width: 10%; }  /* Disbursement */
+.ic-cheques-table th:nth-child(4) { width: 18%; }  /* Payee Name */
+.ic-cheques-table th:nth-child(5) { width: 15%; }  /* Bank */
+.ic-cheques-table th:nth-child(6) { width: 12%; }  /* Amount */
+.ic-cheques-table th:nth-child(7) { width: 12%; }  /* Issue Date */
+.ic-cheques-table th:nth-child(8) { width: 10%; }  /* Actions */
+
+.ic-cheques-table th i {
+  margin-right: 8px;
+  opacity: 0.8;
+  color: #ffffff !important;
+}
+
+.ic-cheques-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+  color: #1f2937;
+  vertical-align: middle;
+  background: #ffffff;
+}
+
+/* Only apply overflow to non-action cells */
+.ic-cheques-table td:not(.action-cell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ic-cheques-table tbody {
+  overflow: visible;
+}
+
+.ic-cheques-table tbody tr {
+  transition: all 0.2s ease;
+  background: #ffffff;
+  position: relative;
+  z-index: 1;
+}
+
+.ic-cheques-table tbody tr:hover {
+  background: #f9fafb !important;
+  cursor: pointer;
+}
+
+.ic-cheques-table tbody tr.row-active-menu {
+  z-index: 100;
+  position: relative;
+}
+
+.ic-cheques-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.cell-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Allow overflow for action cell content */
+.action-cell .cell-content {
+  overflow: visible !important;
+}
+
+.cheque-id,
+.cheque-number,
+.transaction-ref {
+  font-weight: 600;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.payer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.payer-name {
+  font-weight: 500;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bank-name {
+  font-weight: 500;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.amount-negative {
+  color: #ef4444;
+}
+
+.amount-positive {
+  color: #16a34a;
+}
+
+.issue-date {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.action-cell {
+  position: relative;
+  z-index: auto;
+  overflow: visible !important;
+}
+
+.action-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  position: relative;
+  overflow: visible;
+}
+
+.action-menu-container {
+  position: relative;
+  z-index: 101;
+}
+
+.action-btn-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.action-btn-icon:hover {
+  background: #f3f4f6;
+  border-color: #000000;
+  color: #000000;
+}
+
+.action-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  padding: 6px;
+  z-index: 9999;
+  animation: slideDown 0.2s ease;
+}
+
+/* Make dropdown appear upward for last 3 rows */
+.ic-cheques-table tbody tr:nth-last-child(-n+3) .action-dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.action-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2937;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.action-dropdown-item:hover {
+  background: #f3f4f6;
+}
+
+.action-dropdown-item.danger {
+  color: #ef4444;
+}
+
+.action-dropdown-item.danger:hover {
+  background: #fef2f2;
+}
+
+.action-dropdown-item i {
+  font-size: 13px;
+  width: 16px;
+  text-align: center;
+}
+
+.no-data {
+  text-align: center;
+  color: #6b7280;
+  padding: 60px 20px;
+}
+
+.no-data i {
+  font-size: 48px;
+  color: #d1d5db;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.no-data p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* ========================================
+   CHEQUE MODAL STYLES
+   ======================================== */
+.ic-cheque-modal-content {
+  background: #ffffff;
+  border-radius: 8px;
+  width: 98%;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+/* ========================================
+   PRINT STYLES - Optimize cheque printing only
+   ======================================== */
+@media print {
+  /* Hide action buttons when printing */
+  .ic-cheque-actions-bar {
+    display: none !important;
+  }
+  
+  /* Remove modal background when printing */
+  .ic-modal-overlay {
+    background: none !important;
+  }
+  
+  /* Clean up modal styling for print */
+  .ic-cheque-modal-content {
+    box-shadow: none !important;
+    border: none !important;
   }
 }

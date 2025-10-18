@@ -13,7 +13,8 @@ const IssueMoneySkeletonLoader = () => {
         borderRadius: '12px',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        border: '2px solid #000000'
       }}>
         <div>
           <SkeletonLine width="250px" height={20} style={{ marginBottom: '4px' }} />

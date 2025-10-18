@@ -1,16 +1,47 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import AverageClearanceTime from "../analytics/chequeAnalysis/AverageClearanceTime";
+import ChequeProcessingAccuracyRate from "../analytics/chequeAnalysis/ChequeProcessingAccuracyRate";
+import ChequeReconciliationRate from "../analytics/chequeAnalysis/ChequeReconciliationRate";
+import OutstandingChequesRatio from "../analytics/chequeAnalysis/OutstandingChequesRatio";
+import IssueChequeSkeleton from "../ui/chequeSL";
+import {
+  useCheques,
+  useDisbursementTransactions,
+  useFundAccounts,
+  useCreateCheque
+} from '../../hooks/useCheques';
 import "./css/issuecheque.css";
 import "./css/cheque-styles.css";
 
 const IssueCheque = () => {
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [disbursements, setDisbursements] = useState([]);
-  const [cheques, setCheques] = useState([]);
   const [filteredCheques, setFilteredCheques] = useState([]);
-  const [fundAccounts, setFundAccounts] = useState([]);
+
+  // TanStack Query hooks
+  const {
+    data: cheques = [],
+    isLoading: chequesLoading,
+    error: chequesError
+  } = useCheques();
+
+  const {
+    data: disbursements = [],
+    isLoading: disbursementsLoading,
+    error: disbursementsError
+  } = useDisbursementTransactions();
+
+  const {
+    data: fundAccounts = [],
+    isLoading: fundAccountsLoading,
+    error: fundAccountsError
+  } = useFundAccounts();
+
+  const createChequeMutation = useCreateCheque();
+
+  // Combined loading state
+  const isInitialLoading = chequesLoading || disbursementsLoading || fundAccountsLoading;
+  const mutationLoading = createChequeMutation.isPending;
   
   // Form states
   const [formData, setFormData] = useState({
@@ -32,63 +63,99 @@ const IssueCheque = () => {
     dateFrom: "",
     dateTo: "",
     searchTerm: "",
-    bankName: "all"
+    bankName: "all",
+    showFilterDropdown: false
   });
 
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showChequeModal, setShowChequeModal] = useState(false);
+  const [showIssueFormModal, setShowIssueFormModal] = useState(false);
   const [selectedCheque, setSelectedCheque] = useState(null);
   const [chequeResult, setChequeResult] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-
-  const API_BASE = "http://localhost:8000/api";
-  const token = localStorage.getItem("token");
-
-  useEffect(() => {
-    fetchInitialData();
-  }, [token]);
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [openActionMenu, setOpenActionMenu] = useState(null);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const miniGraphRef = useRef(null);
+  const exportDropdownRef = useRef(null);
 
   useEffect(() => {
     applyFilters();
   }, [cheques, filters]);
 
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        return;
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target)) {
+        setShowExportDropdown(false);
       }
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Fetch disbursements, cheques, and fund accounts
-      const [disbursementsRes, chequesRes, fundsRes] = await Promise.all([
-        axios.get(`${API_BASE}/transactions?type=Disbursement`, { headers }),
-        axios.get(`${API_BASE}/cheques`, { headers }),
-        axios.get(`${API_BASE}/fund-accounts`, { headers })
-      ]);
-
-      const disbursementData = disbursementsRes.data || [];
-      setDisbursements(disbursementData);
-      setCheques(chequesRes.data || []);
-      setFundAccounts(fundsRes.data || []);
-      setFilteredCheques(chequesRes.data || []);
-
-      // Show helpful message if no disbursements exist
-      if (disbursementData.length === 0) {
-        setError("No disbursement transactions found. Please create disbursement transactions using 'Issue Money' first before issuing cheques.");
+      if (!event.target.closest('.filter-dropdown-container')) {
+        setFilters(prev => ({ ...prev, showFilterDropdown: false }));
       }
+      if (!event.target.closest('.action-menu-container')) {
+        setOpenActionMenu(null);
+      }
+    };
 
-    } catch (err) {
-      console.error('Issue cheque error:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Mouse drag scrolling for mini graph
+  useEffect(() => {
+    const graphContainer = miniGraphRef.current;
+    if (!graphContainer) return;
+
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+
+    const handleMouseDown = (e) => {
+      isDown = true;
+      graphContainer.style.cursor = 'grabbing';
+      startX = e.pageX - graphContainer.offsetLeft;
+      scrollLeft = graphContainer.scrollLeft;
+    };
+
+    const handleMouseLeave = () => {
+      isDown = false;
+      graphContainer.style.cursor = 'grab';
+    };
+
+    const handleMouseUp = () => {
+      isDown = false;
+      graphContainer.style.cursor = 'grab';
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - graphContainer.offsetLeft;
+      const walk = (x - startX) * 2; // Scroll speed
+      graphContainer.scrollLeft = scrollLeft - walk;
+    };
+
+    graphContainer.addEventListener('mousedown', handleMouseDown);
+    graphContainer.addEventListener('mouseleave', handleMouseLeave);
+    graphContainer.addEventListener('mouseup', handleMouseUp);
+    graphContainer.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      graphContainer.removeEventListener('mousedown', handleMouseDown);
+      graphContainer.removeEventListener('mouseleave', handleMouseLeave);
+      graphContainer.removeEventListener('mouseup', handleMouseUp);
+      graphContainer.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
+  // Show helpful message if no disbursements exist
+  useEffect(() => {
+    if (!disbursementsLoading && disbursements.length === 0) {
+      setError("No disbursement transactions found. Please create disbursement transactions using 'Issue Money' first before issuing cheques.");
     }
-  };
+  }, [disbursements, disbursementsLoading]);
 
   const applyFilters = () => {
     let filtered = [...cheques];
@@ -167,7 +234,8 @@ const IssueCheque = () => {
           ...prev,
           payeeName: selectedTransaction.recipient || "",
           amount: Math.abs(selectedTransaction.amount) || "",
-          fundAccountId: selectedTransaction.fund_account_id || ""
+          fundAccountId: selectedTransaction.fund_account_id || "",
+          chequeNumber: generateChequeNumber() // Auto-generate cheque number
         }));
       }
     }
@@ -236,88 +304,84 @@ const IssueCheque = () => {
   };
 
   const confirmIssueCheque = async () => {
-    setLoading(true);
     setShowIssueModal(false);
+    setShowIssueFormModal(false);
     
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
+    const payload = {
+      transaction_id: parseInt(formData.disbursementId),
+      payee_name: formData.payeeName.trim(),
+      method: 'Cheque',
+      cheque_number: formData.chequeNumber.trim(),
+      bank_name: formData.bankName.trim(),
+      account_number: formData.accountNumber.trim(),
+      amount: parseFloat(formData.amount),
+      issue_date: formData.issueDate,
+      memo: formData.memo.trim() || null,
+      fund_account_id: formData.fundAccountId ? parseInt(formData.fundAccountId) : null
+    };
 
-      const payload = {
-        transaction_id: parseInt(formData.disbursementId),
-        payee_name: formData.payeeName.trim(),
-        method: 'Cheque',
-        cheque_number: formData.chequeNumber.trim(),
-        bank_name: formData.bankName.trim(),
-        account_number: formData.accountNumber.trim(),
-        amount: parseFloat(formData.amount),
-        issue_date: formData.issueDate,
-        memo: formData.memo.trim() || null,
-        fund_account_id: formData.fundAccountId ? parseInt(formData.fundAccountId) : null
-      };
+    createChequeMutation.mutate(payload, {
+      onSuccess: (response) => {
+        setChequeResult({
+          id: response.id || response.data?.id,
+          chequeNumber: formData.chequeNumber,
+          payeeName: formData.payeeName,
+          amount: formData.amount,
+          bankName: formData.bankName,
+          accountNumber: formData.accountNumber,
+          issueDate: formData.issueDate,
+          disbursementId: formData.disbursementId,
+          memo: formData.memo
+        });
 
-      const response = await axios.post(`${API_BASE}/disbursements`, payload, { headers });
+        showMessage("Cheque issued successfully!");
+        
+        // Reset form
+        setFormData({
+          disbursementId: "",
+          chequeNumber: "",
+          bankName: "",
+          accountNumber: "",
+          payeeName: "",
+          amount: "",
+          issueDate: new Date().toISOString().split('T')[0],
+          memo: "",
+          fundAccountId: ""
+        });
 
-      setChequeResult({
-        id: response.data.id || response.data.data?.id,
-        chequeNumber: formData.chequeNumber,
-        payeeName: formData.payeeName,
-        amount: formData.amount,
-        bankName: formData.bankName,
-        accountNumber: formData.accountNumber,
-        issueDate: formData.issueDate,
-        disbursementId: formData.disbursementId,
-        memo: formData.memo
-      });
-
-      showMessage("Cheque issued successfully!");
-      
-      // Reset form
-      setFormData({
-        disbursementId: "",
-        chequeNumber: "",
-        bankName: "",
-        accountNumber: "",
-        payeeName: "",
-        amount: "",
-        issueDate: new Date().toISOString().split('T')[0],
-        memo: "",
-        fundAccountId: ""
-      });
-
-      setShowSuccessModal(true);
-      fetchInitialData(); // Refresh data
-
-    } catch (err) {
-      console.error("Error issuing cheque:", err);
-      if (err.response?.status === 422 && err.response.data?.errors) {
-        const errorMessages = Object.values(err.response.data.errors)
-          .flat()
-          .join(", ");
-        showMessage(`Validation error: ${errorMessages}`, 'error');
-      } else {
-        showMessage(err.response?.data?.message || "Failed to issue cheque.", 'error');
+        setShowSuccessModal(true);
+      },
+      onError: (err) => {
+        console.error("Error issuing cheque:", err);
+        if (err.response?.status === 422 && err.response.data?.errors) {
+          const errorMessages = Object.values(err.response.data.errors)
+            .flat()
+            .join(", ");
+          showMessage(`Validation error: ${errorMessages}`, 'error');
+        } else {
+          showMessage(err.response?.data?.message || "Failed to issue cheque.", 'error');
+        }
       }
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const viewChequeDetails = (cheque) => {
-    setSelectedCheque(cheque);
-    setShowChequeModal(true);
+    setChequeResult({
+      id: cheque.id,
+      chequeNumber: cheque.cheque_number,
+      payeeName: cheque.payee_name,
+      amount: cheque.amount,
+      bankName: cheque.bank_name,
+      accountNumber: cheque.account_number,
+      issueDate: cheque.issue_date || cheque.created_at,
+      memo: cheque.memo
+    });
+    setShowSuccessModal(true);
   };
 
   // Print only the cheque content
   const printCheque = () => {
-    const printContent = document.getElementById('cheque-document');
-    const originalContent = document.body.innerHTML;
-    
-    if (printContent) {
-      document.body.innerHTML = printContent.outerHTML;
-      window.print();
-      document.body.innerHTML = originalContent;
-      window.location.reload(); // Reload to restore React functionality
-    }
+    window.print();
   };
 
   // Helper function to convert numbers to words (simplified)
@@ -350,364 +414,429 @@ const IssueCheque = () => {
   // Get unique bank names for filter
   const uniqueBankNames = [...new Set(cheques.map(c => c.bank_name).filter(Boolean))];
 
-  if (loading && disbursements.length === 0) {
-    return (
-      <div className="issue-cheque-loading">
-        <div className="spinner"></div>
-        <div className="loading-text">Loading cheque management...</div>
-      </div>
-    );
+  // Memoize KPI components to prevent re-render on action menu state changes
+  const memoizedAverageClearanceTime = useMemo(() => <AverageClearanceTime cheques={cheques} />, [cheques]);
+  const memoizedProcessingAccuracy = useMemo(() => <ChequeProcessingAccuracyRate cheques={cheques} />, [cheques]);
+  const memoizedReconciliationRate = useMemo(() => <ChequeReconciliationRate cheques={cheques} />, [cheques]);
+  const memoizedOutstandingRatio = useMemo(() => <OutstandingChequesRatio cheques={cheques} />, [cheques]);
+
+  if (isInitialLoading) {
+    return <IssueChequeSkeleton />;
   }
 
   return (
     <div className="issue-cheque-page">
       <div className="ic-header">
-        <h2 className="ic-title">
-          <i className="fas fa-money-check"></i> Issue Cheque Management
-        </h2>
-        <p className="ic-subtitle">
-          Issue official cheques for disbursement transactions and manage cheque records
-        </p>
+        <div className="ic-header-content">
+          <h1 className="ic-title">
+            <i className="fas fa-money-check"></i> Issue Cheque
+           {/* < span className="ic-live-badge">
+              <i className="fas fa-circle"></i> Live
+            </span> */}
+          </h1>
+          <div className="ic-header-actions">
+            <button 
+              className="ic-btn-issue-new-cheque"
+              onClick={() => setShowIssueFormModal(true)}
+            >
+              <i className="fas fa-plus-circle"></i>
+              Issue New Cheque
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
-        <div className="error-banner">
+        <div className="ic-error-banner">
           <i className="fas fa-exclamation-triangle"></i>
           {error}
         </div>
       )}
 
       {success && (
-        <div className="success-banner">
+        <div className="ic-success-banner">
           <i className="fas fa-check-circle"></i>
           {success}
         </div>
       )}
 
-      <div className="ic-content-grid">
-        {/* Issue Cheque Form */}
-        <div className="issue-form-section">
-          <div className="form-header">
-            <h3><i className="fas fa-plus-circle"></i> Issue New Cheque</h3>
+      {/* Dashboard Layout */}
+      <div className="ic-dashboard-grid">
+        {/* Left Column - Summary Cards */}
+        <div className="ic-left-column">
+          <div className="ic-summary-card ic-combined-card">
+            <div className="ic-card-title">Total</div>
+            <div className="ic-card-value">₱{cheques.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0).toLocaleString()}</div>
+            <div className="ic-card-subtitle">{cheques.length} Issued Cheque</div>
+            
+            {/* Small Line Graph */}
+            <div className="ic-cheque-mini-graph" ref={miniGraphRef}>
+              {(() => {
+                // Group cheques by date and calculate daily totals
+                const dailyData = cheques.reduce((acc, item) => {
+                  const date = new Date(item.issue_date || item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  const amount = parseFloat(item.amount || 0);
+                  
+                  if (!acc[date]) {
+                    acc[date] = 0;
+                  }
+                  acc[date] += Math.abs(amount);
+                  return acc;
+                }, {});
+                
+                // Get last 7 days of data
+                const sortedDates = Object.keys(dailyData).slice(-7);
+                const values = sortedDates.map(date => dailyData[date]);
+                const dates = sortedDates;
+                
+                if (values.length === 0) {
+                  return <div className="no-graph-data">No data available</div>;
+                }
+                
+                const maxValue = Math.max(...values, 1);
+                const minValue = Math.min(...values, 0);
+                const range = maxValue - minValue || 1;
+                
+                // Create SVG points - dynamic width based on data points
+                const pointWidth = 50; // Width per data point
+                const width = Math.max(values.length * pointWidth, 300);
+                const height = 50;
+                const padding = 10;
+                
+                const points = values.map((value, index) => {
+                  const x = padding + (index / (values.length - 1 || 1)) * (width - padding * 2);
+                  const y = padding + (height - padding * 2) - ((value - minValue) / range) * (height - padding * 2);
+                  return `${x},${y}`;
+                }).join(' ');
+                
+                return (
+                  <svg viewBox={`0 0 ${width} ${height}`} className="mini-graph-svg" preserveAspectRatio="xMidYMid meet">
+                    {/* Area fill */}
+                    <polygon
+                      points={`${padding},${height} ${points} ${width - padding},${height}`}
+                      fill="rgba(0, 0, 0, 0.1)"
+                    />
+                    {/* Line */}
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="#000000"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {/* Data points with hover */}
+                    {values.map((value, index) => {
+                      const x = padding + (index / (values.length - 1 || 1)) * (width - padding * 2);
+                      const y = padding + (height - padding * 2) - ((value - minValue) / range) * (height - padding * 2);
+                      return (
+                        <g key={index}>
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="8"
+                            fill="transparent"
+                            style={{ cursor: 'pointer' }}
+                            onMouseEnter={() => setHoveredPoint({ index, value, date: dates[index], x, y })}
+                            onMouseLeave={() => setHoveredPoint(null)}
+                          />
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="2"
+                            fill="#000000"
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        </g>
+                      );
+                    })}
+                    
+                    {/* Tooltip - position based on dot location */}
+                    {hoveredPoint && (() => {
+                      // If dot is in top half, show tooltip below; if in bottom half, show above
+                      const isTopHalf = hoveredPoint.y < height / 2;
+                      const tooltipY = isTopHalf ? hoveredPoint.y + 8 : hoveredPoint.y - 22;
+                      const textY = isTopHalf ? hoveredPoint.y + 20 : hoveredPoint.y - 10;
+                      
+                      return (
+                        <g style={{ pointerEvents: 'none' }}>
+                          <rect
+                            x={hoveredPoint.x - 25}
+                            y={tooltipY}
+                            width="50"
+                            height="18"
+                            fill="#000000"
+                            rx="3"
+                            opacity="0.95"
+                          />
+                          <text
+                            x={hoveredPoint.x}
+                            y={textY}
+                            textAnchor="middle"
+                            fill="#ffffff"
+                            fontSize="7"
+                            fontWeight="700"
+                          >
+                            ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </text>
+                        </g>
+                      );
+                    })()}
+                  </svg>
+                );
+              })()}
+            </div>
           </div>
           
-          <form onSubmit={handleSubmit} className="cheque-form">
-            <div className="form-group">
-              <label>Select Disbursement Transaction *</label>
-              <select
-                value={formData.disbursementId}
-                onChange={(e) => handleInputChange('disbursementId', e.target.value)}
-                required
-              >
-                <option value="">-- Select Transaction --</option>
-                {disbursements.map((transaction) => (
-                  <option key={transaction.id} value={transaction.id}>
-                    #{transaction.id} - ₱{parseFloat(transaction.amount || 0).toLocaleString()} - {transaction.recipient || transaction.description || 'N/A'}
-                  </option>
-                ))}
-              </select>
+          <div className="ic-summary-card">
+            <div className="ic-card-title">Average Cheque</div>
+            <div className="ic-card-value">
+              ₱{cheques.length > 0 
+                ? (cheques.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0) / cheques.length).toLocaleString(undefined, { maximumFractionDigits: 2 })
+                : '0'}
             </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Cheque Number *</label>
-                <div className="cheque-number-input">
-                  <input
-                    type="text"
-                    placeholder="Enter cheque number"
-                    value={formData.chequeNumber}
-                    onChange={(e) => handleInputChange('chequeNumber', e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="generate-btn"
-                    onClick={() => handleInputChange('chequeNumber', generateChequeNumber())}
-                    title="Generate Cheque Number"
-                  >
-                    <i className="fas fa-magic"></i>
-                  </button>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Bank Name *</label>
-                <input
-                  type="text"
-                  placeholder="Enter bank name"
-                  value={formData.bankName}
-                  onChange={(e) => handleInputChange('bankName', e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Account Number *</label>
-                <input
-                  type="text"
-                  placeholder="Enter account number"
-                  value={formData.accountNumber}
-                  onChange={(e) => handleInputChange('accountNumber', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Fund Account</label>
-                <select
-                  value={formData.fundAccountId}
-                  onChange={(e) => handleInputChange('fundAccountId', e.target.value)}
-                >
-                  <option value="">-- Select Fund Account --</option>
-                  {fundAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name} - ₱{parseFloat(account.balance || 0).toLocaleString()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Payee Name *</label>
-                <input
-                  type="text"
-                  placeholder="Enter payee name"
-                  value={formData.payeeName}
-                  onChange={(e) => handleInputChange('payeeName', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Amount *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={formData.amount}
-                  onChange={(e) => handleInputChange('amount', e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Issue Date</label>
-                <input
-                  type="date"
-                  value={formData.issueDate}
-                  onChange={(e) => handleInputChange('issueDate', e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label>Memo</label>
-                <input
-                  type="text"
-                  placeholder="Optional memo"
-                  value={formData.memo}
-                  onChange={(e) => handleInputChange('memo', e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button
-                type="submit"
-                className="submit-btn"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i> Processing...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-money-check"></i> Issue Cheque
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+            <div className="ic-card-subtitle">Per Transaction</div>
+          </div>
         </div>
 
-        {/* Cheque Statistics */}
-        <div className="cheque-stats-section">
-          <div className="section-header">
-            <h3><i className="fas fa-chart-bar"></i> Cheque Statistics</h3>
-          </div>
-          
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-money-check"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">{cheques.length}</div>
-                <div className="stat-label">Total Cheques</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-calendar-day"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">
-                  {cheques.filter(c => {
-                    const chequeDate = new Date(c.issue_date || c.created_at);
-                    const today = new Date();
-                    return chequeDate.toDateString() === today.toDateString();
-                  }).length}
-                </div>
-                <div className="stat-label">Today's Cheques</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-dollar-sign"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">
-                  ₱{cheques.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0).toLocaleString()}
-                </div>
-                <div className="stat-label">Total Amount</div>
-              </div>
-            </div>
-          </div>
+        {/* Right Column - Main Chart */}
+        <div className="ic-right-column">
+          {memoizedAverageClearanceTime}
         </div>
       </div>
 
-      {/* Filters Section */}
-      <div className="ic-filters-section">
-        <div className="filters-header">
-          <h3><i className="fas fa-filter"></i> Filter Cheques</h3>
-          <button className="clear-filters-btn" onClick={clearFilters}>
-            <i className="fas fa-times"></i> Clear Filters
-          </button>
+      {/* Bottom Row - Analytics Cards */}
+      <div className="ic-analytics-row">
+        <div className="ic-analytics-wrapper">
+          <div className="ic-analytics-title">Cheque Processing Accuracy Rate</div>
+          {memoizedProcessingAccuracy}
         </div>
-        
-        <div className="filters-grid">
-          <div className="filter-group">
-            <label>Status</label>
-            <select 
-              value={filters.status} 
-              onChange={(e) => handleFilterChange('status', e.target.value)}
+
+        <div className="ic-analytics-wrapper">
+          <div className="ic-analytics-title">Cheque Reconciliation Rate</div>
+          {memoizedReconciliationRate}
+        </div>
+
+        <div className="ic-analytics-wrapper">
+          <div className="ic-analytics-title">Outstanding Cheques Ratio</div>
+          {memoizedOutstandingRatio}
+        </div>
+      </div>
+
+      {/* Table Header with Search and Filters */}
+      <div className="ic-table-header">
+        <div className="section-title-group">
+          <h3>
+            <i className="fas fa-money-check"></i>
+            Issued Cheques
+            <span className="section-count">({filteredCheques.length})</span>
+          </h3>
+        </div>
+        <div className="header-controls">
+          <div className="search-filter-container">
+            <div className="account-search-container">
+              <input
+                type="text"
+                placeholder="Search cheques..."
+                value={filters.searchTerm}
+                onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                className="account-search-input"
+              />
+              <i className="fas fa-search account-search-icon"></i>
+            </div>
+            
+            <div className="filter-dropdown-container">
+              <button
+                className="filter-dropdown-btn"
+                onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
+                title="Filter cheques"
+              >
+                <i className="fas fa-filter"></i>
+                <span className="filter-label">
+                  {filters.status === 'all' ? 'All Cheques' : 'Recent (Last 7 days)'}
+                </span>
+                <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
+              </button>
+              
+              {filters.showFilterDropdown && (
+                <div className="filter-dropdown-menu">
+                  <button
+                    className={`filter-option ${filters.status === 'all' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('status', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-list"></i>
+                    <span>All Cheques</span>
+                    {filters.status === 'all' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.status === 'recent' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('status', 'recent'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-clock"></i>
+                    <span>Recent (Last 7 days)</span>
+                    {filters.status === 'recent' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="action-buttons" ref={exportDropdownRef}>
+            <button
+              className="btn-icon export-btn"
+              title="Export Cheques"
+              type="button"
+              onClick={() => setShowExportDropdown(prev => !prev)}
             >
-              <option value="all">All Cheques</option>
-              <option value="recent">Recent (Last 7 days)</option>
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Bank Name</label>
-            <select 
-              value={filters.bankName} 
-              onChange={(e) => handleFilterChange('bankName', e.target.value)}
-            >
-              <option value="all">All Banks</option>
-              {uniqueBankNames.map((bank) => (
-                <option key={bank} value={bank}>{bank}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Date From</label>
-            <input 
-              type="date" 
-              value={filters.dateFrom}
-              onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Date To</label>
-            <input 
-              type="date" 
-              value={filters.dateTo}
-              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Search</label>
-            <input 
-              type="text" 
-              placeholder="Search cheques..."
-              value={filters.searchTerm}
-              onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-            />
+              <i className="fas fa-download"></i>
+            </button>
+            {showExportDropdown && (
+              <div className="export-dropdown-menu">
+                <button type="button" className="export-option">
+                  <i className="fas fa-file-pdf"></i>
+                  <span>Download PDF</span>
+                </button>
+                <button type="button" className="export-option">
+                  <i className="fas fa-file-excel"></i>
+                  <span>Download Excel</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Cheques Table */}
       <div className="ic-cheques-section">
-        <div className="cheques-header">
-          <h3><i className="fas fa-table"></i> Cheque Records</h3>
-          <div className="cheques-count">
-            Showing {filteredCheques.length} of {cheques.length} cheques
-          </div>
-        </div>
-
-        <div className="cheques-table-container">
-          <table className="cheques-table">
+        <div className="ic-cheques-table-container">
+          <table className="ic-cheques-table">
             <thead>
               <tr>
-                <th><i className="fas fa-hashtag"></i> Cheque ID</th>
-                <th><i className="fas fa-money-check"></i> Cheque Number</th>
-                <th><i className="fas fa-exchange-alt"></i> Disbursement</th>
-                <th><i className="fas fa-user"></i> Payee Name</th>
-                <th><i className="fas fa-university"></i> Bank</th>
-                <th><i className="fas fa-money-bill"></i> Amount</th>
-                <th><i className="fas fa-calendar"></i> Issue Date</th>
-                <th><i className="fas fa-cogs"></i> Actions</th>
+                <th><i className="fas fa-hashtag"></i> CHEQUE ID</th>
+                <th><i className="fas fa-money-check"></i> CHEQUE NUMBER</th>
+                <th><i className="fas fa-exchange-alt"></i> DISBURSEMENT</th>
+                <th><i className="fas fa-user"></i> PAYEE NAME</th>
+                <th><i className="fas fa-university"></i> BANK</th>
+                <th><i className="fas fa-money-bill"></i> AMOUNT</th>
+                <th><i className="fas fa-calendar"></i> ISSUE DATE</th>
+                <th><i className="fas fa-cog"></i> ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {filteredCheques.length > 0 ? (
                 filteredCheques.map((cheque) => (
-                  <tr key={cheque.id}>
-                    <td>#{cheque.id}</td>
-                    <td className="cheque-number">{cheque.cheque_number}</td>
-                    <td>#{cheque.disbursement_id}</td>
-                    <td>{cheque.payee_name}</td>
-                    <td>{cheque.bank_name}</td>
-                    <td className="amount-negative">
-                      ₱{parseFloat(cheque.amount || 0).toLocaleString()}
-                    </td>
-                    <td>{new Date(cheque.issue_date || cheque.created_at).toLocaleDateString()}</td>
+                  <tr 
+                    key={cheque.id}
+                    className={`table-row clickable-row ${openActionMenu === cheque.id ? 'row-active-menu' : ''}`}
+                    onClick={(e) => {
+                      if (!e.target.closest('.action-cell')) {
+                        viewChequeDetails(cheque);
+                      }
+                    }}
+                  >
                     <td>
-                      <div className="action-buttons">
-                        <button 
-                          className="view-btn"
-                          onClick={() => viewChequeDetails(cheque)}
-                          title="View Details"
-                        >
-                          <i className="fas fa-eye"></i>
-                        </button>
-                        <button 
-                          className="print-btn"
-                          onClick={() => {
-                            setChequeResult({
-                              id: cheque.id,
-                              chequeNumber: cheque.cheque_number,
-                              payeeName: cheque.payee_name,
-                              amount: cheque.amount,
-                              bankName: cheque.bank_name,
-                              accountNumber: cheque.account_number,
-                              issueDate: cheque.issue_date || cheque.created_at,
-                              memo: cheque.memo
-                            });
-                            setShowSuccessModal(true);
-                            setTimeout(() => printCheque(), 500);
-                          }}
-                          title="Print Cheque"
-                        >
-                          <i className="fas fa-print"></i>
-                        </button>
+                      <div className="cell-content">
+                        <span className="cheque-id">#{cheque.id}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-content">
+                        <span className="cheque-number">{cheque.cheque_number}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-content">
+                        <span className="transaction-ref">#{cheque.disbursement_id}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-content">
+                        <div className="payer-info">
+                          <span className="payer-name">{cheque.payee_name}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-content">
+                        <span className="bank-name">{cheque.bank_name}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-content">
+                        <span className="amount amount-negative">
+                          -₱{parseFloat(cheque.amount || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-content">
+                        <span className="issue-date">
+                          {new Date(cheque.issue_date || cheque.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="action-cell">
+                      <div className="cell-content">
+                        <div className="action-buttons-group">
+                          <div className="action-menu-container">
+                            <button 
+                              className="action-btn-icon more-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenActionMenu(openActionMenu === cheque.id ? null : cheque.id);
+                              }}
+                              title="Actions"
+                            >
+                              <i className="fas fa-ellipsis-v"></i>
+                            </button>
+                            {openActionMenu === cheque.id && (
+                              <div className="action-dropdown-menu">
+                                <button 
+                                  className="action-dropdown-item"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setChequeResult({
+                                      id: cheque.id,
+                                      chequeNumber: cheque.cheque_number,
+                                      payeeName: cheque.payee_name,
+                                      amount: cheque.amount,
+                                      bankName: cheque.bank_name,
+                                      accountNumber: cheque.account_number,
+                                      issueDate: cheque.issue_date || cheque.created_at,
+                                      memo: cheque.memo
+                                    });
+                                    setShowSuccessModal(true);
+                                    setOpenActionMenu(null);
+                                  }}
+                                >
+                                  <i className="fas fa-eye"></i>
+                                  <span>View Details</span>
+                                </button>
+                                <button 
+                                  className="action-dropdown-item"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setChequeResult({
+                                      id: cheque.id,
+                                      chequeNumber: cheque.cheque_number,
+                                      payeeName: cheque.payee_name,
+                                      amount: cheque.amount,
+                                      bankName: cheque.bank_name,
+                                      accountNumber: cheque.account_number,
+                                      issueDate: cheque.issue_date || cheque.created_at,
+                                      memo: cheque.memo
+                                    });
+                                    setShowSuccessModal(true);
+                                    setOpenActionMenu(null);
+                                  }}
+                                >
+                                  <i className="fas fa-print"></i>
+                                  <span>Print Cheque</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -727,70 +856,70 @@ const IssueCheque = () => {
 
       {/* Confirmation Modal */}
       {showIssueModal && (
-        <div className="modal-overlay" onClick={() => setShowIssueModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+        <div className="ic-modal-overlay" onClick={() => setShowIssueModal(false)}>
+          <div className="ic-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="ic-modal-header">
               <h3><i className="fas fa-question-circle"></i> Confirm Cheque Issue</h3>
-              <button className="modal-close" onClick={() => setShowIssueModal(false)}>
+              <button className="ic-modal-close" onClick={() => setShowIssueModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            <div className="modal-body">
-              <div className="confirmation-details">
-                <div className="detail-item">
+            <div className="ic-modal-body">
+              <div className="ic-confirmation-details">
+                <div className="ic-detail-item">
                   <label>Disbursement ID:</label>
                   <span>#{formData.disbursementId}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Cheque Number:</label>
                   <span>{formData.chequeNumber}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Bank Name:</label>
                   <span>{formData.bankName}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Account Number:</label>
                   <span>{formData.accountNumber}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Payee Name:</label>
                   <span>{formData.payeeName}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Amount:</label>
                   <span>₱{parseFloat(formData.amount || 0).toLocaleString()}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Issue Date:</label>
                   <span>{new Date(formData.issueDate).toLocaleDateString()}</span>
                 </div>
                 {formData.memo && (
-                  <div className="detail-item">
+                  <div className="ic-detail-item">
                     <label>Memo:</label>
                     <span>{formData.memo}</span>
                   </div>
                 )}
               </div>
-              <p className="confirmation-message">
+              <p className="ic-confirmation-message">
                 Are you sure you want to issue this cheque?
               </p>
             </div>
-            <div className="modal-actions">
+            <div className="ic-modal-actions">
               <button
                 type="button"
-                className="cancel-btn"
+                className="ic-cancel-btn"
                 onClick={() => setShowIssueModal(false)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="confirm-btn"
+                className="ic-confirm-btn"
                 onClick={confirmIssueCheque}
-                disabled={loading}
+                disabled={mutationLoading}
               >
-                {loading ? (
+                {mutationLoading ? (
                   <i className="fas fa-spinner fa-spin"></i>
                 ) : (
                   <>
@@ -805,71 +934,71 @@ const IssueCheque = () => {
 
       {/* Cheque Details Modal */}
       {showChequeModal && selectedCheque && (
-        <div className="modal-overlay" onClick={() => setShowChequeModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+        <div className="ic-modal-overlay" onClick={() => setShowChequeModal(false)}>
+          <div className="ic-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="ic-modal-header">
               <h3><i className="fas fa-money-check"></i> Cheque Details</h3>
-              <button className="modal-close" onClick={() => setShowChequeModal(false)}>
+              <button className="ic-modal-close" onClick={() => setShowChequeModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            <div className="modal-body">
-              <div className="confirmation-details">
-                <div className="detail-item">
+            <div className="ic-modal-body">
+              <div className="ic-confirmation-details">
+                <div className="ic-detail-item">
                   <label>Cheque ID:</label>
                   <span>#{selectedCheque.id}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Cheque Number:</label>
                   <span>{selectedCheque.cheque_number}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Disbursement ID:</label>
                   <span>#{selectedCheque.disbursement_id}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Payee Name:</label>
                   <span>{selectedCheque.payee_name}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Bank Name:</label>
                   <span>{selectedCheque.bank_name}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Account Number:</label>
                   <span>{selectedCheque.account_number}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Amount:</label>
                   <span>₱{parseFloat(selectedCheque.amount || 0).toLocaleString()}</span>
                 </div>
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Issue Date:</label>
                   <span>{new Date(selectedCheque.issue_date || selectedCheque.created_at).toLocaleDateString()}</span>
                 </div>
                 {selectedCheque.memo && (
-                  <div className="detail-item">
+                  <div className="ic-detail-item">
                     <label>Memo:</label>
                     <span>{selectedCheque.memo}</span>
                   </div>
                 )}
-                <div className="detail-item">
+                <div className="ic-detail-item">
                   <label>Created At:</label>
                   <span>{new Date(selectedCheque.created_at).toLocaleString()}</span>
                 </div>
               </div>
             </div>
-            <div className="modal-actions">
+            <div className="ic-modal-actions">
               <button
                 type="button"
-                className="close-btn"
+                className="ic-close-btn"
                 onClick={() => setShowChequeModal(false)}
               >
                 <i className="fas fa-times"></i> Close
               </button>
               <button
                 type="button"
-                className="print-btn"
+                className="ic-print-btn"
                 onClick={() => {
                   setChequeResult({
                     id: selectedCheque.id,
@@ -883,7 +1012,6 @@ const IssueCheque = () => {
                   });
                   setShowChequeModal(false);
                   setShowSuccessModal(true);
-                  setTimeout(() => printCheque(), 500);
                 }}
               >
                 <i className="fas fa-print"></i> Print Cheque
@@ -895,13 +1023,13 @@ const IssueCheque = () => {
 
       {/* Official Cheque Modal */}
       {showSuccessModal && chequeResult && (
-        <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
-          <div className="cheque-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="cheque-actions-bar">
-              <button className="modal-close" onClick={() => setShowSuccessModal(false)}>
+        <div className="ic-modal-overlay" onClick={() => setShowSuccessModal(false)}>
+          <div className="ic-cheque-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="ic-cheque-actions-bar">
+              <button className="ic-modal-close" onClick={() => setShowSuccessModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
-              <button className="print-btn" onClick={printCheque}>
+              <button className="ic-print-btn" onClick={printCheque}>
                 <i className="fas fa-print"></i> Print
               </button>
             </div>
@@ -1003,6 +1131,160 @@ const IssueCheque = () => {
 
               {/* Security Features */}
               <div className="cheque-security-border"></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Issue Form Modal */}
+      {showIssueFormModal && (
+        <div className="ic-modal-overlay" onClick={() => setShowIssueFormModal(false)}>
+          <div className="ic-modal-content ic-form-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="ic-modal-header">
+              <h3><i className="fas fa-plus-circle"></i> Issue New Cheque</h3>
+              <button className="ic-modal-close" onClick={() => setShowIssueFormModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="ic-modal-body">
+              <form onSubmit={handleSubmit} className="ic-cheque-form">
+                <div className="ic-form-group">
+                  <label>Select Disbursement Transaction *</label>
+                  <select
+                    value={formData.disbursementId}
+                    onChange={(e) => handleInputChange('disbursementId', e.target.value)}
+                    required
+                  >
+                    <option value="">-- Select Transaction --</option>
+                    {disbursements.map((transaction) => (
+                      <option key={transaction.id} value={transaction.id}>
+                        #{transaction.id} - ₱{parseFloat(transaction.amount || 0).toLocaleString()} - {transaction.recipient || transaction.description || 'N/A'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="ic-form-row">
+                  <div className="ic-form-group">
+                    <label>Cheque Number *</label>
+                    <input
+                      type="text"
+                      placeholder="Auto-generated when transaction is selected"
+                      value={formData.chequeNumber}
+                      onChange={(e) => handleInputChange('chequeNumber', e.target.value)}
+                      required
+                      readOnly
+                    />
+                  </div>
+                  <div className="ic-form-group">
+                    <label>Fund Account</label>
+                    <select
+                      value={formData.fundAccountId}
+                      onChange={(e) => handleInputChange('fundAccountId', e.target.value)}
+                    >
+                      <option value="">-- Select Fund Account --</option>
+                      {fundAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name} - ₱{parseFloat(account.balance || 0).toLocaleString()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="ic-form-row">
+                  <div className="ic-form-group">
+                    <label>Payee Name *</label>
+                    <input
+                      type="text"
+                      placeholder="Enter payee name"
+                      value={formData.payeeName}
+                      onChange={(e) => handleInputChange('payeeName', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="ic-form-group">
+                    <label>Amount *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={formData.amount}
+                      onChange={(e) => handleInputChange('amount', e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="ic-form-row">
+                  <div className="ic-form-group">
+                    <label>Bank Name *</label>
+                    <input
+                      type="text"
+                      placeholder="Enter bank name"
+                      value={formData.bankName}
+                      onChange={(e) => handleInputChange('bankName', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="ic-form-group">
+                    <label>Account Number *</label>
+                    <input
+                      type="text"
+                      placeholder="Enter account number"
+                      value={formData.accountNumber}
+                      onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="ic-form-row">
+                  <div className="ic-form-group">
+                    <label>Issue Date</label>
+                    <input
+                      type="date"
+                      value={formData.issueDate}
+                      onChange={(e) => handleInputChange('issueDate', e.target.value)}
+                    />
+                  </div>
+                  <div className="ic-form-group">
+                    <label>Memo</label>
+                    <input
+                      type="text"
+                      placeholder="Optional memo"
+                      value={formData.memo}
+                      onChange={(e) => handleInputChange('memo', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="ic-modal-actions">
+                  <button
+                    type="button"
+                    className="ic-cancel-btn"
+                    onClick={() => setShowIssueFormModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="ic-confirm-btn"
+                    disabled={mutationLoading}
+                  >
+                    {mutationLoading ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin"></i> Processing...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-money-check"></i> Issue Cheque
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
