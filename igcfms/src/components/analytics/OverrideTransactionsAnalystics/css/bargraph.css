@@ -1,0 +1,83 @@
+.ot-bar-graph-section {
+  margin-bottom: 16px;
+}
+
+.ot-bar-card {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-top: -10%;
+}
+
+.ot-bar-graph {
+  margin-top: 20px;
+  padding: 20px 0;
+}
+
+.bar-chart-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 20px;
+  height: 200px;
+  padding: 0 20px;
+}
+
+.bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 80px;
+}
+
+.bar-stack {
+  width: 100%;
+  height: 180px;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  gap: 2px;
+}
+
+.bar-segment {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  min-height: 4px;
+}
+
+.bar-segment:hover {
+  opacity: 0.8;
+}
+
+.bar-segment.pending {
+  background: #f59e0b;
+}
+
+.bar-segment.approved {
+  background: #10b981;
+}
+
+.bar-segment.rejected {
+  background: #ef4444;
+}
+
+.bar-label {
+  font-size: 11px;
+  color: #666666;
+  text-align: center;
+  font-weight: 500;
+}
+
+.no-graph-data {
+  text-align: center;
+  padding: 40px;
+  color: #999999;
+  font-size: 14px;
+  font-weight: 500;
+}
