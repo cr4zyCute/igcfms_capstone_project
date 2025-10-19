@@ -1,11 +1,9 @@
-/* Compact Issue Receipt Styles */
 .issue-receipt-page {
-  padding: 12px;
+  padding: 20px;
+  background: #ffffff;
   min-height: 100vh;
-  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-  color: #1a202c;
-  max-width: 100%;
-  overflow-x: hidden;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  overflow: visible;
 }
 
 /* Compact Header */

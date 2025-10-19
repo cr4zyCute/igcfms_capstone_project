@@ -1321,19 +1321,6 @@ const IssueMoney = () => {
             <i className="fas fa-plus-circle"></i>
             New Disbursement
           </button>
-          <button
-            type="button"
-            className="refresh-btn"
-            onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ['disbursements'] });
-              queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
-              queryClient.invalidateQueries({ queryKey: ['recipientAccounts'] });
-            }}
-            disabled={loading}
-            title="Refresh fund balances and recipient accounts"
-          >
-            <i className="fas fa-sync-alt"></i> Refresh Data
-          </button>
         </div>
       </div>
 
