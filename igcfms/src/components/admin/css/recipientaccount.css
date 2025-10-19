@@ -2,19 +2,8 @@
   display: inline-block;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(90deg, rgba(17, 17, 17, 0.08) 25%, rgba(17, 17, 17, 0.16) 37%, rgba(17, 17, 17, 0.08) 63%);
-  background-size: 400% 100%;
+  background: rgba(17, 17, 17, 0.08);
   border-radius: 8px;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
-}
-
-.skeleton::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.45) 50%, rgba(255, 255, 255, 0) 100%);
-  animation: skeleton-glow 1.4s ease-in-out infinite;
-  opacity: 0.6;
 }
 
 @keyframes skeleton-shimmer {

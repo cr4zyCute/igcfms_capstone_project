@@ -719,13 +719,13 @@
 .ic-cheque-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .ic-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 16px;
 }
 
 .ic-form-group {
@@ -1129,6 +1129,12 @@
   backdrop-filter: blur(4px);
 }
 
+/* Confirmation modal should appear on top of form modal */
+.ic-confirmation-modal-overlay {
+  z-index: 1100 !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+}
+
 .ic-modal-content {
   background: #ffffff;
   border-radius: 12px;
@@ -1153,6 +1159,9 @@
 .ic-form-modal-content {
   max-width: 1100px !important;
   width: 95%;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .ic-modal-header {
@@ -1196,7 +1205,9 @@
 }
 
 .ic-modal-body {
-  padding: 25px;
+  padding: 20px 25px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 /* Confirmation Details */
@@ -1242,7 +1253,9 @@
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  margin-top: 25px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
 }
 
 .ic-cancel-btn {
@@ -2104,4 +2117,310 @@
     box-shadow: none !important;
     border: none !important;
   }
+}
+
+/* ========================================
+   FUND ACCOUNT SEARCHABLE SELECT
+   ======================================== */
+
+.fund-account-searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.fund-account-search-wrapper-main {
+  position: relative;
+  width: 100%;
+}
+
+.fund-account-search-input-main {
+  width: 100%;
+  padding: 12px 40px 12px 12px;
+  border: 2px solid #f0f0f0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1f2937;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  min-height: 46px;
+}
+
+.fund-account-search-input-main:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.05);
+}
+
+.fund-account-search-input-main::placeholder {
+  color: #9ca3af;
+}
+
+.fund-account-search-icon-main {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.fund-account-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  animation: slideDown 0.2s ease;
+}
+
+.fund-account-options {
+  overflow-y: auto;
+  max-height: 240px;
+  padding: 8px;
+}
+
+.fund-account-options::-webkit-scrollbar {
+  width: 6px;
+}
+
+.fund-account-options::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.fund-account-options::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.fund-account-options::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.fund-account-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14px;
+  color: #000000;
+  gap: 12px;
+}
+
+.fund-account-option:hover {
+  background: #f3f4f6;
+}
+
+.fund-account-option.selected {
+  background: #000000;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.fund-account-option.selected:hover {
+  background: #1f2937;
+}
+
+.fund-account-option.selected .fund-account-name {
+  color: #ffffff;
+}
+
+.fund-account-option.no-results {
+  color: #9ca3af;
+  cursor: default;
+  justify-content: center;
+}
+
+.fund-account-option.no-results:hover {
+  background: transparent;
+}
+
+.fund-account-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fund-account-balance {
+  font-weight: 600;
+  color: #000000;
+  white-space: nowrap;
+}
+
+.fund-account-option.selected .fund-account-balance {
+  color: #ffffff;
+}
+
+/* ========================================
+   DISBURSEMENT SEARCHABLE SELECT
+   ======================================== */
+
+.disbursement-searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.disbursement-search-wrapper-main {
+  position: relative;
+  width: 100%;
+}
+
+.disbursement-search-input-main {
+  width: 100%;
+  padding: 12px 40px 12px 12px;
+  border: 2px solid #f0f0f0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1f2937;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  min-height: 46px;
+}
+
+.disbursement-search-input-main:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.05);
+}
+
+.disbursement-search-input-main::placeholder {
+  color: #9ca3af;
+}
+
+.disbursement-search-icon-main {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.disbursement-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  animation: slideDown 0.2s ease;
+}
+
+.disbursement-options {
+  overflow-y: auto;
+  max-height: 320px;
+  padding: 8px;
+}
+
+.disbursement-options::-webkit-scrollbar {
+  width: 6px;
+}
+
+.disbursement-options::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.disbursement-options::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.disbursement-options::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.disbursement-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14px;
+  color: #000000;
+  gap: 12px;
+}
+
+.disbursement-option:hover {
+  background: #f3f4f6;
+}
+
+.disbursement-option.selected {
+  background: #000000;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.disbursement-option.selected:hover {
+  background: #1f2937;
+}
+
+.disbursement-option.no-results {
+  color: #9ca3af;
+  cursor: default;
+  justify-content: center;
+}
+
+.disbursement-option.no-results:hover {
+  background: transparent;
+}
+
+.disbursement-option-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.disbursement-id {
+  font-weight: 600;
+  color: #000000;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.disbursement-recipient {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #000000;
+}
+
+.disbursement-option.selected .disbursement-id,
+.disbursement-option.selected .disbursement-recipient {
+  color: #ffffff;
+}
+
+.disbursement-amount {
+  font-weight: 600;
+  color: #000000;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.disbursement-option.selected .disbursement-amount {
+  color: #ffffff;
 }

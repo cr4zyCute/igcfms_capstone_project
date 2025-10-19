@@ -240,7 +240,7 @@ const api = axios.create({
 
   export const createCheque = async (chequeData) => {
     try {
-      const response = await api.post('/cheques', chequeData);
+      const response = await api.post('/disbursements', chequeData);
       return response.data;
     } catch (error) {
       throw error;

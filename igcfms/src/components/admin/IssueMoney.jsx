@@ -97,6 +97,12 @@ const IssueMoney = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [disbursementResult, setDisbursementResult] = useState(null);
+  const [recipientAccountSearch, setRecipientAccountSearch] = useState("");
+  const [showRecipientAccountDropdown, setShowRecipientAccountDropdown] = useState(false);
+  const [fundAccountSearch, setFundAccountSearch] = useState("");
+  const [showFundAccountDropdown, setShowFundAccountDropdown] = useState(false);
+  const recipientAccountDropdownRef = useRef(null);
+  const fundAccountDropdownRef = useRef(null);
 
   const API_BASE = "http://localhost:8000/api";
   const token = localStorage.getItem("token");
@@ -319,6 +325,12 @@ const IssueMoney = () => {
       }
       if (!event.target.closest('.filter-dropdown-container')) {
         setFilters(prev => ({ ...prev, showFilterDropdown: false }));
+      }
+      if (recipientAccountDropdownRef.current && !recipientAccountDropdownRef.current.contains(event.target)) {
+        setShowRecipientAccountDropdown(false);
+      }
+      if (fundAccountDropdownRef.current && !fundAccountDropdownRef.current.contains(event.target)) {
+        setShowFundAccountDropdown(false);
       }
     };
 
@@ -988,26 +1000,95 @@ const IssueMoney = () => {
     return <IssueMoneySkeletonLoader />;
   }
 
+  // Filter recipient accounts based on search
+  const filteredRecipientAccounts = recipientAccounts.filter(account => {
+    const searchLower = recipientAccountSearch.toLowerCase();
+    return (
+      account.name?.toLowerCase().includes(searchLower) ||
+      account.fund_code?.toLowerCase().includes(searchLower) ||
+      account.contact_person?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // Get selected recipient account for display
+  const selectedRecipientAccount = recipientAccounts.find(acc => acc.id.toString() === formData.recipientAccountId);
+  const recipientAccountDisplayValue = selectedRecipientAccount && !showRecipientAccountDropdown
+    ? `${selectedRecipientAccount.name} (${selectedRecipientAccount.fund_code}) - ${selectedRecipientAccount.contact_person}`
+    : recipientAccountSearch;
+
+  // Filter fund accounts based on search
+  const filteredFundAccounts = fundAccounts.filter(account => {
+    const searchLower = fundAccountSearch.toLowerCase();
+    return (
+      account.name?.toLowerCase().includes(searchLower) ||
+      account.code?.toLowerCase().includes(searchLower) ||
+      account.current_balance?.toString().includes(searchLower)
+    );
+  });
+
+  // Get selected fund account for display
+  const selectedFundAccount = fundAccounts.find(acc => acc.id.toString() === formData.fundAccountId);
+  const fundAccountDisplayValue = selectedFundAccount && !showFundAccountDropdown
+    ? `${selectedFundAccount.name} (${selectedFundAccount.code}) - ₱${parseFloat(selectedFundAccount.current_balance || 0).toLocaleString()}`
+    : fundAccountSearch;
+
   const renderDisbursementForm = () => (
     <form onSubmit={handleSubmit} className="disbursement-form">
       <div className="form-row">
         <div className="form-group">
           <label>Recipient Account</label>
-          <select
-            value={formData.recipientAccountId}
-            onChange={(e) => handleRecipientAccountSelect(e.target.value)}
-          >
-            <option value="">-- Select Recipient Account ({recipientAccounts.length} available) --</option>
-            {Array.isArray(recipientAccounts) && recipientAccounts.length > 0 ? (
-              recipientAccounts.map((recipient) => (
-                <option key={recipient.id} value={recipient.id}>
-                  {recipient.name} ({recipient.fund_code}) - {recipient.contact_person}
-                </option>
-              ))
-            ) : (
-              <option value="" disabled>No recipient accounts available</option>
+          <div className="recipient-account-searchable-select" ref={recipientAccountDropdownRef}>
+            <div className="recipient-account-search-wrapper-main">
+              <input
+                type="text"
+                className="recipient-account-search-input-main"
+                placeholder="Search recipient accounts..."
+                value={recipientAccountDisplayValue}
+                onChange={(e) => {
+                  setRecipientAccountSearch(e.target.value);
+                  if (!showRecipientAccountDropdown) {
+                    setShowRecipientAccountDropdown(true);
+                  }
+                }}
+                onFocus={() => {
+                  setShowRecipientAccountDropdown(true);
+                  if (formData.recipientAccountId) {
+                    setRecipientAccountSearch('');
+                  }
+                }}
+              />
+              <i className="fas fa-search recipient-account-search-icon-main"></i>
+            </div>
+            {showRecipientAccountDropdown && (
+              <div className="recipient-account-dropdown">
+                <div className="recipient-account-options">
+                  {filteredRecipientAccounts.length > 0 ? (
+                    filteredRecipientAccounts.map((account) => (
+                      <div 
+                        key={account.id}
+                        className={`recipient-account-option ${formData.recipientAccountId === account.id.toString() ? 'selected' : ''}`}
+                        onClick={() => {
+                          handleRecipientAccountSelect(account.id.toString());
+                          setShowRecipientAccountDropdown(false);
+                          setRecipientAccountSearch('');
+                        }}
+                      >
+                        <div className="recipient-account-option-content">
+                          <span className="recipient-account-name">{account.name}</span>
+                          <span className="recipient-account-code">({account.fund_code})</span>
+                        </div>
+                        <span className="recipient-account-contact">{account.contact_person}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="recipient-account-option no-results">
+                      <span>No recipient accounts found</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
-          </select>
+          </div>
           <small className="field-hint">
             <i className="fas fa-info-circle"></i>
             Selecting a recipient account will auto-fill the payee name.
@@ -1043,35 +1124,58 @@ const IssueMoney = () => {
       <div className="form-row">
         <div className="form-group">
           <label>Fund Account (Source) *</label>
-          <select
-            value={formData.fundAccountId}
-            onChange={(e) => handleInputChange('fundAccountId', e.target.value)}
-            required
-          >
-            <option value="">-- Select Fund Account --</option>
-            {Array.isArray(fundAccounts) && fundAccounts.length > 0 ? (
-              fundAccounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.name} ({acc.code}) - ₱{parseFloat(acc.current_balance || 0).toLocaleString()}
-                </option>
-              ))
-            ) : (
-              <option value="" disabled>No fund accounts available</option>
-            )}
-          </select>
-          {formData.fundAccountId && (
-            <div className="balance-info">
-              {(() => {
-                const selectedFund = fundAccounts.find(f => f.id === parseInt(formData.fundAccountId));
-                return selectedFund ? (
-                  <small className="balance-display">
-                    <i className="fas fa-wallet"></i>
-                    Available: ₱{parseFloat(selectedFund.current_balance || 0).toLocaleString()}
-                  </small>
-                ) : null;
-              })()}
+          <div className="fund-account-searchable-select" ref={fundAccountDropdownRef}>
+            <div className="fund-account-search-wrapper-main">
+              <input
+                type="text"
+                className="fund-account-search-input-main"
+                placeholder="Search fund accounts..."
+                value={fundAccountDisplayValue}
+                onChange={(e) => {
+                  setFundAccountSearch(e.target.value);
+                  if (!showFundAccountDropdown) {
+                    setShowFundAccountDropdown(true);
+                  }
+                }}
+                onFocus={() => {
+                  setShowFundAccountDropdown(true);
+                  if (formData.fundAccountId) {
+                    setFundAccountSearch('');
+                  }
+                }}
+              />
+              <i className="fas fa-search fund-account-search-icon-main"></i>
             </div>
-          )}
+            {showFundAccountDropdown && (
+              <div className="fund-account-dropdown">
+                <div className="fund-account-options">
+                  {filteredFundAccounts.length > 0 ? (
+                    filteredFundAccounts.map((account) => (
+                      <div 
+                        key={account.id}
+                        className={`fund-account-option ${formData.fundAccountId === account.id.toString() ? 'selected' : ''}`}
+                        onClick={() => {
+                          handleInputChange('fundAccountId', account.id.toString());
+                          setShowFundAccountDropdown(false);
+                          setFundAccountSearch('');
+                        }}
+                      >
+                        <div className="fund-account-option-content">
+                          <span className="fund-account-name">{account.name}</span>
+                          <span className="fund-account-code">({account.code})</span>
+                        </div>
+                        <span className="fund-account-balance">₱{parseFloat(account.current_balance || 0).toLocaleString()}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="fund-account-option no-results">
+                      <span>No fund accounts found</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <div className="form-group">
           <label>Amount *</label>
@@ -1106,9 +1210,6 @@ const IssueMoney = () => {
             Reference number is automatically generated for each disbursement.
           </small>
         </div>
-      </div>
-
-      <div className="form-row">
         <div className="form-group">
           <label>Purpose of Payment *</label>
           <select
@@ -1130,54 +1231,57 @@ const IssueMoney = () => {
             <option value="Other">Other</option>
           </select>
         </div>
-        <div className="form-group">
-          <label>Payment Mode *</label>
-          <select
-            value={formData.modeOfPayment}
-            onChange={(e) => handleInputChange('modeOfPayment', e.target.value)}
-            required
-          >
-            <option value="Cash">Cash</option>
-            <option value="Cheque">Cheque</option>
-            <option value="Bank Transfer">Bank Transfer</option>
-          </select>
-        </div>
       </div>
 
       <div className="form-row">
-        {formData.modeOfPayment === "Cheque" ? (
-          <>
-            <div className="form-group">
-              <label>Cheque Number *</label>
-              <input
-                type="text"
-                placeholder="Enter cheque number"
-                value={formData.chequeNumber}
-                onChange={(e) => handleInputChange('chequeNumber', e.target.value)}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Description</label>
-              <textarea
-                placeholder="Enter disbursement description (optional)"
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                rows="3"
-              />
-            </div>
-          </>
-        ) : (
-          <div className="form-group full-width">
-            <label>Description</label>
-            <textarea
-              placeholder="Enter disbursement description (optional)"
-              value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              rows="3"
+        <div className="form-group">
+          <label>Payment Mode *</label>
+          {formData.modeOfPayment === "Cheque" && (
+            <small className="cheque-hint">
+              Enter Cheque Number
+              <button
+                type="button"
+                className="cancel-cheque-btn"
+                onClick={() => {
+                  handleInputChange('modeOfPayment', 'Cash');
+                  handleInputChange('chequeNumber', '');
+                }}
+                title="Change payment method"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </small>
+          )}
+          {formData.modeOfPayment === "Cheque" ? (
+            <input
+              type="text"
+              placeholder="Enter cheque number"
+              value={formData.chequeNumber}
+              onChange={(e) => handleInputChange('chequeNumber', e.target.value)}
+              required
+              className="cheque-number-input"
             />
-          </div>
-        )}
+          ) : (
+            <select
+              value={formData.modeOfPayment}
+              onChange={(e) => handleInputChange('modeOfPayment', e.target.value)}
+              required
+            >
+              <option value="Cash">Cash</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+          )}
+        </div>
+        <div className="form-group">
+          <label>Description</label>
+          <textarea
+            placeholder="Enter disbursement description (optional)"
+            value={formData.description}
+            onChange={(e) => handleInputChange('description', e.target.value)}
+            rows="2"
+          />
+        </div>
       </div>
 
       <div className="form-actions">
@@ -1663,34 +1767,19 @@ const IssueMoney = () => {
       {/* Disbursement Form Modal */}
       {showFormModal && (
         <div className="modal-overlay" onClick={() => setShowFormModal(false)}>
-          <div className="modal-content xl" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+          <div className="modal-content modal-content-compact xl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header modal-header-compact">
               <h3><i className="fas fa-plus-circle"></i> Create New Disbursement</h3>
-              <div className="modal-header-actions">
-                <button
-                  type="button"
-                  className="refresh-btn"
-                  onClick={() => {
-                    queryClient.invalidateQueries({ queryKey: ['disbursements'] });
-                    queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
-                  }}
-                  disabled={loading}
-                  title="Refresh fund balances"
-                >
-                  <i className="fas fa-sync-alt"></i>
-                </button>
-                <button className="modal-close" onClick={() => setShowFormModal(false)}>
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
+              <button className="modal-close" onClick={() => setShowFormModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
             </div>
-            <div className="modal-body">
+            <div className="modal-body modal-body-compact">
               {renderDisbursementForm()}
             </div>
           </div>
         </div>
       )}
-
       {/* Recent Disbursements */}
       <div className="recent-disbursements-section">
         <div className="section-header">

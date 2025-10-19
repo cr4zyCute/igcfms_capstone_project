@@ -1,21 +1,19 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useCheques, useCreateCheque } from "../../hooks/useCheques";
+import { useDisbursements } from "../../hooks/useDisbursements";
+import { useFundAccounts } from "../../hooks/useFundAccounts";
+import IssueChequeSkeleton from "../ui/chequeSL";
 import AverageClearanceTime from "../analytics/chequeAnalysis/AverageClearanceTime";
 import ChequeProcessingAccuracyRate from "../analytics/chequeAnalysis/ChequeProcessingAccuracyRate";
 import ChequeReconciliationRate from "../analytics/chequeAnalysis/ChequeReconciliationRate";
 import OutstandingChequesRatio from "../analytics/chequeAnalysis/OutstandingChequesRatio";
-import IssueChequeSkeleton from "../ui/chequeSL";
-import {
-  useCheques,
-  useDisbursementTransactions,
-  useFundAccounts,
-  useCreateCheque
-} from '../../hooks/useCheques';
+import { ErrorModal, SuccessModal } from "../common/Modals/IssueChequeModals";
 import "./css/issuecheque.css";
 import "./css/cheque-styles.css";
 
 const IssueCheque = () => {
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [filteredCheques, setFilteredCheques] = useState([]);
 
   // TanStack Query hooks
@@ -29,13 +27,15 @@ const IssueCheque = () => {
     data: disbursements = [],
     isLoading: disbursementsLoading,
     error: disbursementsError
-  } = useDisbursementTransactions();
+  } = useDisbursements();
 
   const {
-    data: fundAccounts = [],
+    data: fundAccountsData,
     isLoading: fundAccountsLoading,
     error: fundAccountsError
   } = useFundAccounts();
+  
+  const fundAccounts = fundAccountsData?.data || [];
 
   const createChequeMutation = useCreateCheque();
 
@@ -76,8 +76,14 @@ const IssueCheque = () => {
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [openActionMenu, setOpenActionMenu] = useState(null);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [fundAccountSearch, setFundAccountSearch] = useState("");
+  const [showFundAccountDropdown, setShowFundAccountDropdown] = useState(false);
+  const [disbursementSearch, setDisbursementSearch] = useState("");
+  const [showDisbursementDropdown, setShowDisbursementDropdown] = useState(false);
   const miniGraphRef = useRef(null);
   const exportDropdownRef = useRef(null);
+  const fundAccountDropdownRef = useRef(null);
+  const disbursementDropdownRef = useRef(null);
 
   useEffect(() => {
     applyFilters();
@@ -94,6 +100,12 @@ const IssueCheque = () => {
       }
       if (!event.target.closest('.action-menu-container')) {
         setOpenActionMenu(null);
+      }
+      if (fundAccountDropdownRef.current && !fundAccountDropdownRef.current.contains(event.target)) {
+        setShowFundAccountDropdown(false);
+      }
+      if (disbursementDropdownRef.current && !disbursementDropdownRef.current.contains(event.target)) {
+        setShowDisbursementDropdown(false);
       }
     };
 
@@ -153,7 +165,7 @@ const IssueCheque = () => {
   // Show helpful message if no disbursements exist
   useEffect(() => {
     if (!disbursementsLoading && disbursements.length === 0) {
-      setError("No disbursement transactions found. Please create disbursement transactions using 'Issue Money' first before issuing cheques.");
+      setErrorMessage("No disbursement transactions found. Please create disbursement transactions using 'Issue Money' first before issuing cheques.");
     }
   }, [disbursements, disbursementsLoading]);
 
@@ -243,16 +255,12 @@ const IssueCheque = () => {
 
   const showMessage = (message, type = 'success') => {
     if (type === 'success') {
-      setSuccess(message);
-      setError("");
+      setSuccessMessage(message);
+      setErrorMessage("");
     } else {
-      setError(message);
-      setSuccess("");
+      setErrorMessage(message);
+      setSuccessMessage("");
     }
-    setTimeout(() => {
-      setSuccess("");
-      setError("");
-    }, 5000);
   };
 
   const validateForm = () => {
@@ -304,9 +312,6 @@ const IssueCheque = () => {
   };
 
   const confirmIssueCheque = async () => {
-    setShowIssueModal(false);
-    setShowIssueFormModal(false);
-    
     const payload = {
       transaction_id: parseInt(formData.disbursementId),
       payee_name: formData.payeeName.trim(),
@@ -322,6 +327,10 @@ const IssueCheque = () => {
 
     createChequeMutation.mutate(payload, {
       onSuccess: (response) => {
+        // Close modals after successful mutation
+        setShowIssueModal(false);
+        setShowIssueFormModal(false);
+        
         setChequeResult({
           id: response.id || response.data?.id,
           chequeNumber: formData.chequeNumber,
@@ -352,6 +361,10 @@ const IssueCheque = () => {
         setShowSuccessModal(true);
       },
       onError: (err) => {
+        // Close modals on error too
+        setShowIssueModal(false);
+        setShowIssueFormModal(false);
+        
         console.error("Error issuing cheque:", err);
         if (err.response?.status === 422 && err.response.data?.errors) {
           const errorMessages = Object.values(err.response.data.errors)
@@ -414,6 +427,43 @@ const IssueCheque = () => {
   // Get unique bank names for filter
   const uniqueBankNames = [...new Set(cheques.map(c => c.bank_name).filter(Boolean))];
 
+  // Filter fund accounts based on search
+  const filteredFundAccounts = fundAccounts.filter(account => {
+    const searchLower = fundAccountSearch.toLowerCase();
+    return (
+      account.name?.toLowerCase().includes(searchLower) ||
+      account.balance?.toString().includes(searchLower)
+    );
+  });
+
+  // Get selected fund account name for display
+  const selectedFundAccount = fundAccounts.find(acc => acc.id.toString() === formData.fundAccountId);
+  const fundAccountDisplayText = selectedFundAccount 
+    ? `${selectedFundAccount.name} - ₱${parseFloat(selectedFundAccount.balance || 0).toLocaleString()}`
+    : "-- Select Fund Account --";
+
+  // Filter disbursements based on search
+  const filteredDisbursements = disbursements.filter(transaction => {
+    const searchLower = disbursementSearch.toLowerCase();
+    return (
+      transaction.id?.toString().includes(searchLower) ||
+      transaction.recipient?.toLowerCase().includes(searchLower) ||
+      transaction.description?.toLowerCase().includes(searchLower) ||
+      transaction.amount?.toString().includes(searchLower)
+    );
+  });
+
+  // Get selected disbursement for display
+  const selectedDisbursement = disbursements.find(d => d.id.toString() === formData.disbursementId);
+  const disbursementDisplayValue = selectedDisbursement && !showDisbursementDropdown
+    ? `#${selectedDisbursement.id} - ${selectedDisbursement.recipient || selectedDisbursement.description || 'N/A'} - ₱${parseFloat(selectedDisbursement.amount || 0).toLocaleString()}`
+    : disbursementSearch;
+
+  // Get selected fund account for display
+  const fundAccountDisplayValue = selectedFundAccount && !showFundAccountDropdown
+    ? `${selectedFundAccount.name} - ₱${parseFloat(selectedFundAccount.balance || 0).toLocaleString()}`
+    : fundAccountSearch;
+
   // Memoize KPI components to prevent re-render on action menu state changes
   const memoizedAverageClearanceTime = useMemo(() => <AverageClearanceTime cheques={cheques} />, [cheques]);
   const memoizedProcessingAccuracy = useMemo(() => <ChequeProcessingAccuracyRate cheques={cheques} />, [cheques]);
@@ -446,19 +496,17 @@ const IssueCheque = () => {
         </div>
       </div>
 
-      {error && (
-        <div className="ic-error-banner">
-          <i className="fas fa-exclamation-triangle"></i>
-          {error}
-        </div>
-      )}
+      {/* Error Modal */}
+      <ErrorModal 
+        message={errorMessage} 
+        onClose={() => setErrorMessage("")} 
+      />
 
-      {success && (
-        <div className="ic-success-banner">
-          <i className="fas fa-check-circle"></i>
-          {success}
-        </div>
-      )}
+      {/* Success Modal */}
+      <SuccessModal 
+        message={successMessage} 
+        onClose={() => setSuccessMessage("")} 
+      />
 
       {/* Dashboard Layout */}
       <div className="ic-dashboard-grid">
@@ -856,7 +904,7 @@ const IssueCheque = () => {
 
       {/* Confirmation Modal */}
       {showIssueModal && (
-        <div className="ic-modal-overlay" onClick={() => setShowIssueModal(false)}>
+        <div className="ic-modal-overlay ic-confirmation-modal-overlay" onClick={() => setShowIssueModal(false)}>
           <div className="ic-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="ic-modal-header">
               <h3><i className="fas fa-question-circle"></i> Confirm Cheque Issue</h3>
@@ -920,7 +968,9 @@ const IssueCheque = () => {
                 disabled={mutationLoading}
               >
                 {mutationLoading ? (
-                  <i className="fas fa-spinner fa-spin"></i>
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i> Processing...
+                  </>
                 ) : (
                   <>
                     <i className="fas fa-check"></i> Issue Cheque
@@ -1150,18 +1200,58 @@ const IssueCheque = () => {
               <form onSubmit={handleSubmit} className="ic-cheque-form">
                 <div className="ic-form-group">
                   <label>Select Disbursement Transaction *</label>
-                  <select
-                    value={formData.disbursementId}
-                    onChange={(e) => handleInputChange('disbursementId', e.target.value)}
-                    required
-                  >
-                    <option value="">-- Select Transaction --</option>
-                    {disbursements.map((transaction) => (
-                      <option key={transaction.id} value={transaction.id}>
-                        #{transaction.id} - ₱{parseFloat(transaction.amount || 0).toLocaleString()} - {transaction.recipient || transaction.description || 'N/A'}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="disbursement-searchable-select" ref={disbursementDropdownRef}>
+                    <div className="disbursement-search-wrapper-main">
+                      <input
+                        type="text"
+                        className="disbursement-search-input-main"
+                        placeholder="Search disbursement transactions..."
+                        value={disbursementDisplayValue}
+                        onChange={(e) => {
+                          setDisbursementSearch(e.target.value);
+                          if (!showDisbursementDropdown) {
+                            setShowDisbursementDropdown(true);
+                          }
+                        }}
+                        onFocus={() => {
+                          setShowDisbursementDropdown(true);
+                          if (formData.disbursementId) {
+                            setDisbursementSearch('');
+                          }
+                        }}
+                      />
+                      <i className="fas fa-search disbursement-search-icon-main"></i>
+                    </div>
+                    {showDisbursementDropdown && (
+                      <div className="disbursement-dropdown">
+                        <div className="disbursement-options">
+                          {filteredDisbursements.length > 0 ? (
+                            filteredDisbursements.map((transaction) => (
+                              <div 
+                                key={transaction.id}
+                                className={`disbursement-option ${formData.disbursementId === transaction.id.toString() ? 'selected' : ''}`}
+                                onClick={() => {
+                                  handleInputChange('disbursementId', transaction.id.toString());
+                                  setShowDisbursementDropdown(false);
+                                  setDisbursementSearch('');
+                                }}
+                              >
+                                <div className="disbursement-option-content">
+                                  <span className="disbursement-id">#{transaction.id}</span>
+                                  <span className="disbursement-recipient">{transaction.recipient || transaction.description || 'N/A'}</span>
+                                </div>
+                                <span className="disbursement-amount">₱{parseFloat(transaction.amount || 0).toLocaleString()}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="disbursement-option no-results">
+                              <span>No transactions found</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="ic-form-row">
@@ -1178,17 +1268,55 @@ const IssueCheque = () => {
                   </div>
                   <div className="ic-form-group">
                     <label>Fund Account</label>
-                    <select
-                      value={formData.fundAccountId}
-                      onChange={(e) => handleInputChange('fundAccountId', e.target.value)}
-                    >
-                      <option value="">-- Select Fund Account --</option>
-                      {fundAccounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name} - ₱{parseFloat(account.balance || 0).toLocaleString()}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="fund-account-searchable-select" ref={fundAccountDropdownRef}>
+                      <div className="fund-account-search-wrapper-main">
+                        <input
+                          type="text"
+                          className="fund-account-search-input-main"
+                          placeholder="Search fund accounts..."
+                          value={fundAccountDisplayValue}
+                          onChange={(e) => {
+                            setFundAccountSearch(e.target.value);
+                            if (!showFundAccountDropdown) {
+                              setShowFundAccountDropdown(true);
+                            }
+                          }}
+                          onFocus={() => {
+                            setShowFundAccountDropdown(true);
+                            if (formData.fundAccountId) {
+                              setFundAccountSearch('');
+                            }
+                          }}
+                        />
+                        <i className="fas fa-search fund-account-search-icon-main"></i>
+                      </div>
+                      {showFundAccountDropdown && (
+                        <div className="fund-account-dropdown">
+                          <div className="fund-account-options">
+                            {filteredFundAccounts.length > 0 ? (
+                              filteredFundAccounts.map((account) => (
+                                <div 
+                                  key={account.id}
+                                  className={`fund-account-option ${formData.fundAccountId === account.id.toString() ? 'selected' : ''}`}
+                                  onClick={() => {
+                                    handleInputChange('fundAccountId', account.id.toString());
+                                    setShowFundAccountDropdown(false);
+                                    setFundAccountSearch('');
+                                  }}
+                                >
+                                  <span className="fund-account-name">{account.name}</span>
+                                  <span className="fund-account-balance">₱{parseFloat(account.balance || 0).toLocaleString()}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="fund-account-option no-results">
+                                <span>No fund accounts found</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
