@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import axios from 'axios';
+import API_BASE_URL from '../../config/api';
 import "../admin/css/home.css";
-import axios from "axios";
 import LoadingSpinner, { StatsSkeleton, CardSkeleton, TableSkeleton } from "../common/LoadingSpinner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -41,7 +42,7 @@ const DashboardHome = () => {
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef(null);
 
-  const API_BASE = "/api";
+  const API_BASE = API_BASE_URL;
 
   useEffect(() => {
     const fetchDashboardData = async () => {

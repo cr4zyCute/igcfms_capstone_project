@@ -86,19 +86,124 @@ const OverrideRequestTrendanalaytics = ({
       let labels = [];
       let dataPoints = [];
 
-      if (requestDates.length === 0) {
-        labels.push(today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-        dataPoints.push(0);
+      if (timeRange === 'weekly') {
+        // Weekly view - start from first request week, show future weeks
+        if (requestDates.length === 0) {
+          // No data - show last 4 weeks
+          const weekInMs = 7 * dayInMs;
+          let currentWeekStart = new Date(today.getTime() - 3 * weekInMs);
+          
+          for (let i = 0; i < 4; i++) {
+            const weekLabel = `${currentWeekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+            labels.push(weekLabel);
+            dataPoints.push(0);
+            currentWeekStart = new Date(currentWeekStart.getTime() + weekInMs);
+          }
+        } else {
+          const firstRequestDate = requestDates[0];
+          const weekInMs = 7 * dayInMs;
+          
+          // Start from first request week
+          let currentWeekStart = new Date(firstRequestDate);
+          
+          // Show 4 weeks into the future
+          const futureWeeks = 4;
+          const endDate = new Date(today.getTime() + futureWeeks * weekInMs);
+          
+          // Generate weeks from first request to future
+          while (currentWeekStart <= endDate) {
+            let weekCount = 0;
+            const isFutureWeek = currentWeekStart > today;
+            
+            if (!isFutureWeek) {
+              for (let d = 0; d < 7; d++) {
+                const checkDate = new Date(currentWeekStart.getTime() + d * dayInMs);
+                if (checkDate > today) break; // Don't count future dates in current week
+                const key = formatDateKey(checkDate);
+                weekCount += requestCountsByDay.get(key) || 0;
+              }
+            }
+            
+            const weekLabel = `${currentWeekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+            labels.push(weekLabel);
+            dataPoints.push(isFutureWeek ? null : weekCount);
+            
+            // Move to next week
+            currentWeekStart = new Date(currentWeekStart.getTime() + weekInMs);
+          }
+        }
+      } else if (timeRange === 'monthly') {
+        // Monthly view - start from first request month, show future months
+        if (requestDates.length === 0) {
+          // No data - show last 3 months
+          let currentMonth = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+          
+          for (let i = 0; i < 3; i++) {
+            const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            labels.push(monthLabel);
+            dataPoints.push(0);
+            currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+          }
+        } else {
+          const firstRequestDate = requestDates[0];
+          
+          // Start from the first day of the month of first request
+          let currentMonth = new Date(firstRequestDate.getFullYear(), firstRequestDate.getMonth(), 1);
+          const currentMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
+          
+          // Show 3 months into the future
+          const futureMonths = 3;
+          const endMonth = new Date(today.getFullYear(), today.getMonth() + futureMonths, 1);
+          
+          // Generate months from first request to future
+          while (currentMonth <= endMonth) {
+            const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+            const isFutureMonth = currentMonth > currentMonthDate;
+            
+            let monthCount = 0;
+            if (!isFutureMonth) {
+              let checkDate = new Date(currentMonth);
+              while (checkDate < nextMonth && checkDate <= today) {
+                const key = formatDateKey(checkDate);
+                monthCount += requestCountsByDay.get(key) || 0;
+                checkDate.setDate(checkDate.getDate() + 1);
+              }
+            }
+            
+            const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            labels.push(monthLabel);
+            dataPoints.push(isFutureMonth ? null : monthCount);
+            
+            // Move to next month
+            currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+          }
+        }
       } else {
-        const startDate = requestDates[0];
-        const endDate = today > requestDates[requestDates.length - 1] ? today : requestDates[requestDates.length - 1];
-        const totalDays = Math.max(0, Math.round((endDate - startDate) / dayInMs));
+        // Daily view (default)
+        // Start from the earliest request date (or 30 days ago if no data)
+        let startDate;
+        if (requestDates.length === 0) {
+          // No data - show last 30 days
+          startDate = new Date(today.getTime() - 29 * dayInMs);
+        } else {
+          // Start from first request date
+          startDate = requestDates[0];
+        }
 
+        // End 7 days in the future to show upcoming dates
+        const futureDays = 7;
+        const endDate = new Date(today.getTime() + futureDays * dayInMs);
+        const totalDays = Math.round((endDate - startDate) / dayInMs);
+
+        // Generate all dates from start to future
         for (let i = 0; i <= totalDays; i++) {
           const currentDate = new Date(startDate.getTime() + i * dayInMs);
           const key = formatDateKey(currentDate);
+          const isFuture = currentDate > today;
+          
           labels.push(currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-          dataPoints.push(requestCountsByDay.get(key) || 0);
+          // Future dates have null (no line), past/today dates show count
+          dataPoints.push(isFuture ? null : (requestCountsByDay.get(key) || 0));
         }
       }
 
@@ -192,7 +297,9 @@ const OverrideRequestTrendanalaytics = ({
                 font: { size: 11, weight: '600' },
                 padding: 8,
                 maxRotation: 0,
-                minRotation: 0
+                minRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 15
               },
               grid: {
                 color: 'rgba(17, 24, 39, 0.06)',
@@ -235,13 +342,6 @@ const OverrideRequestTrendanalaytics = ({
         
         <div className="ot-timeline-controls">
           <div className="time-range-selector">
-            <button 
-              className={`time-range-btn ${timeRange === 'hourly' ? 'active' : ''}`}
-              onClick={() => setTimeRange('hourly')}
-              title="View hourly trends for same-day monitoring"
-            >
-              Hourly
-            </button>
             <button 
               className={`time-range-btn ${timeRange === 'daily' ? 'active' : ''}`}
               onClick={() => setTimeRange('daily')}

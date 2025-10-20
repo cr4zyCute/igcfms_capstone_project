@@ -4,20 +4,39 @@ import './css/totalminigraph.css';
 const TotalMiniGraph = ({ overrideRequests = [] }) => {
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
-  // Use real data from override requests
-  const dailyData = overrideRequests.reduce((acc, item) => {
-    const date = new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    if (!acc[date]) {
-      acc[date] = 0;
-    }
-    acc[date] += 1;
-    return acc;
-  }, {});
-  
-  // Get last 7 days
-  const sortedDates = Object.keys(dailyData).slice(-7);
-  const values = sortedDates.map(date => dailyData[date]);
-  const dates = sortedDates;
+  // Use real data from override requests - HOURLY for today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Filter requests from today only
+  const todayRequests = overrideRequests.filter(item => {
+    const requestDate = new Date(item.created_at);
+    return requestDate >= today && requestDate < tomorrow;
+  });
+
+  // Group by hour (0-23)
+  const hourlyData = {};
+  for (let hour = 0; hour < 24; hour++) {
+    hourlyData[hour] = 0;
+  }
+
+  todayRequests.forEach(item => {
+    const hour = new Date(item.created_at).getHours();
+    hourlyData[hour] += 1;
+  });
+
+  // Get all 24 hours
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const values = hours.map(hour => hourlyData[hour]);
+  const dates = hours.map(hour => {
+    // Format as 12-hour time: 12am, 1am, 2am... 12pm, 1pm...
+    if (hour === 0) return '12am';
+    if (hour < 12) return `${hour}am`;
+    if (hour === 12) return '12pm';
+    return `${hour - 12}pm`;
+  });
   
   if (values.length === 0) {
     return <div className="no-graph-data">No data available</div>;
@@ -79,9 +98,10 @@ const TotalMiniGraph = ({ overrideRequests = [] }) => {
               x={paddingLeft - 10}
               y={y + 4}
               textAnchor="end"
-              fill="#666666"
-              fontSize="11"
-              fontWeight="500"
+              fill="#374151"
+              fontSize="13"
+              fontWeight="600"
+              fontFamily="'Inter', 'Segoe UI', system-ui, sans-serif"
             >
               {label}
             </text>
@@ -130,18 +150,23 @@ const TotalMiniGraph = ({ overrideRequests = [] }) => {
           );
         })}
         
-        {/* X-axis labels (dates) */}
+        {/* X-axis labels (hours) - show every 3 hours */}
         {dates.map((date, index) => {
           const x = paddingLeft + (index / (values.length - 1 || 1)) * chartWidth;
+          // Show labels for 12am, 3am, 6am, 9am, 12pm, 3pm, 6pm, 9pm
+          const shouldShow = index % 3 === 0;
+          if (!shouldShow) return null;
+          
           return (
             <text
               key={`xlabel-${index}`}
               x={x}
               y={height - 5}
               textAnchor="middle"
-              fill="#666666"
-              fontSize="10"
-              fontWeight="500"
+              fill="#374151"
+              fontSize="12"
+              fontWeight="600"
+              fontFamily="'Inter', 'Segoe UI', system-ui, sans-serif"
             >
               {date}
             </text>
@@ -170,8 +195,9 @@ const TotalMiniGraph = ({ overrideRequests = [] }) => {
                 y={textY}
                 textAnchor="middle"
                 fill="#ffffff"
-                fontSize="11"
+                fontSize="12"
                 fontWeight="700"
+                fontFamily="'Inter', 'Segoe UI', system-ui, sans-serif"
               >
                 {hoveredPoint.date}
               </text>
@@ -180,8 +206,9 @@ const TotalMiniGraph = ({ overrideRequests = [] }) => {
                 y={textY + 10}
                 textAnchor="middle"
                 fill="#ffffff"
-                fontSize="10"
+                fontSize="11"
                 fontWeight="600"
+                fontFamily="'Inter', 'Segoe UI', system-ui, sans-serif"
               >
                 {hoveredPoint.value} requests
               </text>

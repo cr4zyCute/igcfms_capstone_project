@@ -41,7 +41,7 @@ const GenerateReports = () => {
   const [selectedReport, setSelectedReport] = useState(null);
   const [reportResult, setReportResult] = useState(null);
 
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = require('../../config/api').default;
   const token = localStorage.getItem("token");
 
   useEffect(() => {

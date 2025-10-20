@@ -1,23 +1,76 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
 import "./css/notificationbar.css";
+import { useNotifications, useMarkAsRead, useMarkAllAsRead } from '../../hooks/useNotifications';
 
 const NotificationBar = () => {
   const [selectedNotification, setSelectedNotification] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState("all");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const filterDropdownRef = useRef(null);
+  const hasProcessedLocalStorage = useRef(false); // Track if we've processed localStorage
 
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const API_BASE = "http://localhost:8000/api";
   const token = localStorage.getItem("token");
 
+  // TanStack Query hooks
+  const {
+    data: notifications = [],
+    isLoading: notificationsLoading,
+    isFetching: notificationsFetching,
+    error: notificationsError
+  } = useNotifications({ enabled: !!token });
+
+  // Only show loading if we have no data AND we're loading
+  // If we have cached data, show it immediately (no loading state)
+  const showLoading = notificationsLoading && notifications.length === 0;
+
+  const markAsReadMutation = useMarkAsRead();
+  const markAllAsReadMutation = useMarkAllAsRead();
+
+  // Track the last processed notification ID to avoid re-processing
+  const lastProcessedIdRef = useRef(null);
+
+  // Process localStorage selection when notifications are loaded
   useEffect(() => {
-    fetchNotifications();
-  }, []);
+    const selectedNotificationId = localStorage.getItem('igcfms_selectedNotificationId');
+    
+    // Process if:
+    // 1. We have notifications
+    // 2. There's a notification ID in localStorage (new selection from bell)
+    // 3. It's a different ID than the last one we processed
+    if (notifications.length > 0 && selectedNotificationId && selectedNotificationId !== lastProcessedIdRef.current) {
+      // Reset the flag to allow processing
+      hasProcessedLocalStorage.current = false;
+      lastProcessedIdRef.current = selectedNotificationId;
+      processNotificationSelection(notifications);
+    } else if (notifications.length > 0 && !selectedNotification && !hasProcessedLocalStorage.current) {
+      // Auto-select first notification only on initial load
+      processNotificationSelection(notifications);
+    }
+  }, [notifications, selectedNotification]);
+
+  // Listen for notification selection events from the bell
+  useEffect(() => {
+    const handleNotificationSelected = (event) => {
+      const notificationId = event.detail.notificationId;
+      console.log('Received notificationSelected event:', notificationId);
+      
+      // Reset the last processed ID to force re-processing
+      lastProcessedIdRef.current = null;
+      hasProcessedLocalStorage.current = false;
+      
+      // Process the new selection
+      if (notifications.length > 0) {
+        processNotificationSelection(notifications);
+      }
+    };
+
+    window.addEventListener('notificationSelected', handleNotificationSelected);
+    return () => {
+      window.removeEventListener('notificationSelected', handleNotificationSelected);
+    };
+  }, [notifications]);
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -35,24 +88,53 @@ const NotificationBar = () => {
     };
   }, []);
 
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.get(`${API_BASE}/notifications`, { headers });
-      const notificationData = response.data.notifications || response.data || [];
-      setNotifications(notificationData);
+  const processNotificationSelection = (notificationData) => {
+    // Check if there's a selected notification ID from localStorage (clicked from bell)
+    // Only process localStorage once to prevent resetting
+    const selectedNotificationId = localStorage.getItem('igcfms_selectedNotificationId');
+    
+    console.log('Selected Notification ID from localStorage:', selectedNotificationId);
+    console.log('Available notifications:', notificationData.map(n => ({ id: n.id, type: typeof n.id })));
+    console.log('Has processed localStorage:', hasProcessedLocalStorage.current);
+    
+    if (selectedNotificationId && !hasProcessedLocalStorage.current) {
+      // Mark as processed immediately to prevent re-processing
+      hasProcessedLocalStorage.current = true;
       
-      // Auto-select first notification
-      if (notificationData.length > 0) {
-        setSelectedNotification(notificationData[0]);
+      // Try both string and number comparison
+      const clickedNotification = notificationData.find(
+        n => n.id.toString() === selectedNotificationId || n.id === parseInt(selectedNotificationId)
+      );
+      
+      console.log('Found clicked notification:', clickedNotification);
+      
+      if (clickedNotification) {
+        setSelectedNotification(clickedNotification);
+        // Clear the localStorage after selecting
+        localStorage.removeItem('igcfms_selectedNotificationId');
+        
+        // Mark the notification as read if it's unread
+        if (!clickedNotification.is_read && !clickedNotification.read) {
+          markNotificationAsRead(clickedNotification.id);
+        }
+        
+        // Scroll to the notification in the list after a short delay
+        setTimeout(() => {
+          const notificationElement = document.querySelector(`[data-notification-id="${clickedNotification.id}"]`);
+          if (notificationElement) {
+            notificationElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      } else {
+        console.log('Notification not found, selecting first one');
+        if (notificationData.length > 0) {
+          setSelectedNotification(notificationData[0]);
+        }
       }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      // Fallback to empty array if API fails
-      setNotifications([]);
-    } finally {
-      setLoading(false);
+    } else if (notificationData.length > 0 && !selectedNotification && !hasProcessedLocalStorage.current) {
+      // Auto-select first notification only if no notification is selected and localStorage wasn't processed
+      hasProcessedLocalStorage.current = true;
+      setSelectedNotification(notificationData[0]);
     }
   };
 
@@ -110,18 +192,19 @@ const NotificationBar = () => {
     return filtered;
   };
 
-  const markAsRead = (notificationId) => {
-    setNotifications(prev => 
-      prev.map(n => 
-        n.id === notificationId ? { ...n, read: true } : n
-      )
-    );
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      await markAsReadMutation.mutateAsync(notificationId);
+      console.log('Notification marked as read:', notificationId);
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
   const handleNotificationClick = (notification) => {
     setSelectedNotification(notification);
-    if (!notification.read) {
-      markAsRead(notification.id);
+    if (!notification.read && !notification.is_read) {
+      markNotificationAsRead(notification.id);
     }
   };
 
@@ -220,6 +303,11 @@ const NotificationBar = () => {
         <h2 className="page-title">
           <i className="fas fa-bell"></i>
           Notifications
+          {notificationsFetching && notifications.length > 0 && (
+            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#64748b' }}>
+              <i className="fas fa-sync fa-spin" style={{ fontSize: '10px' }}></i> Updating...
+            </span>
+          )}
         </h2>
         <div className="header-actions">
           <button className="mark-all-read-btn">
@@ -279,7 +367,7 @@ const NotificationBar = () => {
             </div>
 
             <div className="notification-items">
-              {loading ? (
+              {showLoading ? (
                 <div className="loading-state">
                   <i className="fas fa-spinner fa-spin"></i>
                   <p>Loading notifications...</p>
@@ -288,6 +376,7 @@ const NotificationBar = () => {
                 getFilteredNotifications().map((notification) => (
                   <div
                     key={notification.id}
+                    data-notification-id={notification.id}
                     className={`notification-item ${
                       selectedNotification?.id === notification.id ? "selected" : ""
                     } ${!(notification.is_read || notification.read) ? "unread" : ""}`}

@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import API_BASE_URL from '../config/api';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API_BASE = API_BASE_URL;
 
 // Query keys for consistent cache management
 export const DISBURSEMENTS_KEYS = {

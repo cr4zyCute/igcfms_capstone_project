@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
+import API_BASE_URL from "../../config/api";
 import "./css/transactionmanagement.css";
 
 const TransactionManagement = () => {
@@ -45,7 +46,7 @@ const TransactionManagement = () => {
   });
   const [fundAccounts, setFundAccounts] = useState([]);
 
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = API_BASE_URL;
 
   useEffect(() => {
     fetchTransactionData();

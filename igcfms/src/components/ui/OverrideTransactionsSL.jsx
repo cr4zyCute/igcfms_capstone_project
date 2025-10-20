@@ -28,88 +28,60 @@ const OverrideTransactionsSL = () => {
       </div>
 
       {/* Dashboard Container Skeleton */}
-      <div className="ot-dashboard-container" style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '1fr 1fr', 
-        gap: '20px', 
-        marginBottom: '30px' 
-      }}>
+      <div className="ot-dashboard-container">
         {/* Left Column - Total Requests + Status Cards */}
-        <div className="ot-left-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="ot-left-column">
           {/* Total Requests Card Skeleton */}
-          <div className="ot-total-card skeleton-ot-card" style={{ 
-            background: '#fff', 
-            border: '2px solid #000000', 
-            borderRadius: '12px', 
-            padding: '20px' 
-          }}>
-            <div className="ot-total-wrapper" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="ot-total-info" style={{ flex: 1 }}>
-                <div style={{ marginBottom: '10px' }}>
+          <div className="ot-total-card">
+            <div className="ot-total-wrapper">
+              <div className="ot-total-info">
+                <div className="ot-card-header-inline" style={{ marginBottom: '12px' }}>
                   <SkeletonLine width="140px" height={14} />
                 </div>
-                <SkeletonLine width="80px" height={32} />
+                <SkeletonLine width="60px" height={36} style={{ marginBottom: '6px' }} />
+                <SkeletonLine width="120px" height={11} />
               </div>
-              <div className="ot-total-graph" style={{ width: '150px', height: '80px' }}>
+              <div className="ot-total-graph">
                 <SkeletonLine width="100%" height="100%" style={{ borderRadius: '4px' }} />
               </div>
             </div>
           </div>
 
           {/* Status Cards Row Skeleton */}
-          <div className="ot-status-cards-row" style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(3, 1fr)', 
-            gap: '15px' 
-          }}>
+          <div className="ot-status-cards-row">
             {/* Pending Card */}
-            <div className="ot-status-card skeleton-ot-card" style={{ 
-              background: '#fff', 
-              border: '2px solid #000000', 
-              borderRadius: '12px', 
-              padding: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '15px'
-            }}>
-              <SkeletonCircle size={48} />
-              <div style={{ flex: 1 }}>
-                <SkeletonLine width="100px" height={12} style={{ marginBottom: '8px' }} />
-                <SkeletonLine width="40px" height={24} />
+            <div className="ot-status-card">
+              <div className="ot-status-icon">
+                <SkeletonCircle size={48} />
+              </div>
+              <div className="ot-status-content">
+                <SkeletonLine width="110px" height={12} style={{ marginBottom: '8px' }} />
+                <SkeletonLine width="40px" height={28} style={{ marginBottom: '6px' }} />
+                <SkeletonLine width="100px" height={10} />
               </div>
             </div>
 
             {/* Approved Card */}
-            <div className="ot-status-card skeleton-ot-card" style={{ 
-              background: '#fff', 
-              border: '2px solid #000000', 
-              borderRadius: '12px', 
-              padding: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '15px'
-            }}>
-              <SkeletonCircle size={48} />
-              <div style={{ flex: 1 }}>
+            <div className="ot-status-card">
+              <div className="ot-status-icon">
+                <SkeletonCircle size={48} />
+              </div>
+              <div className="ot-status-content">
                 <SkeletonLine width="80px" height={12} style={{ marginBottom: '8px' }} />
-                <SkeletonLine width="40px" height={24} />
+                <SkeletonLine width="40px" height={28} style={{ marginBottom: '6px' }} />
+                <SkeletonLine width="90px" height={10} />
               </div>
             </div>
 
             {/* Rejected Card */}
-            <div className="ot-status-card skeleton-ot-card" style={{ 
-              background: '#fff', 
-              border: '2px solid #000000', 
-              borderRadius: '12px', 
-              padding: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '15px'
-            }}>
-              <SkeletonCircle size={48} />
-              <div style={{ flex: 1 }}>
+            <div className="ot-status-card">
+              <div className="ot-status-icon">
+                <SkeletonCircle size={48} />
+              </div>
+              <div className="ot-status-content">
                 <SkeletonLine width="70px" height={12} style={{ marginBottom: '8px' }} />
-                <SkeletonLine width="40px" height={24} />
+                <SkeletonLine width="40px" height={28} style={{ marginBottom: '6px' }} />
+                <SkeletonLine width="95px" height={10} />
               </div>
             </div>
           </div>
@@ -117,29 +89,37 @@ const OverrideTransactionsSL = () => {
 
         {/* Right Column - Pie Chart Skeleton */}
         <div className="ot-right-column">
-          <div className="ot-pie-card skeleton-ot-card" style={{ 
-            background: '#fff', 
-            border: '2px solid #000000', 
-            borderRadius: '12px', 
-            padding: '20px',
-            height: '100%'
-          }}>
-            <div className="ot-card-header" style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '2px solid #f1f5f9' }}>
+          <div className="ot-pie-card">
+            <div className="ot-card-header">
               <SkeletonLine width="180px" height={16} />
             </div>
-            <div className="ot-pie-chart" style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              gap: '20px',
-              paddingTop: '20px'
-            }}>
-              <SkeletonCircle size={180} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', alignItems: 'center' }}>
-                <SkeletonLine width="120px" height={12} />
-                <SkeletonLine width="100px" height={12} />
-                <SkeletonLine width="110px" height={12} />
+            <div className="ot-pie-chart">
+              {/* Pie chart with legend skeleton */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'flex-start',
+                gap: '40px',
+                padding: '24px 20px',
+                minHeight: '220px'
+              }}>
+                {/* Pie */}
+                <div style={{ flex: '0 0 180px' }}>
+                  <SkeletonCircle size={180} />
+                </div>
+                {/* Legend */}
+                <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <SkeletonLine width="100px" height={14} />
+                        <SkeletonLine width="50px" height={14} />
+                      </div>
+                      <SkeletonLine width="100%" height={6} style={{ borderRadius: '3px' }} />
+                      <SkeletonLine width="70px" height={12} />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -147,17 +127,23 @@ const OverrideTransactionsSL = () => {
       </div>
 
       {/* Request Timeline Graph Skeleton */}
-      <div className="skeleton-ot-card" style={{ 
+      <div className="ot-timeline-box" style={{ 
         background: '#fff', 
         border: '2px solid #000000', 
         borderRadius: '12px', 
         padding: '20px',
         marginBottom: '30px'
       }}>
-        <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '2px solid #f1f5f9' }}>
-          <SkeletonLine width="200px" height={18} />
+        <div className="ot-timeline-header" style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '2px solid #f1f5f9' }}>
+          <div className="ot-timeline-title-group">
+            <SkeletonLine width="320px" height={18} style={{ marginBottom: '8px' }} />
+            <SkeletonLine width="280px" height={12} />
+          </div>
+          <div className="ot-timeline-controls">
+            <SkeletonLine width="280px" height={36} style={{ borderRadius: '8px' }} />
+          </div>
         </div>
-        <div style={{ height: '250px' }}>
+        <div className="ot-timeline-content" style={{ height: '250px' }}>
           <SkeletonLine width="100%" height="100%" style={{ borderRadius: '8px' }} />
         </div>
       </div>

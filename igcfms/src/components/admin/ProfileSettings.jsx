@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import API_BASE_URL from "../../config/api";
 import "./css/profilesettings.css";
 
 const ProfileSettings = () => {
@@ -36,7 +37,7 @@ const ProfileSettings = () => {
     auditLogRetention: 365
   });
 
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = API_BASE_URL;
   const token = localStorage.getItem("token");
 
   useEffect(() => {

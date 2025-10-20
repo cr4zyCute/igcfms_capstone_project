@@ -1,22 +1,53 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
 import TotalMiniGraph from "../analytics/OverrideTransactionsAnalystics/totalminigraph";
 import RequestDistributionPieG from "../analytics/OverrideTransactionsAnalystics/RequestDistributionPieG";
 import BarGraph from "../analytics/OverrideTransactionsAnalystics/bargraph";
 import OverrideRequestTrendanalaytics from "../analytics/OverrideTransactionsAnalystics/OverrideRequestTrendanalaytics";
 import OverrideTransactionsSL from "../ui/OverrideTransactionsSL";
 import { SuccessModal, ErrorModal } from "../common/Modals/OverrideTransactionsModals";
+import {
+  useTransactions,
+  useOverrideRequests,
+  useMyOverrideRequests,
+  useCreateOverrideRequest,
+  useReviewOverrideRequest
+} from "../../hooks/useOverrideTransactions";
 import "./css/overridetransactions.css";
 
 const OverrideTransactions = ({ role = "Admin" }) => {
-  const [transactions, setTransactions] = useState([]);
-  const [overrideRequests, setOverrideRequests] = useState([]);
+  // TanStack Query hooks
+  const {
+    data: transactions = [],
+    isLoading: transactionsLoading,
+    error: transactionsError
+  } = useTransactions();
+
+  const {
+    data: adminOverrideRequests = [],
+    isLoading: adminRequestsLoading,
+    error: adminRequestsError
+  } = useOverrideRequests({ enabled: role === "Admin" });
+
+  const {
+    data: myOverrideRequests = [],
+    isLoading: myRequestsLoading,
+    error: myRequestsError
+  } = useMyOverrideRequests({ enabled: role !== "Admin" });
+
+  const createOverrideRequestMutation = useCreateOverrideRequest();
+  const reviewOverrideRequestMutation = useReviewOverrideRequest();
+
+  // Determine which override requests to use based on role
+  const overrideRequests = role === "Admin" ? adminOverrideRequests : myOverrideRequests;
+  const isInitialLoading = transactionsLoading || (role === "Admin" ? adminRequestsLoading : myRequestsLoading);
+  const mutationLoading = createOverrideRequestMutation.isPending || reviewOverrideRequestMutation.isPending;
+
+  // Local state
   const [filteredRequests, setFilteredRequests] = useState([]);
   const [selectedTransaction, setSelectedTransaction] = useState("");
   const [reason, setReason] = useState("");
   const [proposedChanges, setProposedChanges] = useState({});
   const [reviewNotes, setReviewNotes] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -38,16 +69,12 @@ const OverrideTransactions = ({ role = "Admin" }) => {
   });
 
   const [hoveredPoint, setHoveredPoint] = useState(null);
-
-  const API_BASE = "http://localhost:8000/api";
-  const token = localStorage.getItem("token");
-
-  useEffect(() => {
-    fetchData();
-  }, [token]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     applyFilters();
+    setCurrentPage(1); // Reset to first page when filters change
   }, [overrideRequests, filters]);
 
   // Click outside handler for transaction dropdown
@@ -62,47 +89,18 @@ const OverrideTransactions = ({ role = "Admin" }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        return;
-      }
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Fetch only what we need based on user role
-      if (role === "Admin") {
-        // Admin needs both transactions and override requests
-        const [transactionsRes, overrideRes] = await Promise.all([
-          axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${API_BASE}/override_requests`, { headers }).catch(() => ({ data: [] }))
-        ]);
-
-        setTransactions(transactionsRes.data || []);
-        const requests = overrideRes.data || [];
-        setOverrideRequests(requests);
-      } else {
-        // Cashier only needs transactions for creating requests
-        const transactionsRes = await axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] }));
-        setTransactions(transactionsRes.data || []);
-
-        // Get cashier's own requests
-        const overrideRes = await axios.get(`${API_BASE}/override_requests/my_requests`, { headers }).catch(() => ({ data: [] }));
-        const requests = overrideRes.data || [];
-        setOverrideRequests(requests);
-      }
-
-    } catch (err) {
-      console.error('Override transactions error:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
+  // Handle query errors
+  useEffect(() => {
+    if (transactionsError) {
+      setError(transactionsError.message || 'Failed to load transactions');
     }
-  };
+    if (adminRequestsError) {
+      setError(adminRequestsError.message || 'Failed to load override requests');
+    }
+    if (myRequestsError) {
+      setError(myRequestsError.message || 'Failed to load your override requests');
+    }
+  }, [transactionsError, adminRequestsError, myRequestsError]);
 
   const applyFilters = () => {
     let filtered = [...overrideRequests];
@@ -168,59 +166,43 @@ const OverrideTransactions = ({ role = "Admin" }) => {
   };
 
   // Submit override request
-  const handleSubmitOverride = (e) => {
+  const handleSubmitOverride = async (e) => {
     e.preventDefault();
-    e.stopPropagation(); // Prevent event bubbling
+    e.stopPropagation();
     
     if (!selectedTransaction || !reason.trim()) {
       showMessage("Please select a transaction and provide a reason.", 'error');
       return;
     }
 
-    if (loading) return; // Prevent double submission
+    if (mutationLoading) return; // Prevent double submission
 
-    // Start loading immediately
-    setLoading(true);
-    
-    // Use async IIFE to handle the request
-    (async () => {
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
+    const payload = {
+      transaction_id: parseInt(selectedTransaction),
+      reason: reason.trim(),
+      changes: proposedChanges
+    };
 
-        const payload = {
-          transaction_id: parseInt(selectedTransaction),
-          reason: reason.trim(),
-          changes: proposedChanges
-        };
-
-        // This will keep the modal open during the request
-        await axios.post(`${API_BASE}/transactions/override`, payload, { headers });
-
-        // Only after successful response:
-        // 1. Stop loading
-        // 2. Keep modal open
-        // 3. Clear form
-        // 4. Show success
-        setLoading(false);
-        // DO NOT CLOSE MODAL - setShowCreateModal(false);
-        
+    createOverrideRequestMutation.mutate(payload, {
+      onSuccess: () => {
         // Clear form fields
         setSelectedTransaction("");
         setReason("");
         setProposedChanges({});
         
-        // Show success message (modal stays open)
+        // Show success message
         showMessage("Override request submitted successfully!");
         
-        // Refresh data
-        fetchData();
-      } catch (err) {
+        // Close the modal after showing success message
+        setTimeout(() => {
+          setShowCreateModal(false);
+        }, 2000); // Close after 2 seconds to allow user to see the success message
+      },
+      onError: (err) => {
         console.error("Error:", err);
-        setLoading(false);
-        // Modal stays open on error so user can try again
         showMessage(err.response?.data?.message || "Failed to submit override request.", 'error');
       }
-    })();
+    });
   };
 
   // Admin review
@@ -230,28 +212,21 @@ const OverrideTransactions = ({ role = "Admin" }) => {
       return;
     }
 
-    setLoading(true);
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-
-      await axios.put(`${API_BASE}/override_requests/${requestId}/review`, {
-        status,
-        review_notes: reviewNotes.trim()
-      }, { headers });
-
-      showMessage(`Override request ${status} successfully!`);
-      setReviewNotes("");
-      setShowReviewModal(false);
-      setSelectedRequest(null);
-      
-      // Refresh data
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      showMessage(err.response?.data?.message || "Failed to review request.", 'error');
-    } finally {
-      setLoading(false);
-    }
+    reviewOverrideRequestMutation.mutate(
+      { requestId, status, review_notes: reviewNotes.trim() },
+      {
+        onSuccess: () => {
+          showMessage(`Override request ${status} successfully!`);
+          setReviewNotes("");
+          setShowReviewModal(false);
+          setSelectedRequest(null);
+        },
+        onError: (err) => {
+          console.error(err);
+          showMessage(err.response?.data?.message || "Failed to review request.", 'error');
+        }
+      }
+    );
   };
 
   const openReviewModal = (request) => {
@@ -276,7 +251,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
     ? `#${selectedTx.id} - ${selectedTx.type} - ₱${parseFloat(selectedTx.amount || 0).toLocaleString()} - ${selectedTx.description || 'No description'}`
     : transactionSearch;
 
-  if (loading) {
+  if (isInitialLoading) {
     return <OverrideTransactionsSL />;
   }
 
@@ -421,7 +396,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
       {/* Override Request Trend Analytics */}
       <OverrideRequestTrendanalaytics 
         overrideRequests={overrideRequests}
-        isLoading={loading}
+        isLoading={isInitialLoading}
         error={error}
       />
 
@@ -522,8 +497,15 @@ const OverrideTransactions = ({ role = "Admin" }) => {
               </tr>
             </thead>
             <tbody>
-              {filteredRequests.length > 0 ? (
-                filteredRequests.map((request) => (
+              {(() => {
+                // Calculate pagination
+                const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                const paginatedRequests = filteredRequests.slice(startIndex, endIndex);
+                
+                return paginatedRequests.length > 0 ? (
+                  paginatedRequests.map((request) => (
                   <tr 
                     key={request.id}
                     className={`table-row clickable-row ${openActionMenu === request.id ? 'row-active-menu' : ''}`}
@@ -626,18 +608,54 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="8" className="no-data">
-                    <i className="fas fa-inbox"></i>
-                    <p>No override requests found matching your criteria.</p>
-                  </td>
-                </tr>
-              )}
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="8" className="no-data">
+                      <i className="fas fa-inbox"></i>
+                      <p>No override requests found matching your criteria.</p>
+                    </td>
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Controls */}
+        {filteredRequests.length > 0 && (() => {
+          const totalItems = filteredRequests.length;
+          const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+          const displayStart = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+          const displayEnd = Math.min(currentPage * itemsPerPage, totalItems);
+          
+          return (
+            <div className="ot-table-pagination">
+              <div className="ot-pagination-info">
+                Showing {displayStart}-{displayEnd} of {totalItems} requests
+              </div>
+              <div className="ot-pagination-controls">
+                <button
+                  type="button"
+                  className="ot-pagination-button"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </button>
+                <span className="ot-pagination-info">Page {currentPage} of {totalPages}</span>
+                <button
+                  type="button"
+                  className="ot-pagination-button"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Create Override Request Modal */}
@@ -796,9 +814,9 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                   <button
                     type="submit"
                     className="submit-btn"
-                    disabled={loading}
+                    disabled={mutationLoading}
                   >
-                    {loading ? (
+                    {mutationLoading ? (
                       <>
                         <i className="fas fa-spinner fa-spin"></i> Processing...
                       </>
@@ -876,9 +894,9 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                   type="button"
                   className="reject-btn"
                   onClick={() => handleReview(selectedRequest.id, 'rejected')}
-                  disabled={loading}
+                  disabled={mutationLoading}
                 >
-                  {loading ? (
+                  {mutationLoading ? (
                     <i className="fas fa-spinner fa-spin"></i>
                   ) : (
                     <>
@@ -890,9 +908,9 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                   type="button"
                   className="approve-btn"
                   onClick={() => handleReview(selectedRequest.id, 'approved')}
-                  disabled={loading}
+                  disabled={mutationLoading}
                 >
-                  {loading ? (
+                  {mutationLoading ? (
                     <i className="fas fa-spinner fa-spin"></i>
                   ) : (
                     <>

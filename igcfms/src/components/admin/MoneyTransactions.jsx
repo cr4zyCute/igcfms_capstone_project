@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import API_BASE_URL from "../../config/api";
 import "./css/issuemoney.css";
 import notificationService from "../../services/notificationService";
 import balanceService from "../../services/balanceService";
@@ -29,7 +30,7 @@ const MoneyTransactions = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [transactionResult, setTransactionResult] = useState(null);
 
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = API_BASE_URL;
   const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
   const userId = localStorage.getItem("userId");
 

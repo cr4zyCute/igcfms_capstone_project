@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
+import API_BASE_URL from "../../config/api";
 import "./css/issuemoney.css";
 import balanceService from "../../services/balanceService";
 import { broadcastFundTransaction } from "../../services/fundTransactionChannel";
@@ -104,7 +105,7 @@ const IssueMoney = () => {
   const recipientAccountDropdownRef = useRef(null);
   const fundAccountDropdownRef = useRef(null);
 
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = API_BASE_URL;
   const token = localStorage.getItem("token");
   const userId = localStorage.getItem("userId");
 

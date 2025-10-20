@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import API_BASE_URL from "../../config/api";
 import "./css/viewtransactions.css";
 
 const ViewTransactions = ({ filterByAccountIds = null }) => {
@@ -30,7 +31,7 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
     totalItems: 0
   });
 
-  const API_BASE = "http://localhost:8000/api";
+  const API_BASE = API_BASE_URL;
 
   useEffect(() => {
     fetchTransactions();

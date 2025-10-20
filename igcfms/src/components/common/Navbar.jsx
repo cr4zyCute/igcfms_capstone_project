@@ -56,7 +56,7 @@ const Navbar = ({ userRole, user, onNavigate }) => {
       <div className="navbar-right">
 
         <div className="quick-actions">
-        <NotificationBell />
+        <NotificationBell onNavigate={onNavigate} />
         </div>
 
         {/* User Profile */}
