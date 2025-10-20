@@ -1,26 +1,12 @@
 import React from 'react';
 import './css/RequestDistributionPieG.css';
 
-const RequestDistributionPieG = ({ overrideRequests }) => {
-  // ============ MOCK DATA TOGGLE ============
-  const USE_MOCK_DATA = true; // Set to false to use real data
-  // ==========================================
-
-  let pendingCount, approvedCount, rejectedCount, total;
-
-  if (USE_MOCK_DATA) {
-    // Mock data for demonstration (matching the image percentages)
-    pendingCount = 50;  // 62.5%
-    approvedCount = 20; // 25%
-    rejectedCount = 10; // 12.5%
-    total = 80;
-  } else {
-    // Real data from override requests
-    pendingCount = overrideRequests.filter(req => req.status === 'pending').length;
-    approvedCount = overrideRequests.filter(req => req.status === 'approved').length;
-    rejectedCount = overrideRequests.filter(req => req.status === 'rejected').length;
-    total = overrideRequests.length || 1;
-  }
+const RequestDistributionPieG = ({ overrideRequests = [] }) => {
+  // Use real data from override requests
+  const pendingCount = overrideRequests.filter(req => req.status === 'pending').length;
+  const approvedCount = overrideRequests.filter(req => req.status === 'approved').length;
+  const rejectedCount = overrideRequests.filter(req => req.status === 'rejected').length;
+  const total = overrideRequests.length || 1;
 
   const pendingPercent = (pendingCount / total) * 100;
   const approvedPercent = (approvedCount / total) * 100;
@@ -62,7 +48,47 @@ const RequestDistributionPieG = ({ overrideRequests }) => {
   let cumulativePercentage = 0;
 
   return (
-    <div className="pie-chart-wrapper">
+    <div className="pie-chart-wrapper" style={{ position: 'relative' }}>
+      {/* Show "No Data" message if there are no override requests */}
+      {(overrideRequests.length === 0 || data.length === 0) && (
+        <div style={{ 
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          zIndex: 10,
+          pointerEvents: 'none'
+        }}>
+          <i className="fas fa-chart-pie" style={{ 
+            fontSize: '48px', 
+            color: '#d1d5db', 
+            marginBottom: '16px' 
+          }}></i>
+          <p style={{ 
+            fontSize: '14px', 
+            color: '#6b7280', 
+            fontWeight: '500',
+            margin: 0,
+            textAlign: 'center',
+            whiteSpace: 'nowrap'
+          }}>
+            No override requests data available
+          </p>
+          <p style={{ 
+            fontSize: '12px', 
+            color: '#9ca3af', 
+            margin: '8px 0 0 0',
+            textAlign: 'center',
+            whiteSpace: 'nowrap'
+          }}>
+            Data will appear here once override requests are created
+          </p>
+        </div>
+      )}
       <svg width="100%" height="100%" viewBox={`${-padding} ${-padding} ${svgSize + padding * 2} ${svgSize + padding * 2}`} className="pie-svg">
         {data.map((item, index) => {
           const startAngle = (cumulativePercentage / 100) * 2 * Math.PI - Math.PI / 2;

@@ -1,46 +1,23 @@
 import React, { useState } from 'react';
 import './css/totalminigraph.css';
 
-const TotalMiniGraph = ({ overrideRequests }) => {
+const TotalMiniGraph = ({ overrideRequests = [] }) => {
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
-  // ============ MOCK DATA TOGGLE ============
-  const USE_MOCK_DATA = true; // Set to false to use real data
-  // ==========================================
-
-  let dailyData, sortedDates, values, dates;
-
-  if (USE_MOCK_DATA) {
-    // Mock data for demonstration
-    const mockData = {
-      'Oct 13': 2,
-      'Oct 14': 5,
-      'Oct 15': 3,
-      'Oct 16': 7,
-      'Oct 17': 4,
-      'Oct 18': 6,
-      'Oct 19': 8
-    };
-    
-    sortedDates = Object.keys(mockData);
-    values = Object.values(mockData);
-    dates = sortedDates;
-  } else {
-    // Real data from override requests
-    dailyData = overrideRequests.reduce((acc, item) => {
-      const date = new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (!acc[date]) {
-        acc[date] = 0;
-      }
-      acc[date] += 1;
-      return acc;
-    }, {});
-    
-    // Get last 7 days
-    sortedDates = Object.keys(dailyData).slice(-7);
-    values = sortedDates.map(date => dailyData[date]);
-    dates = sortedDates;
-  }
+  // Use real data from override requests
+  const dailyData = overrideRequests.reduce((acc, item) => {
+    const date = new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (!acc[date]) {
+      acc[date] = 0;
+    }
+    acc[date] += 1;
+    return acc;
+  }, {});
+  
+  // Get last 7 days
+  const sortedDates = Object.keys(dailyData).slice(-7);
+  const values = sortedDates.map(date => dailyData[date]);
+  const dates = sortedDates;
   
   if (values.length === 0) {
     return <div className="no-graph-data">No data available</div>;

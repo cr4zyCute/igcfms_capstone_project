@@ -1,14 +1,17 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Chart from 'chart.js/auto';
-import './css/RequestTimelineGraph.css';
+import './css/OverrideRequestTrendanalaytics.css';
 
-const USE_MOCK_DATA = true; // Set to false when ready to use real data
-
-const RequestTimelineGraph = ({ 
+const OverrideRequestTrendanalaytics = ({ 
   overrideRequests = [],
   isLoading = false,
   error = null
 }) => {
+  const [timeRange, setTimeRange] = useState('daily'); // 'hourly', 'daily', 'weekly', 'monthly'
+  const [showKPIs, setShowKPIs] = useState(true);
+  const [showBars, setShowBars] = useState(true);
+  const [showLine, setShowLine] = useState(true);
+
   const lineChartRef = useRef(null);
   const lineChartInstance = useRef(null);
 
@@ -22,7 +25,7 @@ const RequestTimelineGraph = ({
         lineChartInstance.current.destroy();
       }
     };
-  }, [overrideRequests, isLoading, error]);
+  }, [overrideRequests, isLoading, error, timeRange, showBars, showLine]);
 
   const getRequestDate = (request) => {
     const dateSource = request?.created_at || request?.createdAt;
@@ -44,13 +47,6 @@ const RequestTimelineGraph = ({
     return `${year}-${month}-${day}`;
   };
 
-  const getMockData = () => {
-    // Mock data matching the image pattern
-    const labels = ['Sep 26', 'Sep 28', 'Sep 30', 'Oct 2', 'Oct 4', 'Oct 6', 'Oct 8', 'Oct 10', 'Oct 12', 'Oct 14'];
-    const dataPoints = [6, 10, 1, 4, 0, 0, 3, 0, 0, 4];
-    return { labels, dataPoints };
-  };
-
   const initializeLineChart = () => {
     if (!lineChartRef.current) {
       console.log('Canvas ref not available');
@@ -69,49 +65,40 @@ const RequestTimelineGraph = ({
         lineChartInstance.current.destroy();
       }
 
-      let labels, dataPoints;
+      // Use real data from override requests
+      const dayInMs = 24 * 60 * 60 * 1000;
+      const today = normalizeDate(new Date());
+      const requestDates = overrideRequests
+        .map(getRequestDate)
+        .filter((date) => date !== null)
+        .map((date) => normalizeDate(date))
+        .sort((a, b) => a - b);
 
-      if (USE_MOCK_DATA) {
-        // Use mock data
-        const mockData = getMockData();
-        labels = mockData.labels;
-        dataPoints = mockData.dataPoints;
+      const requestCountsByDay = overrideRequests.reduce((map, request) => {
+        const requestDate = getRequestDate(request);
+        if (!requestDate) return map;
+        const normalized = normalizeDate(requestDate);
+        const key = formatDateKey(normalized);
+        map.set(key, (map.get(key) || 0) + 1);
+        return map;
+      }, new Map());
+
+      let labels = [];
+      let dataPoints = [];
+
+      if (requestDates.length === 0) {
+        labels.push(today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        dataPoints.push(0);
       } else {
-        // Use real data
-        const dayInMs = 24 * 60 * 60 * 1000;
-        const today = normalizeDate(new Date());
-        const requestDates = overrideRequests
-          .map(getRequestDate)
-          .filter((date) => date !== null)
-          .map((date) => normalizeDate(date))
-          .sort((a, b) => a - b);
+        const startDate = requestDates[0];
+        const endDate = today > requestDates[requestDates.length - 1] ? today : requestDates[requestDates.length - 1];
+        const totalDays = Math.max(0, Math.round((endDate - startDate) / dayInMs));
 
-        const requestCountsByDay = overrideRequests.reduce((map, request) => {
-          const requestDate = getRequestDate(request);
-          if (!requestDate) return map;
-          const normalized = normalizeDate(requestDate);
-          const key = formatDateKey(normalized);
-          map.set(key, (map.get(key) || 0) + 1);
-          return map;
-        }, new Map());
-
-        labels = [];
-        dataPoints = [];
-
-        if (requestDates.length === 0) {
-          labels.push(today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-          dataPoints.push(0);
-        } else {
-          const startDate = requestDates[0];
-          const endDate = today > requestDates[requestDates.length - 1] ? today : requestDates[requestDates.length - 1];
-          const totalDays = Math.max(0, Math.round((endDate - startDate) / dayInMs));
-
-          for (let i = 0; i <= totalDays; i++) {
-            const currentDate = new Date(startDate.getTime() + i * dayInMs);
-            const key = formatDateKey(currentDate);
-            labels.push(currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-            dataPoints.push(requestCountsByDay.get(key) || 0);
-          }
+        for (let i = 0; i <= totalDays; i++) {
+          const currentDate = new Date(startDate.getTime() + i * dayInMs);
+          const key = formatDateKey(currentDate);
+          labels.push(currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+          dataPoints.push(requestCountsByDay.get(key) || 0);
         }
       }
 
@@ -234,7 +221,49 @@ const RequestTimelineGraph = ({
     <div className="ot-timeline-box">
       <div className="ot-timeline-header">
         <div className="ot-timeline-title-group">
-          <h3 className="ot-timeline-title">Override Requests Timeline</h3>
+          <h3 className="ot-timeline-title">
+            <i className="fas fa-chart-bar"></i>
+            Override Transactions – Bar Graph Analysis
+            <i 
+              className="fas fa-info-circle" 
+              style={{ marginLeft: '8px', fontSize: '14px', color: '#6b7280', cursor: 'help' }}
+              title="Tracks override requests over time. Helps detect unusual spikes (system issues), efficiency trends, and volume patterns. Essential for monitoring manual overrides that may indicate fraud risks or emergency adjustments."
+            ></i>
+          </h3>
+          <p className="ot-timeline-subtitle">Monitor override volume and status distribution by time period</p>
+        </div>
+        
+        <div className="ot-timeline-controls">
+          <div className="time-range-selector">
+            <button 
+              className={`time-range-btn ${timeRange === 'hourly' ? 'active' : ''}`}
+              onClick={() => setTimeRange('hourly')}
+              title="View hourly trends for same-day monitoring"
+            >
+              Hourly
+            </button>
+            <button 
+              className={`time-range-btn ${timeRange === 'daily' ? 'active' : ''}`}
+              onClick={() => setTimeRange('daily')}
+              title="View daily trends for workload analysis"
+            >
+              Daily
+            </button>
+            <button 
+              className={`time-range-btn ${timeRange === 'weekly' ? 'active' : ''}`}
+              onClick={() => setTimeRange('weekly')}
+              title="View weekly trends for process consistency"
+            >
+              Weekly
+            </button>
+            <button 
+              className={`time-range-btn ${timeRange === 'monthly' ? 'active' : ''}`}
+              onClick={() => setTimeRange('monthly')}
+              title="View monthly trends for management reporting"
+            >
+              Monthly
+            </button>
+          </div>
         </div>
       </div>
       <div className="ot-timeline-content">
@@ -269,4 +298,4 @@ const RequestTimelineGraph = ({
   );
 };
 
-export default RequestTimelineGraph;
+export default OverrideRequestTrendanalaytics;

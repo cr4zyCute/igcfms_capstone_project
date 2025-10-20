@@ -3,7 +3,9 @@ import axios from "axios";
 import TotalMiniGraph from "../analytics/OverrideTransactionsAnalystics/totalminigraph";
 import RequestDistributionPieG from "../analytics/OverrideTransactionsAnalystics/RequestDistributionPieG";
 import BarGraph from "../analytics/OverrideTransactionsAnalystics/bargraph";
-import RequestTimelineGraph from "../analytics/OverrideTransactionsAnalystics/RequestTimelineGraph";
+import OverrideRequestTrendanalaytics from "../analytics/OverrideTransactionsAnalystics/OverrideRequestTrendanalaytics";
+import OverrideTransactionsSL from "../ui/OverrideTransactionsSL";
+import { SuccessModal, ErrorModal } from "../common/Modals/OverrideTransactionsModals";
 import "./css/overridetransactions.css";
 
 const OverrideTransactions = ({ role = "Admin" }) => {
@@ -166,40 +168,59 @@ const OverrideTransactions = ({ role = "Admin" }) => {
   };
 
   // Submit override request
-  const handleSubmitOverride = async (e) => {
+  const handleSubmitOverride = (e) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling
     
     if (!selectedTransaction || !reason.trim()) {
       showMessage("Please select a transaction and provide a reason.", 'error');
       return;
     }
 
+    if (loading) return; // Prevent double submission
+
+    // Start loading immediately
     setLoading(true);
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
+    
+    // Use async IIFE to handle the request
+    (async () => {
+      try {
+        const headers = { Authorization: `Bearer ${token}` };
 
-      const payload = {
-        transaction_id: parseInt(selectedTransaction),
-        reason: reason.trim(),
-        changes: proposedChanges
-      };
+        const payload = {
+          transaction_id: parseInt(selectedTransaction),
+          reason: reason.trim(),
+          changes: proposedChanges
+        };
 
-      await axios.post(`${API_BASE}/transactions/override`, payload, { headers });
+        // This will keep the modal open during the request
+        await axios.post(`${API_BASE}/transactions/override`, payload, { headers });
 
-      showMessage("Override request submitted successfully!");
-      setSelectedTransaction("");
-      setReason("");
-      setProposedChanges({});
-      setShowCreateModal(false);
-      
-      // Refresh data
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      showMessage(err.response?.data?.message || "Failed to submit override request.", 'error');
-    } finally {
-      setLoading(false);
-    }
+        // Only after successful response:
+        // 1. Stop loading
+        // 2. Keep modal open
+        // 3. Clear form
+        // 4. Show success
+        setLoading(false);
+        // DO NOT CLOSE MODAL - setShowCreateModal(false);
+        
+        // Clear form fields
+        setSelectedTransaction("");
+        setReason("");
+        setProposedChanges({});
+        
+        // Show success message (modal stays open)
+        showMessage("Override request submitted successfully!");
+        
+        // Refresh data
+        fetchData();
+      } catch (err) {
+        console.error("Error:", err);
+        setLoading(false);
+        // Modal stays open on error so user can try again
+        showMessage(err.response?.data?.message || "Failed to submit override request.", 'error');
+      }
+    })();
   };
 
   // Admin review
@@ -256,12 +277,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
     : transactionSearch;
 
   if (loading) {
-    return (
-      <div className="override-loading">
-        <div className="spinner"></div>
-        <div className="loading-text">Loading override transactions...</div>
-      </div>
-    );
+    return <OverrideTransactionsSL />;
   }
 
   return (
@@ -283,19 +299,9 @@ const OverrideTransactions = ({ role = "Admin" }) => {
         </div>
       </div>
 
-      {error && (
-        <div className="error-banner">
-          <i className="fas fa-exclamation-triangle"></i>
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div className="success-banner">
-          <i className="fas fa-check-circle"></i>
-          {success}
-        </div>
-      )}
+      {/* Modals */}
+      <SuccessModal message={success} onClose={() => setSuccess("")} />
+      <ErrorModal message={error} onClose={() => setError("")} />
 
       {/* Dashboard Layout */}
       <div className="ot-dashboard-container">
@@ -306,12 +312,22 @@ const OverrideTransactions = ({ role = "Admin" }) => {
             <div className="ot-total-wrapper">
               <div className="ot-total-info">
                 <div className="ot-card-header-inline">
-                  <div className="ot-card-title">Total Requests</div>
+                  <div className="ot-card-title">
+                    Total Requests
+                    <i 
+                      className="fas fa-info-circle" 
+                      style={{ marginLeft: '8px', fontSize: '14px', color: '#6b7280', cursor: 'help' }}
+                      title="Total number of override requests submitted. Measures overall transaction volume requiring manual intervention. High numbers may indicate system configuration issues or training needs."
+                    ></i>
+                  </div>
                   <div className="ot-card-menu">
                     <i className="fas fa-ellipsis-v"></i>
                   </div>
                 </div>
                 <div className="ot-card-value">{overrideRequests.length}</div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  All override requests
+                </div>
               </div>
               <div className="ot-total-graph">
                 <TotalMiniGraph overrideRequests={overrideRequests} />
@@ -326,9 +342,19 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                 <i className="fas fa-clock"></i>
               </div>
               <div className="ot-status-content">
-                <div className="ot-status-label">Pending Review</div>
+                <div className="ot-status-label">
+                  Pending Review
+                  <i 
+                    className="fas fa-info-circle" 
+                    style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
+                    title="Override requests awaiting review or decision. Tracks workflow backlog and review efficiency. High pending count indicates delays in decision-making and potential bottlenecks."
+                  ></i>
+                </div>
                 <div className="ot-status-value">
                   {overrideRequests.filter(req => req.status === 'pending').length}
+                </div>
+                <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
+                  Awaiting decision
                 </div>
               </div>
             </div>
@@ -338,9 +364,19 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                 <i className="fas fa-check"></i>
               </div>
               <div className="ot-status-content">
-                <div className="ot-status-label">Approved</div>
+                <div className="ot-status-label">
+                  Approved
+                  <i 
+                    className="fas fa-info-circle" 
+                    style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
+                    title="Override requests approved by authorized personnel. Indicates valid and legitimate overrides. Helps audit teams monitor approval patterns and identify potential control weaknesses."
+                  ></i>
+                </div>
                 <div className="ot-status-value">
                   {overrideRequests.filter(req => req.status === 'approved').length}
+                </div>
+                <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
+                  Valid overrides
                 </div>
               </div>
             </div>
@@ -350,9 +386,19 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                 <i className="fas fa-times"></i>
               </div>
               <div className="ot-status-content">
-                <div className="ot-status-label">Rejected</div>
+                <div className="ot-status-label">
+                  Rejected
+                  <i 
+                    className="fas fa-info-circle" 
+                    style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
+                    title="Override requests denied or marked invalid. Tracks invalid, unnecessary, or suspicious override attempts. High rejection rate indicates good control discipline but may point to training needs."
+                  ></i>
+                </div>
                 <div className="ot-status-value">
                   {overrideRequests.filter(req => req.status === 'rejected').length}
+                </div>
+                <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
+                  Invalid requests
                 </div>
               </div>
             </div>
@@ -372,8 +418,8 @@ const OverrideTransactions = ({ role = "Admin" }) => {
         </div>
       </div>
 
-      {/* Request Timeline Line Graph */}
-      <RequestTimelineGraph 
+      {/* Override Request Trend Analytics */}
+      <OverrideRequestTrendanalaytics 
         overrideRequests={overrideRequests}
         isLoading={loading}
         error={error}
@@ -596,11 +642,14 @@ const OverrideTransactions = ({ role = "Admin" }) => {
 
       {/* Create Override Request Modal */}
       {showCreateModal && (
-        <div className="ot-modal-overlay" onClick={() => setShowCreateModal(false)}>
+        <div className="ot-modal-overlay">
           <div className="ot-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="ot-modal-header">
               <h3><i className="fas fa-plus"></i> Create Override Request</h3>
-              <button className="ot-modal-close" onClick={() => setShowCreateModal(false)}>
+              <button 
+                className="ot-modal-close" 
+                onClick={() => setShowCreateModal(false)}
+              >
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -751,7 +800,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                   >
                     {loading ? (
                       <>
-                        <i className="fas fa-spinner fa-spin"></i> Submitting...
+                        <i className="fas fa-spinner fa-spin"></i> Processing...
                       </>
                     ) : (
                       <>

@@ -1,0 +1,126 @@
+/* Error Modal Overlay - Black & White Theme */
+.ot-error-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  backdrop-filter: blur(4px);
+  animation: ot-error-fadeIn 0.2s ease;
+}
+
+@keyframes ot-error-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Error Modal Content */
+.ot-error-modal-content {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: ot-error-slideUp 0.3s ease;
+  border: 3px solid #000000;
+  overflow: hidden;
+}
+
+@keyframes ot-error-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Error Modal Icon */
+.ot-error-modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px 20px;
+  background: linear-gradient(135deg, #f3f4f6 0%, #ffffff 100%);
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.ot-error-modal-icon i {
+  font-size: 64px;
+  color: #000000;
+  animation: ot-error-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ot-error-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Error Modal Body */
+.ot-error-modal-body {
+  padding: 20px 30px;
+  text-align: center;
+  background: #ffffff;
+}
+
+.ot-error-modal-body h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 12px 0;
+}
+
+.ot-error-modal-body p {
+  font-size: 15px;
+  color: #4b5563;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Error Modal Actions */
+.ot-error-modal-actions {
+  padding: 20px 30px 30px;
+  display: flex;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.ot-error-close-btn {
+  background: #000000;
+  color: #ffffff;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ot-error-close-btn:hover {
+  background: #1f2937;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.ot-error-close-btn:active {
+  transform: translateY(0);
+}
