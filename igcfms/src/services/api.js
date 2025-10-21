@@ -38,7 +38,7 @@ const api = axios.create({
   };
   export const getProfile = async () => {
     try {
-      const response = await api.get('/profile');
+      const response = await api.get('/user/profile');
       return response.data;
     } catch (error) {
       throw error;
@@ -75,7 +75,7 @@ const api = axios.create({
 
   export const toggleUserStatus = async (id) => {
     try {
-      const response = await api.patch(`/users/${id}/status`);
+      const response = await api.patch(`/users/${id}/toggle-status`);
       return response.data;
     } catch (error) {
       throw error;
@@ -191,7 +191,7 @@ const api = axios.create({
 
   export const createOverrideRequest = async (requestData) => {
     try {
-      const response = await api.post('/override-requests', requestData);
+      const response = await api.post('/transactions/override', requestData);
       return response.data;
     } catch (error) {
       throw error;
@@ -200,7 +200,7 @@ const api = axios.create({
 
   export const updateOverrideRequest = async (id, requestData) => {
     try {
-      const response = await api.put(`/override-requests/${id}`, requestData);
+      const response = await api.put(`/override_requests/${id}/review`, requestData);
       return response.data;
     } catch (error) {
       throw error;
@@ -210,7 +210,7 @@ const api = axios.create({
   // Reports API
   export const generateReport = async (reportData) => {
     try {
-      const response = await api.post('/reports/generate', reportData);
+      const response = await api.post('/reports', reportData);
       return response.data;
     } catch (error) {
       throw error;

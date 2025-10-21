@@ -156,7 +156,7 @@ const RecipientAccount = () => {
       console.log('Loading fund accounts...'); // Debug log
       
       // Use the working fund-accounts endpoint directly
-      const response = await fetch('http://localhost:8000/api/fund-accounts', {
+      const response = await fetch('/api/fund-accounts', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

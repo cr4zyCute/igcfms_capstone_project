@@ -32,7 +32,7 @@ const ReceiveMoney = () => {
     const fetchFundAccounts = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8000/api/fund-accounts', {
+        const response = await axios.get('/api/fund-accounts', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -164,7 +164,7 @@ const ReceiveMoney = () => {
         payer_name: finalPayerName,
       };
       
-      const response = await axios.post('http://localhost:8000/api/transactions', transactionData, {
+      const response = await axios.post('/api/transactions', transactionData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

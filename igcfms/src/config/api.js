@@ -15,9 +15,9 @@ const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const { protocol, hostname } = window.location;
     
-    // If hostname is localhost or 127.0.0.1, use localhost:8000
+    // If hostname is localhost or 127.0.0.1, use CRA proxy to avoid CORS
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8000/api';
+      return '/api';
     }
     
     // For ngrok or any other domain, use the same domain with /api
@@ -25,8 +25,8 @@ const getApiBaseUrl = () => {
     return `${protocol}//${hostname}/api`;
   }
 
-  // Fallback to localhost
-  return 'http://localhost:8000/api';
+  // Fallback to relative API path
+  return '/api';
 };
 
 export const API_BASE_URL = getApiBaseUrl();

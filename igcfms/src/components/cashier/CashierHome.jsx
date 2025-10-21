@@ -25,7 +25,7 @@ const CashierHome = () => {
 
         // Fetch dashboard KPIs
         const dashboardRes = await axios.get(
-          "http://localhost:8000/api/transactions",
+          "/api/transactions",
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -33,7 +33,7 @@ const CashierHome = () => {
 
         // Fetch fund accounts
         const fundsRes = await axios.get(
-          "http://localhost:8000/api/fund-accounts",
+          "/api/fund-accounts",
           {
             headers: { Authorization: `Bearer ${token}` },
           }

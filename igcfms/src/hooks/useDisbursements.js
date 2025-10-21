@@ -64,7 +64,7 @@ const fetchRecipientAccounts = async () => {
 export const useDisbursements = (options = {}) => {
   const { 
     enabled = true,
-    refetchInterval = 30000 // Refetch every 30 seconds
+    refetchInterval = false // Disable auto-refresh for faster load
   } = options;
 
   return useQuery({
@@ -72,8 +72,9 @@ export const useDisbursements = (options = {}) => {
     queryFn: fetchDisbursements,
     enabled,
     refetchInterval,
-    staleTime: 10000, // Consider data stale after 10 seconds
-    cacheTime: 300000, // Keep in cache for 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes - increased for better performance
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 };
 

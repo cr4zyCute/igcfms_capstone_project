@@ -1,20 +1,36 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useCheques, useCreateCheque } from "../../hooks/useCheques";
 import { useDisbursements } from "../../hooks/useDisbursements";
 import { useFundAccounts } from "../../hooks/useFundAccounts";
 import IssueChequeSkeleton from "../ui/chequeSL";
-import AverageClearanceTime from "../analytics/chequeAnalysis/AverageClearanceTime";
-import ChequeProcessingAccuracyRate from "../analytics/chequeAnalysis/ChequeProcessingAccuracyRate";
-import ChequeReconciliationRate from "../analytics/chequeAnalysis/ChequeReconciliationRate";
-import OutstandingChequesRatio from "../analytics/chequeAnalysis/OutstandingChequesRatio";
 import { ErrorModal, SuccessModal } from "../common/Modals/IssueChequeModals";
 import "./css/issuecheque.css";
 import "./css/cheque-styles.css";
+
+// Add pulse animation for skeleton loaders
+const pulseAnimation = `
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+`;
+
+// Lazy load analytics components for better performance
+const AverageClearanceTime = lazy(() => import("../analytics/chequeAnalysis/AverageClearanceTime"));
+const ChequeProcessingAccuracyRate = lazy(() => import("../analytics/chequeAnalysis/ChequeProcessingAccuracyRate"));
+const ChequeReconciliationRate = lazy(() => import("../analytics/chequeAnalysis/ChequeReconciliationRate"));
+const OutstandingChequesRatio = lazy(() => import("../analytics/chequeAnalysis/OutstandingChequesRatio"));
+
+// Loading skeleton for analytics
+const AnalyticsSkeleton = () => (
+  <div style={{ height: '200px', background: '#f5f5f5', borderRadius: '8px', animation: 'pulse 1.5s infinite' }}></div>
+);
 
 const IssueCheque = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [filteredCheques, setFilteredCheques] = useState([]);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // TanStack Query hooks
   const {
@@ -85,8 +101,22 @@ const IssueCheque = () => {
   const fundAccountDropdownRef = useRef(null);
   const disbursementDropdownRef = useRef(null);
 
+  // Defer analytics loading for faster initial render
   useEffect(() => {
-    applyFilters();
+    const timer = setTimeout(() => {
+      setShowAnalytics(true);
+    }, 100); // Load analytics after 100ms
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Debounced filter application
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      applyFilters();
+    }, 200); // 200ms debounce
+    
+    return () => clearTimeout(timer);
   }, [cheques, filters]);
 
   // Close dropdowns when clicking outside
@@ -427,14 +457,16 @@ const IssueCheque = () => {
   // Get unique bank names for filter
   const uniqueBankNames = [...new Set(cheques.map(c => c.bank_name).filter(Boolean))];
 
-  // Filter fund accounts based on search
-  const filteredFundAccounts = fundAccounts.filter(account => {
-    const searchLower = fundAccountSearch.toLowerCase();
-    return (
-      account.name?.toLowerCase().includes(searchLower) ||
-      account.balance?.toString().includes(searchLower)
-    );
-  });
+  // Filter fund accounts based on search - memoized
+  const filteredFundAccounts = useMemo(() => {
+    return fundAccounts.filter(account => {
+      const searchLower = fundAccountSearch.toLowerCase();
+      return (
+        account.name?.toLowerCase().includes(searchLower) ||
+        account.balance?.toString().includes(searchLower)
+      );
+    });
+  }, [fundAccounts, fundAccountSearch]);
 
   // Get selected fund account name for display
   const selectedFundAccount = fundAccounts.find(acc => acc.id.toString() === formData.fundAccountId);
@@ -442,16 +474,18 @@ const IssueCheque = () => {
     ? `${selectedFundAccount.name} - ₱${parseFloat(selectedFundAccount.balance || 0).toLocaleString()}`
     : "-- Select Fund Account --";
 
-  // Filter disbursements based on search
-  const filteredDisbursements = disbursements.filter(transaction => {
-    const searchLower = disbursementSearch.toLowerCase();
-    return (
-      transaction.id?.toString().includes(searchLower) ||
-      transaction.recipient?.toLowerCase().includes(searchLower) ||
-      transaction.description?.toLowerCase().includes(searchLower) ||
-      transaction.amount?.toString().includes(searchLower)
-    );
-  });
+  // Filter disbursements based on search - memoized
+  const filteredDisbursements = useMemo(() => {
+    return disbursements.filter(transaction => {
+      const searchLower = disbursementSearch.toLowerCase();
+      return (
+        transaction.id?.toString().includes(searchLower) ||
+        transaction.recipient?.toLowerCase().includes(searchLower) ||
+        transaction.description?.toLowerCase().includes(searchLower) ||
+        transaction.amount?.toString().includes(searchLower)
+      );
+    });
+  }, [disbursements, disbursementSearch]);
 
   // Get selected disbursement for display
   const selectedDisbursement = disbursements.find(d => d.id.toString() === formData.disbursementId);
@@ -464,11 +498,50 @@ const IssueCheque = () => {
     ? `${selectedFundAccount.name} - ₱${parseFloat(selectedFundAccount.balance || 0).toLocaleString()}`
     : fundAccountSearch;
 
-  // Memoize KPI components to prevent re-render on action menu state changes
-  const memoizedAverageClearanceTime = useMemo(() => <AverageClearanceTime cheques={cheques} />, [cheques]);
-  const memoizedProcessingAccuracy = useMemo(() => <ChequeProcessingAccuracyRate cheques={cheques} />, [cheques]);
-  const memoizedReconciliationRate = useMemo(() => <ChequeReconciliationRate cheques={cheques} />, [cheques]);
-  const memoizedOutstandingRatio = useMemo(() => <OutstandingChequesRatio cheques={cheques} />, [cheques]);
+  // Memoize calculations
+  const totalChequeAmount = useMemo(() => 
+    cheques.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0), 
+    [cheques]
+  );
+  
+  const averageChequeAmount = useMemo(() => 
+    cheques.length > 0 ? (totalChequeAmount / cheques.length) : 0, 
+    [cheques.length, totalChequeAmount]
+  );
+  
+  // Memoize mini graph data
+  const miniGraphData = useMemo(() => {
+    if (!cheques || cheques.length === 0) return null;
+    
+    const dailyData = cheques.reduce((acc, item) => {
+      const date = new Date(item.issue_date || item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const amount = parseFloat(item.amount || 0);
+      if (!acc[date]) acc[date] = 0;
+      acc[date] += Math.abs(amount);
+      return acc;
+    }, {});
+    
+    const sortedDates = Object.keys(dailyData).slice(-7);
+    const values = sortedDates.map(date => dailyData[date]);
+    
+    if (values.length === 0) return null;
+    
+    const maxValue = Math.max(...values, 1);
+    const minValue = Math.min(...values, 0);
+    const range = maxValue - minValue || 1;
+    const pointWidth = 50;
+    const width = Math.max(values.length * pointWidth, 300);
+    const height = 50;
+    const padding = 10;
+    
+    const points = values.map((value, index) => {
+      const x = padding + (index / (values.length - 1 || 1)) * (width - padding * 2);
+      const y = padding + (height - padding * 2) - ((value - minValue) / range) * (height - padding * 2);
+      return { x, y, value, date: sortedDates[index] };
+    });
+    
+    return { points, width, height, padding };
+  }, [cheques]);
 
   if (isInitialLoading) {
     return <IssueChequeSkeleton />;
@@ -514,162 +587,132 @@ const IssueCheque = () => {
         <div className="ic-left-column">
           <div className="ic-summary-card ic-combined-card">
             <div className="ic-card-title">Total</div>
-            <div className="ic-card-value">₱{cheques.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0).toLocaleString()}</div>
+            <div className="ic-card-value">₱{totalChequeAmount.toLocaleString()}</div>
             <div className="ic-card-subtitle">{cheques.length} Issued Cheque</div>
             
-            {/* Small Line Graph */}
+            {/* Small Line Graph - Optimized with memoized data */}
             <div className="ic-cheque-mini-graph" ref={miniGraphRef}>
-              {(() => {
-                // Group cheques by date and calculate daily totals
-                const dailyData = cheques.reduce((acc, item) => {
-                  const date = new Date(item.issue_date || item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                  const amount = parseFloat(item.amount || 0);
+              {!miniGraphData ? (
+                <div className="no-graph-data">No data available</div>
+              ) : (
+                <svg viewBox={`0 0 ${miniGraphData.width} ${miniGraphData.height}`} className="mini-graph-svg" preserveAspectRatio="xMidYMid meet">
+                  {/* Area fill */}
+                  <polygon
+                    points={`${miniGraphData.padding},${miniGraphData.height} ${miniGraphData.points.map(p => `${p.x},${p.y}`).join(' ')} ${miniGraphData.width - miniGraphData.padding},${miniGraphData.height}`}
+                    fill="rgba(0, 0, 0, 0.1)"
+                  />
+                  {/* Line */}
+                  <polyline
+                    points={miniGraphData.points.map(p => `${p.x},${p.y}`).join(' ')}
+                    fill="none"
+                    stroke="#000000"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {/* Data points with hover */}
+                  {miniGraphData.points.map((point, index) => (
+                    <g key={index}>
+                      <circle
+                        cx={point.x}
+                        cy={point.y}
+                        r="8"
+                        fill="transparent"
+                        style={{ cursor: 'pointer' }}
+                        onMouseEnter={() => setHoveredPoint({ index, value: point.value, date: point.date, x: point.x, y: point.y })}
+                        onMouseLeave={() => setHoveredPoint(null)}
+                      />
+                      <circle
+                        cx={point.x}
+                        cy={point.y}
+                        r="2"
+                        fill="#000000"
+                        style={{ pointerEvents: 'none' }}
+                      />
+                    </g>
+                  ))}
                   
-                  if (!acc[date]) {
-                    acc[date] = 0;
-                  }
-                  acc[date] += Math.abs(amount);
-                  return acc;
-                }, {});
-                
-                // Get last 7 days of data
-                const sortedDates = Object.keys(dailyData).slice(-7);
-                const values = sortedDates.map(date => dailyData[date]);
-                const dates = sortedDates;
-                
-                if (values.length === 0) {
-                  return <div className="no-graph-data">No data available</div>;
-                }
-                
-                const maxValue = Math.max(...values, 1);
-                const minValue = Math.min(...values, 0);
-                const range = maxValue - minValue || 1;
-                
-                // Create SVG points - dynamic width based on data points
-                const pointWidth = 50; // Width per data point
-                const width = Math.max(values.length * pointWidth, 300);
-                const height = 50;
-                const padding = 10;
-                
-                const points = values.map((value, index) => {
-                  const x = padding + (index / (values.length - 1 || 1)) * (width - padding * 2);
-                  const y = padding + (height - padding * 2) - ((value - minValue) / range) * (height - padding * 2);
-                  return `${x},${y}`;
-                }).join(' ');
-                
-                return (
-                  <svg viewBox={`0 0 ${width} ${height}`} className="mini-graph-svg" preserveAspectRatio="xMidYMid meet">
-                    {/* Area fill */}
-                    <polygon
-                      points={`${padding},${height} ${points} ${width - padding},${height}`}
-                      fill="rgba(0, 0, 0, 0.1)"
-                    />
-                    {/* Line */}
-                    <polyline
-                      points={points}
-                      fill="none"
-                      stroke="#000000"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    {/* Data points with hover */}
-                    {values.map((value, index) => {
-                      const x = padding + (index / (values.length - 1 || 1)) * (width - padding * 2);
-                      const y = padding + (height - padding * 2) - ((value - minValue) / range) * (height - padding * 2);
-                      return (
-                        <g key={index}>
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r="8"
-                            fill="transparent"
-                            style={{ cursor: 'pointer' }}
-                            onMouseEnter={() => setHoveredPoint({ index, value, date: dates[index], x, y })}
-                            onMouseLeave={() => setHoveredPoint(null)}
-                          />
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r="2"
-                            fill="#000000"
-                            style={{ pointerEvents: 'none' }}
-                          />
-                        </g>
-                      );
-                    })}
+                  {/* Tooltip */}
+                  {hoveredPoint && (() => {
+                    const isTopHalf = hoveredPoint.y < miniGraphData.height / 2;
+                    const tooltipY = isTopHalf ? hoveredPoint.y + 8 : hoveredPoint.y - 22;
+                    const textY = isTopHalf ? hoveredPoint.y + 20 : hoveredPoint.y - 10;
                     
-                    {/* Tooltip - position based on dot location */}
-                    {hoveredPoint && (() => {
-                      // If dot is in top half, show tooltip below; if in bottom half, show above
-                      const isTopHalf = hoveredPoint.y < height / 2;
-                      const tooltipY = isTopHalf ? hoveredPoint.y + 8 : hoveredPoint.y - 22;
-                      const textY = isTopHalf ? hoveredPoint.y + 20 : hoveredPoint.y - 10;
-                      
-                      return (
-                        <g style={{ pointerEvents: 'none' }}>
-                          <rect
-                            x={hoveredPoint.x - 25}
-                            y={tooltipY}
-                            width="50"
-                            height="18"
-                            fill="#000000"
-                            rx="3"
-                            opacity="0.95"
-                          />
-                          <text
-                            x={hoveredPoint.x}
-                            y={textY}
-                            textAnchor="middle"
-                            fill="#ffffff"
-                            fontSize="7"
-                            fontWeight="700"
-                          >
-                            ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </text>
-                        </g>
-                      );
-                    })()}
-                  </svg>
-                );
-              })()}
+                    return (
+                      <g style={{ pointerEvents: 'none' }}>
+                        <rect
+                          x={hoveredPoint.x - 25}
+                          y={tooltipY}
+                          width="50"
+                          height="18"
+                          fill="#000000"
+                          rx="3"
+                          opacity="0.95"
+                        />
+                        <text
+                          x={hoveredPoint.x}
+                          y={textY}
+                          textAnchor="middle"
+                          fill="#ffffff"
+                          fontSize="7"
+                          fontWeight="700"
+                        >
+                          ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </text>
+                      </g>
+                    );
+                  })()}
+                </svg>
+              )}
             </div>
           </div>
           
           <div className="ic-summary-card">
             <div className="ic-card-title">Average Cheque</div>
             <div className="ic-card-value">
-              ₱{cheques.length > 0 
-                ? (cheques.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0) / cheques.length).toLocaleString(undefined, { maximumFractionDigits: 2 })
-                : '0'}
+              ₱{averageChequeAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </div>
             <div className="ic-card-subtitle">Per Transaction</div>
           </div>
         </div>
 
-        {/* Right Column - Main Chart */}
+        {/* Right Column - Main Chart - Lazy loaded */}
         <div className="ic-right-column">
-          {memoizedAverageClearanceTime}
+          {showAnalytics ? (
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <AverageClearanceTime cheques={cheques} />
+            </Suspense>
+          ) : (
+            <AnalyticsSkeleton />
+          )}
         </div>
       </div>
 
-      {/* Bottom Row - Analytics Cards */}
-      <div className="ic-analytics-row">
-        <div className="ic-analytics-wrapper">
-          <div className="ic-analytics-title">Cheque Processing Accuracy Rate</div>
-          {memoizedProcessingAccuracy}
-        </div>
+      {/* Bottom Row - Analytics Cards - Lazy loaded */}
+      {showAnalytics && (
+        <div className="ic-analytics-row">
+          <div className="ic-analytics-wrapper">
+            <div className="ic-analytics-title">Cheque Processing Accuracy Rate</div>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <ChequeProcessingAccuracyRate cheques={cheques} />
+            </Suspense>
+          </div>
 
-        <div className="ic-analytics-wrapper">
-          <div className="ic-analytics-title">Cheque Reconciliation Rate</div>
-          {memoizedReconciliationRate}
-        </div>
+          <div className="ic-analytics-wrapper">
+            <div className="ic-analytics-title">Cheque Reconciliation Rate</div>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <ChequeReconciliationRate cheques={cheques} />
+            </Suspense>
+          </div>
 
-        <div className="ic-analytics-wrapper">
-          <div className="ic-analytics-title">Outstanding Cheques Ratio</div>
-          {memoizedOutstandingRatio}
+          <div className="ic-analytics-wrapper">
+            <div className="ic-analytics-title">Outstanding Cheques Ratio</div>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <OutstandingChequesRatio cheques={cheques} />
+            </Suspense>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Table Header with Search and Filters */}
       <div className="ic-table-header">

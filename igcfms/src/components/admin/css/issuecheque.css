@@ -90,9 +90,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -435,7 +438,7 @@
   font-weight: 700;
   line-height: 1;
   margin-bottom: 4px;
-  
+
 }
 
 .ic-outstanding-label {
@@ -681,11 +684,11 @@
   .ic-dashboard-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .ic-left-column {
     flex-direction: row;
   }
-  
+
   .ic-analytics-row {
     grid-template-columns: 1fr;
   }
@@ -1064,7 +1067,8 @@
   gap: 8px;
 }
 
-.ic-view-btn, .ic-print-btn {
+.ic-view-btn,
+.ic-print-btn {
   padding: 6px 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -1143,12 +1147,15 @@
   max-height: 80vh;
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
 }
 
 .ic-modal-content::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
+  /* Chrome, Safari, Opera */
 }
 
 .ic-modal-content.success {
@@ -1367,8 +1374,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-text {
@@ -1382,49 +1394,49 @@
   .issue-cheque-page {
     padding: 15px;
   }
-  
+
   .ic-content-grid {
     grid-template-columns: 1fr;
     gap: 20px;
   }
-  
+
   .form-row {
     grid-template-columns: 1fr;
     gap: 15px;
   }
-  
+
   .filters-grid {
     grid-template-columns: 1fr;
     gap: 15px;
   }
-  
+
   .cheques-table-container {
     overflow-x: auto;
   }
-  
+
   .cheques-table {
     min-width: 900px;
   }
-  
+
   .confirmation-details {
     grid-template-columns: 1fr;
     gap: 10px;
   }
-  
+
   .result-details {
     grid-template-columns: 1fr;
     gap: 10px;
   }
-  
+
   .modal-actions {
     flex-direction: column;
   }
-  
+
   .modal-content {
     width: 95%;
     margin: 20px;
   }
-  
+
   .stats-grid {
     gap: 10px;
   }
@@ -1434,19 +1446,19 @@
   .ic-title {
     font-size: 24px;
   }
-  
+
   .form-header h3 {
     font-size: 16px;
   }
-  
+
   .section-header h3 {
     font-size: 16px;
   }
-  
+
   .modal-header h3 {
     font-size: 16px;
   }
-  
+
   .cheque-number-input {
     flex-direction: column;
     gap: 10px;
@@ -1463,15 +1475,18 @@
   overflow-y: hidden;
   padding: 0;
   margin-left: -5%;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
   cursor: grab;
   user-select: none;
   position: relative;
 }
 
 .ic-cheque-mini-graph::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
+  /* Chrome, Safari, Opera */
 }
 
 .ic-mini-graph-svg {
@@ -1661,6 +1676,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1830,14 +1846,46 @@
 }
 
 /* Column width distribution */
-.ic-cheques-table th:nth-child(1) { width: 8%; }   /* Cheque ID */
-.ic-cheques-table th:nth-child(2) { width: 15%; }  /* Cheque Number */
-.ic-cheques-table th:nth-child(3) { width: 10%; }  /* Disbursement */
-.ic-cheques-table th:nth-child(4) { width: 18%; }  /* Payee Name */
-.ic-cheques-table th:nth-child(5) { width: 15%; }  /* Bank */
-.ic-cheques-table th:nth-child(6) { width: 12%; }  /* Amount */
-.ic-cheques-table th:nth-child(7) { width: 12%; }  /* Issue Date */
-.ic-cheques-table th:nth-child(8) { width: 10%; }  /* Actions */
+.ic-cheques-table th:nth-child(1) {
+  width: 8%;
+}
+
+/* Cheque ID */
+.ic-cheques-table th:nth-child(2) {
+  width: 15%;
+}
+
+/* Cheque Number */
+.ic-cheques-table th:nth-child(3) {
+  width: 10%;
+}
+
+/* Disbursement */
+.ic-cheques-table th:nth-child(4) {
+  width: 18%;
+}
+
+/* Payee Name */
+.ic-cheques-table th:nth-child(5) {
+  width: 15%;
+}
+
+/* Bank */
+.ic-cheques-table th:nth-child(6) {
+  width: 12%;
+}
+
+/* Amount */
+.ic-cheques-table th:nth-child(7) {
+  width: 12%;
+}
+
+/* Issue Date */
+.ic-cheques-table th:nth-child(8) {
+  width: 10%;
+}
+
+/* Actions */
 
 .ic-cheques-table th i {
   margin-right: 8px;
@@ -2024,6 +2072,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -2102,16 +2151,17 @@
    PRINT STYLES - Optimize cheque printing only
    ======================================== */
 @media print {
+
   /* Hide action buttons when printing */
   .ic-cheque-actions-bar {
     display: none !important;
   }
-  
+
   /* Remove modal background when printing */
   .ic-modal-overlay {
     background: none !important;
   }
-  
+
   /* Clean up modal styling for print */
   .ic-cheque-modal-content {
     box-shadow: none !important;

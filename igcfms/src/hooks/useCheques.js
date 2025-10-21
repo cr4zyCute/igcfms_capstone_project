@@ -25,11 +25,11 @@ export const useCheques = (options = {}) => {
     queryKey: CHEQUE_KEYS.list(filters),
     queryFn: () => getCheques(filters),
     enabled,
-    staleTime: 30 * 1000, // 30 seconds
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes - increased for better performance
+    cacheTime: 10 * 60 * 1000, // 10 minutes
     retry: 2,
-    refetchInterval: queryOptions.refetchInterval ?? 30000, // Auto-refresh every 30 seconds
-    refetchOnWindowFocus: false,
+    refetchInterval: queryOptions.refetchInterval ?? false, // Disable auto-refresh for faster load
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
     ...queryOptions,
   });
 };

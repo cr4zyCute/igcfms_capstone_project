@@ -52,6 +52,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
   const [success, setSuccess] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [openActionMenu, setOpenActionMenu] = useState(null);
   const [transactionSearch, setTransactionSearch] = useState("");
@@ -512,10 +513,17 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                     onClick={(e) => {
                       // Don't trigger if clicking on action buttons
                       if (!e.target.closest('.action-cell')) {
-                        // View details logic here
-                        console.log('View request details:', request);
+                        // Open review modal for pending requests (Admin only)
+                        if (role === "Admin" && request.status === 'pending') {
+                          openReviewModal(request);
+                        } else {
+                          // Open details modal for approved/rejected requests
+                          setSelectedRequest(request);
+                          setShowDetailsModal(true);
+                        }
                       }
                     }}
+                    style={{ cursor: 'pointer' }}
                   >
                     <td>
                       <div className="cell-content">
@@ -917,6 +925,110 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                       <i className="fas fa-check"></i> Approve
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal for Approved/Rejected Requests */}
+      {showDetailsModal && selectedRequest && (
+        <div className="ot-modal-overlay" onClick={() => setShowDetailsModal(false)}>
+          <div className="ot-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="ot-modal-header">
+              <h3>
+                <i className={`fas ${selectedRequest.status === 'approved' ? 'fa-check-circle' : 'fa-times-circle'}`}></i>
+                {' '}Request {selectedRequest.status === 'approved' ? 'Approved' : 'Rejected'}
+              </h3>
+              <button className="ot-modal-close" onClick={() => setShowDetailsModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="ot-modal-body">
+              <div className="request-details">
+                <div className="detail-item">
+                  <label><i className="fas fa-hashtag"></i> Request ID:</label>
+                  <span>#{selectedRequest.id}</span>
+                </div>
+                <div className="detail-item">
+                  <label><i className="fas fa-exchange-alt"></i> Transaction ID:</label>
+                  <span>#{selectedRequest.transaction_id}</span>
+                </div>
+                <div className="detail-item">
+                  <label><i className="fas fa-user"></i> Requested By:</label>
+                  <span>{selectedRequest.requested_by?.name || selectedRequest.requestedBy?.name || 'N/A'}</span>
+                </div>
+                <div className="detail-item">
+                  <label><i className="fas fa-calendar"></i> Request Date:</label>
+                  <span>{new Date(selectedRequest.created_at).toLocaleString()}</span>
+                </div>
+                <div className="detail-item">
+                  <label><i className="fas fa-comment"></i> Reason for Override:</label>
+                  <span>{selectedRequest.reason || 'No reason provided'}</span>
+                </div>
+                <div className="detail-item">
+                  <label><i className="fas fa-edit"></i> Proposed Changes:</label>
+                  <span>
+                    {selectedRequest.changes ? (
+                      typeof selectedRequest.changes === 'string' 
+                        ? selectedRequest.changes 
+                        : JSON.stringify(selectedRequest.changes, null, 2)
+                    ) : 'No changes proposed'}
+                  </span>
+                </div>
+                
+                {/* Review Information */}
+                <div className="detail-item" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e5e7eb' }}>
+                  <label>
+                    <i className={`fas ${selectedRequest.status === 'approved' ? 'fa-check' : 'fa-times'}`}></i>
+                    {' '}Status:
+                  </label>
+                  <span className={`status-badge ${selectedRequest.status}`}>
+                    {selectedRequest.status.toUpperCase()}
+                  </span>
+                </div>
+                
+                {selectedRequest.reviewed_by && (
+                  <div className="detail-item">
+                    <label><i className="fas fa-user-shield"></i> Reviewed By:</label>
+                    <span>{selectedRequest.reviewed_by?.name || selectedRequest.reviewedBy?.name || 'N/A'}</span>
+                  </div>
+                )}
+                
+                {selectedRequest.reviewed_at && (
+                  <div className="detail-item">
+                    <label><i className="fas fa-clock"></i> Review Date:</label>
+                    <span>{new Date(selectedRequest.reviewed_at).toLocaleString()}</span>
+                  </div>
+                )}
+                
+                {selectedRequest.review_notes && (
+                  <div className="detail-item" style={{ 
+                    backgroundColor: selectedRequest.status === 'approved' ? '#f0fdf4' : '#fef2f2',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${selectedRequest.status === 'approved' ? '#86efac' : '#fca5a5'}`
+                  }}>
+                    <label>
+                      <i className="fas fa-sticky-note"></i>
+                      {' '}{selectedRequest.status === 'approved' ? 'Approval' : 'Rejection'} Notes:
+                    </label>
+                    <span style={{ display: 'block', marginTop: '8px', fontStyle: 'italic' }}>
+                      "{selectedRequest.review_notes}"
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-actions" style={{ marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="cancel-btn"
+                  onClick={() => setShowDetailsModal(false)}
+                  style={{ width: '100%' }}
+                >
+                  <i className="fas fa-times"></i> Close
                 </button>
               </div>
             </div>

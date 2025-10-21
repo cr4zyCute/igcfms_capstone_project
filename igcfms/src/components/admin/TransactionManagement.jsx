@@ -1,23 +1,44 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import axios from "axios";
 import API_BASE_URL from "../../config/api";
 import "./css/transactionmanagement.css";
+import "./css/transaction-kpis.css";
+
+// Lazy load chart components for better performance
+const TrendChart = lazy(() => import('../analytics/TransactionAnalytics.jsx/TrendChart'));
+const CategoryChart = lazy(() => import('../analytics/TransactionAnalytics.jsx/CategoryChart'));
+
+// Loading skeleton
+const ChartSkeleton = () => (
+  <div style={{ height: '250px', background: '#f5f5f5', borderRadius: '8px', animation: 'pulse 1.5s infinite' }}></div>
+);
 
 const TransactionManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [transactions, setTransactions] = useState([]);
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [overrideRequests, setOverrideRequests] = useState([]);
   const [stats, setStats] = useState({
     totalTransactions: 0,
     totalCollections: 0,
     totalDisbursements: 0,
+    netBalance: 0,
     pendingOverrides: 0,
     todayTransactions: 0,
+    todayAmount: 0,
     thisMonthTransactions: 0,
+    averageTransactionValue: 0,
+    collectionRate: 0,
+    monthlyBurnRate: 0,
   });
+  
+  const [trendData, setTrendData] = useState({
+    collections: [],
+    disbursements: [],
+  });
+  
+  const [showCharts, setShowCharts] = useState(false);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -26,30 +47,31 @@ const TransactionManagement = () => {
     dateFrom: "",
     dateTo: "",
     searchTerm: "",
-    status: "all"
+    status: "all",
+    activeFilter: "all",
+    showFilterDropdown: false
   });
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   
-  // Receive Money Form State
-  const [receiveMoneyForm, setReceiveMoneyForm] = useState({
-    payerName: '',
-    amount: '',
-    reference: '',
-    modeOfPayment: 'Cash',
-    description: '',
-    fundAccountId: '',
-    department: 'Finance',
-    category: 'Tax Collection'
-  });
-  const [fundAccounts, setFundAccounts] = useState([]);
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const API_BASE = API_BASE_URL;
 
   useEffect(() => {
     fetchTransactionData();
+  }, []);
+  
+  // Defer chart loading for faster initial render
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowCharts(true);
+    }, 500); // Load charts after 500ms
+    
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -73,28 +95,27 @@ const TransactionManagement = () => {
       };
 
       // Fetch all transaction-related data
-      const [transactionsRes, overrideRes, fundAccountsRes] = await Promise.all([
+      const [transactionsRes, overrideRes] = await Promise.all([
         axios.get(`${API_BASE}/transactions`, { headers }),
-        axios.get(`${API_BASE}/override-requests`, { headers }).catch(() => ({ data: [] })),
-        axios.get(`${API_BASE}/fund-accounts`, { headers }).catch(() => ({ data: [] }))
+        axios.get(`${API_BASE}/override-requests`, { headers }).catch(() => ({ data: [] }))
       ]);
 
       const allTransactions = transactionsRes.data || [];
       const allOverrides = overrideRes.data || [];
-      const allFundAccounts = Array.isArray(fundAccountsRes.data) ? fundAccountsRes.data : (fundAccountsRes.data?.data || []);
 
       setTransactions(allTransactions);
       setOverrideRequests(allOverrides);
-      setFundAccounts(allFundAccounts);
 
       // Calculate statistics
       const today = new Date().toDateString();
       const thisMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
 
-      const todayTransactions = allTransactions.filter(tx => 
+      const todayTxs = allTransactions.filter(tx => 
         new Date(tx.created_at).toDateString() === today
-      ).length;
+      );
+      const todayTransactions = todayTxs.length;
+      const todayAmount = todayTxs.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount || 0)), 0);
 
       const thisMonthTransactions = allTransactions.filter(tx => {
         const txDate = new Date(tx.created_at);
@@ -110,14 +131,67 @@ const TransactionManagement = () => {
         .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
 
       const pendingOverrides = allOverrides.filter(req => req.status === 'pending').length;
+      
+      // Calculate additional KPIs
+      const netBalance = totalCollections - totalDisbursements;
+      const averageTransactionValue = allTransactions.length > 0 
+        ? (totalCollections + totalDisbursements) / allTransactions.length 
+        : 0;
+      
+      // Collection Rate (collections vs total transactions)
+      const collectionRate = allTransactions.length > 0
+        ? (allTransactions.filter(tx => tx.type === 'Collection').length / allTransactions.length) * 100
+        : 0;
+      
+      // Monthly Burn Rate (average daily disbursements * 30)
+      const daysInMonth = new Date(currentYear, thisMonth + 1, 0).getDate();
+      const monthlyDisbursements = allTransactions.filter(tx => {
+        const txDate = new Date(tx.created_at);
+        return tx.type === 'Disbursement' && 
+               txDate.getMonth() === thisMonth && 
+               txDate.getFullYear() === currentYear;
+      }).reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      const monthlyBurnRate = monthlyDisbursements / daysInMonth;
+      
+      // Calculate trend data (last 30 days)
+      const last30Days = [];
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const dayCollections = allTransactions
+          .filter(tx => tx.type === 'Collection' && tx.created_at.startsWith(dateStr))
+          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        
+        const dayDisbursements = allTransactions
+          .filter(tx => tx.type === 'Disbursement' && tx.created_at.startsWith(dateStr))
+          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        
+        last30Days.push({
+          date: dateStr,
+          collections: dayCollections,
+          disbursements: dayDisbursements
+        });
+      }
 
       setStats({
         totalTransactions: allTransactions.length,
         totalCollections,
         totalDisbursements,
+        netBalance,
         pendingOverrides,
         todayTransactions,
+        todayAmount,
         thisMonthTransactions,
+        averageTransactionValue,
+        collectionRate,
+        monthlyBurnRate,
+      });
+      
+      setTrendData({
+        collections: last30Days.map(d => ({ date: d.date, value: d.collections })),
+        disbursements: last30Days.map(d => ({ date: d.date, value: d.disbursements })),
       });
 
     } catch (err) {
@@ -128,44 +202,72 @@ const TransactionManagement = () => {
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...transactions];
+  // Memoized filtered and sorted transactions
+  const filteredTransactions = useMemo(() => {
+    let filtered = transactions.filter(transaction => {
+      // Type filter
+      if (filters.type !== "all" && transaction.type !== filters.type) {
+        return false;
+      }
 
-    // Type filter
-    if (filters.type !== "all") {
-      filtered = filtered.filter(tx => tx.type === filters.type);
+      // Department filter
+      if (filters.department !== "all" && transaction.department !== filters.department) {
+        return false;
+      }
+
+      // Date range filter
+      if (filters.dateFrom && new Date(transaction.created_at) < new Date(filters.dateFrom)) {
+        return false;
+      }
+      if (filters.dateTo && new Date(transaction.created_at) > new Date(filters.dateTo)) {
+        return false;
+      }
+
+      // Search filter
+      if (filters.searchTerm) {
+        const searchLower = filters.searchTerm.toLowerCase();
+        return (
+          transaction.id?.toString().includes(searchLower) ||
+          transaction.type?.toLowerCase().includes(searchLower) ||
+          transaction.description?.toLowerCase().includes(searchLower) ||
+          transaction.recipient?.toLowerCase().includes(searchLower) ||
+          transaction.department?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      return true;
+    });
+
+    // Apply sorting based on activeFilter
+    if (filters.activeFilter === 'latest') {
+      filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (filters.activeFilter === 'oldest') {
+      filtered.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    } else if (filters.activeFilter === 'highest') {
+      filtered.sort((a, b) => parseFloat(b.amount || 0) - parseFloat(a.amount || 0));
+    } else if (filters.activeFilter === 'lowest') {
+      filtered.sort((a, b) => parseFloat(a.amount || 0) - parseFloat(b.amount || 0));
+    } else if (filters.activeFilter === 'collections') {
+      filtered = filtered.filter(tx => tx.type === 'Collection');
+    } else if (filters.activeFilter === 'disbursements') {
+      filtered = filtered.filter(tx => tx.type === 'Disbursement');
     }
 
-    // Department filter
-    if (filters.department !== "all") {
-      filtered = filtered.filter(tx => tx.department === filters.department);
-    }
+    return filtered;
+  }, [transactions, filters]);
 
-    // Date range filter
-    if (filters.dateFrom) {
-      filtered = filtered.filter(tx => 
-        new Date(tx.created_at) >= new Date(filters.dateFrom)
-      );
-    }
-    if (filters.dateTo) {
-      filtered = filtered.filter(tx => 
-        new Date(tx.created_at) <= new Date(filters.dateTo + "T23:59:59")
-      );
-    }
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentTransactions = filteredTransactions.slice(startIndex, endIndex);
+  const displayStart = filteredTransactions.length > 0 ? startIndex + 1 : 0;
+  const displayEnd = Math.min(endIndex, filteredTransactions.length);
 
-    // Search term filter
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(tx => 
-        tx.description?.toLowerCase().includes(searchLower) ||
-        tx.recipient?.toLowerCase().includes(searchLower) ||
-        tx.reference?.toLowerCase().includes(searchLower) ||
-        tx.id.toString().includes(searchLower)
-      );
-    }
-
-    setFilteredTransactions(filtered);
-  };
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({
@@ -190,126 +292,6 @@ const TransactionManagement = () => {
     setShowDetailsModal(true);
   };
 
-  const handleReceiveMoneyChange = (field, value) => {
-    setReceiveMoneyForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleReceiveMoneySubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!receiveMoneyForm.payerName.trim()) {
-      setError("Please enter payer name.");
-      return;
-    }
-    if (!receiveMoneyForm.amount || parseFloat(receiveMoneyForm.amount) <= 0) {
-      setError("Please enter a valid amount.");
-      return;
-    }
-    if (!receiveMoneyForm.fundAccountId) {
-      setError("Please select a fund account.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-      
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        return;
-      }
-
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      // Auto-generate receipt and reference numbers
-      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const dailyCount = transactions.filter(tx => 
-        tx.type === 'Collection' && 
-        new Date(tx.created_at).toDateString() === new Date().toDateString()
-      ).length + 1;
-      
-      const receiptNo = `RCPT-${today}-${String(dailyCount).padStart(4, '0')}`;
-      const referenceNo = `COL-${new Date().getFullYear()}-${String(dailyCount).padStart(4, '0')}`;
-
-      // Create transaction
-      const transactionPayload = {
-        type: 'Collection',
-        amount: parseFloat(receiveMoneyForm.amount),
-        description: receiveMoneyForm.description.trim() || `Collection from ${receiveMoneyForm.payerName}`,
-        recipient: receiveMoneyForm.payerName.trim(),
-        department: receiveMoneyForm.department,
-        category: receiveMoneyForm.category,
-        reference: receiveMoneyForm.reference.trim() || referenceNo,
-        receipt_no: receiptNo,
-        reference_no: referenceNo,
-        fund_account_id: parseInt(receiveMoneyForm.fundAccountId),
-        mode_of_payment: receiveMoneyForm.modeOfPayment,
-        created_by: parseInt(userId)
-      };
-
-      const transactionRes = await axios.post(
-        `${API_BASE}/transactions`,
-        transactionPayload,
-        { headers }
-      );
-
-      // Create receipt record
-      await axios.post(
-        `${API_BASE}/receipts`,
-        {
-          transaction_id: transactionRes.data.id || transactionRes.data.data?.id,
-          payer_name: receiveMoneyForm.payerName.trim(),
-          receipt_number: receiptNo,
-          issued_at: new Date().toISOString()
-        },
-        { headers }
-      );
-
-      // Reset form
-      setReceiveMoneyForm({
-        payerName: '',
-        amount: '',
-        reference: '',
-        modeOfPayment: 'Cash',
-        description: '',
-        fundAccountId: '',
-        department: 'Finance',
-        category: 'Tax Collection'
-      });
-
-      setSuccess(`Collection transaction created successfully! Receipt: ${receiptNo}`);
-      setError("");
-      
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setSuccess("");
-      }, 5000);
-      
-      fetchTransactionData(); 
-
-    } catch (err) {
-      console.error("Error creating collection:", err);
-      if (err.response?.status === 422 && err.response.data?.errors) {
-        const errorMessages = Object.values(err.response.data.errors)
-          .flat()
-          .join(", ");
-        setError(`Validation error: ${errorMessages}`);
-      } else {
-        setError(err.response?.data?.message || "Failed to create collection transaction.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const departments = [
     "Finance", "Administration", "Operations", "HR", "IT", "Legal",
@@ -329,9 +311,29 @@ const TransactionManagement = () => {
   return (
     <div className="transaction-management-page">
       <div className="tm-header">
-        <h2 className="tm-title">
-          <i className="fas fa-exchange-alt"></i> Transaction Management
-        </h2>
+        <div className="tm-header-content">
+          <h1 className="tm-title">
+            <i className="fas fa-exchange-alt"></i> Transaction Management
+          </h1>
+          <div className="tm-header-actions">
+            <button 
+              className="tm-btn-export"
+              onClick={() => {/* Add export functionality */}}
+              title="Export Transactions"
+            >
+              <i className="fas fa-download"></i>
+              Export Report
+            </button>
+            <button 
+              className="tm-btn-refresh"
+              onClick={() => fetchTransactionData()}
+              title="Refresh Data"
+            >
+              <i className="fas fa-sync-alt"></i>
+              Refresh
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -352,210 +354,312 @@ const TransactionManagement = () => {
       <div className="tm-main-layout">
         {/* Left Content */}
         <div className="tm-left-content">
-          {/* Statistics Cards Grid */}
-          <div className="tm-stats-grid">
-            <div className="stat-card collections">
-              <div className="stat-icon">
-                <i className="fas fa-arrow-down"></i>
+          {/* Trend Charts Section - At the Very Top */}
+          {showCharts && (
+            <div className="tm-trends-section">
+              <div className="trends-header">
+                <h3><i className="fas fa-chart-line"></i> Trends & Analysis (Last 30 Days)</h3>
               </div>
-              <div className="stat-content">
-                <div className="stat-label">Total Collections</div>
-                <div className="stat-value">₱{stats.totalCollections.toLocaleString()}</div>
-              </div>
-            </div>
-            <div className="stat-card disbursements">
-              <div className="stat-icon">
-                <i className="fas fa-arrow-up"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-label">Total Disbursements</div>
-                <div className="stat-value">₱{stats.totalDisbursements.toLocaleString()}</div>
-              </div>
-            </div>
-            <div className="stat-card total-transactions">
-              <div className="stat-icon">
-                <i className="fas fa-list"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-label">Total Transactions</div>
-                <div className="stat-value">{stats.totalTransactions.toLocaleString()}</div>
-              </div>
-            </div>
-            <div className="stat-card today-transactions">
-              <div className="stat-icon">
-                <i className="fas fa-calendar-day"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-label">Today's Transactions</div>
-                <div className="stat-value">{stats.todayTransactions}</div>
-              </div>
-            </div>
-            <div className="stat-card net-balance">
-              <div className="stat-icon">
-                <i className="fas fa-balance-scale"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-label">Net Balance</div>
-                <div className="stat-value">₱{(stats.totalCollections - stats.totalDisbursements).toLocaleString()}</div>
-              </div>
-            </div>
-            <div className="stat-card collection-rate">
-              <div className="stat-icon">
-                <i className="fas fa-chart-pie"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-label">Collection Rate</div>
-                <div className="stat-value">
-                  {stats.totalTransactions > 0 ? 
-                    Math.round((transactions.filter(tx => tx.type === 'Collection').length / stats.totalTransactions) * 100) : 0}%
-                </div>
-                <div className="collection-rate-graph">
-                  <div className="graph-container">
-                    <div 
-                      className="collection-bar"
-                      style={{
-                        height: `${stats.totalTransactions > 0 ? 
-                          Math.round((transactions.filter(tx => tx.type === 'Collection').length / stats.totalTransactions) * 100) : 0}%`
-                      }}
-                    ></div>
-                    <div 
-                      className="disbursement-bar"
-                      style={{
-                        height: `${stats.totalTransactions > 0 ? 
-                          Math.round((transactions.filter(tx => tx.type === 'Disbursement').length / stats.totalTransactions) * 100) : 0}%`
-                      }}
-                    ></div>
-                  </div>
-                  <div className="graph-labels">
-                    <span className="collection-label">Collections</span>
-                    <span className="disbursement-label">Disbursements</span>
-                  </div>
+              
+              <div className="trends-grid">
+                <div className="trend-chart-container">
+                  <h4>Collections vs Disbursements</h4>
+                  <Suspense fallback={<ChartSkeleton />}>
+                    <TrendChart 
+                      collectionsData={trendData.collections}
+                      disbursementsData={trendData.disbursements}
+                    />
+                  </Suspense>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Filters Section */}
-          <div className="tm-filters-section">
-            <div className="filters-header">
-              <h3><i className="fas fa-filter"></i> Transaction Filters</h3>
-              <button className="clear-filters-btn" onClick={clearFilters}>
-                <i className="fas fa-times"></i> Clear Filters
-              </button>
+          {/* Top Row - Primary KPIs */}
+          <div className="tm-primary-kpis">
+            <div className="kpi-card large collections">
+              <div className="kpi-header">
+                <div className="kpi-icon">
+                  <i className="fas fa-arrow-down"></i>
+                </div>
+                <div className="kpi-info">
+                  <div className="kpi-label">Total Collections</div>
+                  <div className="kpi-value">₱{stats.totalCollections.toLocaleString()}</div>
+                  <div className="kpi-subtitle">Incoming Funds</div>
+                </div>
+              </div>
             </div>
             
-            <div className="filters-grid">
-              <div className="filter-group">
-                <label>Transaction Type</label>
-                <select 
-                  value={filters.type} 
-                  onChange={(e) => handleFilterChange('type', e.target.value)}
-                >
-                  <option value="all">All Types</option>
-                  <option value="Collection">Collections</option>
-                  <option value="Disbursement">Disbursements</option>
-                  <option value="Override">Overrides</option>
-                </select>
+            <div className="kpi-card large disbursements">
+              <div className="kpi-header">
+                <div className="kpi-icon">
+                  <i className="fas fa-arrow-up"></i>
+                </div>
+                <div className="kpi-info">
+                  <div className="kpi-label">Total Disbursements</div>
+                  <div className="kpi-value">₱{stats.totalDisbursements.toLocaleString()}</div>
+                  <div className="kpi-subtitle">Outgoing Funds</div>
+                </div>
               </div>
-
-              <div className="filter-group">
-                <label>Department</label>
-                <select 
-                  value={filters.department} 
-                  onChange={(e) => handleFilterChange('department', e.target.value)}
-                >
-                  <option value="all">All Departments</option>
-                  {departments.map(dept => (
-                    <option key={dept} value={dept}>{dept}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label>Date From</label>
-                <input 
-                  type="date" 
-                  value={filters.dateFrom}
-                  onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-                  placeholder="dd/mm/yyyy"
-                />
-              </div>
-
-              <div className="filter-group">
-                <label>Date To</label>
-                <input 
-                  type="date" 
-                  value={filters.dateTo}
-                  onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-                  placeholder="dd/mm/yyyy"
-                />
-              </div>
-
-              <div className="filter-group">
-                <label>Search</label>
-                <input 
-                  type="text" 
-                  placeholder="Search transactions..."
-                  value={filters.searchTerm}
-                  onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-                />
+            </div>
+            
+            <div className={`kpi-card large net-balance ${stats.netBalance >= 0 ? 'positive' : 'negative'}`}>
+              <div className="kpi-header">
+                <div className="kpi-icon">
+                  <i className="fas fa-balance-scale"></i>
+                </div>
+                <div className="kpi-info">
+                  <div className="kpi-label">Net Balance</div>
+                  <div className="kpi-value">₱{stats.netBalance.toLocaleString()}</div>
+                  <div className="kpi-subtitle">
+                    {stats.netBalance >= 0 ? '🟢 Surplus' : '🔴 Deficit'}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Transactions Table */}
-          <div className="tm-transactions-section">
-            <div className="transactions-header">
-              <h3>Transaction Records</h3>
+          {/* Second Row - Performance Metrics */}
+          <div className="tm-performance-kpis">
+            <div className="kpi-card medium today">
+              <div className="kpi-icon-small">
+                <i className="fas fa-calendar-day"></i>
+              </div>
+              <div className="kpi-content">
+                <div className="kpi-label">Today's Activity</div>
+                <div className="kpi-value">{stats.todayTransactions}</div>
+                <div className="kpi-subtitle">₱{stats.todayAmount.toLocaleString()}</div>
+              </div>
             </div>
+            
+            <div className="kpi-card medium average">
+              <div className="kpi-icon-small">
+                <i className="fas fa-calculator"></i>
+              </div>
+              <div className="kpi-content">
+                <div className="kpi-label">Avg Transaction</div>
+                <div className="kpi-value">₱{stats.averageTransactionValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="kpi-subtitle">Per Record</div>
+              </div>
+            </div>
+            
+            <div className="kpi-card medium collection-rate">
+              <div className="kpi-icon-small">
+                <i className="fas fa-chart-pie"></i>
+              </div>
+              <div className="kpi-content">
+                <div className="kpi-label">Collection Rate</div>
+                <div className="kpi-value">{stats.collectionRate.toFixed(1)}%</div>
+                <div className="kpi-subtitle">
+                  <div className="mini-progress-bar">
+                    <div className="progress-fill" style={{ width: `${stats.collectionRate}%` }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="kpi-card medium burn-rate">
+              <div className="kpi-icon-small">
+                <i className="fas fa-fire"></i>
+              </div>
+              <div className="kpi-content">
+                <div className="kpi-label">Daily Burn Rate</div>
+                <div className="kpi-value">₱{stats.monthlyBurnRate.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="kpi-subtitle">Avg Daily Spending</div>
+              </div>
+            </div>
+          </div>
 
-            <div className="transactions-table-container">
-              <table className="transactions-table">
+          {/* Transactions Section Header - IssueReceipt Style */}
+          <div className="tm-section-header">
+            <div className="tm-section-title-group">
+              <h3>
+                <i className="fas fa-exchange-alt"></i>
+                Transaction Records
+                <span className="tm-section-count">({filteredTransactions.length})</span>
+              </h3>
+            </div>
+            <div className="tm-header-controls">
+              <div className="tm-search-filter-container">
+                <div className="tm-search-container">
+                  <input
+                    type="text"
+                    placeholder="Search transactions..."
+                    value={filters.searchTerm}
+                    onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                    className="tm-search-input"
+                  />
+                  <i className="fas fa-search tm-search-icon"></i>
+                </div>
+                
+                <div className="tm-filter-dropdown-container">
+                  <button
+                    className="tm-filter-dropdown-btn"
+                    onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
+                    title="Filter transactions"
+                  >
+                    <i className="fas fa-filter"></i>
+                    <span className="tm-filter-label">
+                      {filters.activeFilter === 'all' ? 'All Transactions' :
+                       filters.activeFilter === 'latest' ? 'Latest First' :
+                       filters.activeFilter === 'oldest' ? 'Oldest First' :
+                       filters.activeFilter === 'highest' ? 'Highest Amount' :
+                       filters.activeFilter === 'lowest' ? 'Lowest Amount' :
+                       filters.activeFilter === 'collections' ? 'Collections Only' :
+                       'Disbursements Only'}
+                    </span>
+                    <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} tm-filter-arrow`}></i>
+                  </button>
+                  
+                  {filters.showFilterDropdown && (
+                    <div className="tm-filter-dropdown-menu">
+                      <button
+                        className={`tm-filter-option ${filters.activeFilter === 'all' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-list"></i>
+                        <span>All Transactions</span>
+                        {filters.activeFilter === 'all' && <i className="fas fa-check tm-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`tm-filter-option ${filters.activeFilter === 'latest' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'latest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-down"></i>
+                        <span>Latest First</span>
+                        {filters.activeFilter === 'latest' && <i className="fas fa-check tm-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`tm-filter-option ${filters.activeFilter === 'oldest' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'oldest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-up"></i>
+                        <span>Oldest First</span>
+                        {filters.activeFilter === 'oldest' && <i className="fas fa-check tm-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`tm-filter-option ${filters.activeFilter === 'highest' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'highest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-sort-amount-down"></i>
+                        <span>Highest Amount</span>
+                        {filters.activeFilter === 'highest' && <i className="fas fa-check tm-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`tm-filter-option ${filters.activeFilter === 'lowest' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'lowest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-sort-amount-up"></i>
+                        <span>Lowest Amount</span>
+                        {filters.activeFilter === 'lowest' && <i className="fas fa-check tm-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`tm-filter-option ${filters.activeFilter === 'collections' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'collections'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-circle-down"></i>
+                        <span>Collections Only</span>
+                        {filters.activeFilter === 'collections' && <i className="fas fa-check tm-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`tm-filter-option ${filters.activeFilter === 'disbursements' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'disbursements'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-circle-up"></i>
+                        <span>Disbursements Only</span>
+                        {filters.activeFilter === 'disbursements' && <i className="fas fa-check tm-filter-check"></i>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Transactions Table - IssueReceipt Style */}
+          <div className="tm-table-section">
+            <div className="tm-table-container">
+              <table className="tm-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Type</th>
-                    <th>Amount</th>
-                    <th>Recipient/Payer</th>
-                    <th>Department</th>
-                    <th>Date</th>
-                    <th>Created By</th>
-                    <th>Actions</th>
+                    <th><i className="fas fa-hashtag"></i> ID</th>
+                    <th><i className="fas fa-tag"></i> TYPE</th>
+                    <th><i className="fas fa-money-bill"></i> AMOUNT</th>
+                    <th><i className="fas fa-user"></i> RECIPIENT/PAYER</th>
+                    <th><i className="fas fa-building"></i> DEPARTMENT</th>
+                    <th><i className="fas fa-calendar"></i> DATE</th>
+                    <th><i className="fas fa-cog"></i> ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.length > 0 ? (
-                    filteredTransactions.map((transaction) => (
-                      <tr key={transaction.id}>
-                        <td>#{transaction.id}</td>
+                  {currentTransactions.length > 0 ? (
+                    currentTransactions.map((transaction) => (
+                      <tr 
+                        key={transaction.id}
+                        className="tm-table-row tm-clickable-row"
+                        onClick={(e) => {
+                          if (!e.target.closest('.tm-action-cell')) {
+                            viewTransactionDetails(transaction);
+                          }
+                        }}
+                      >
                         <td>
-                          <span className={`transaction-type-badge ${transaction.type.toLowerCase()}`}>
-                            {transaction.type}
-                          </span>
+                          <div className="tm-cell-content">
+                            <span className="tm-transaction-id">#{transaction.id}</span>
+                          </div>
                         </td>
-                        <td className={`amount ${transaction.type === 'Collection' ? 'positive' : 'negative'}`}>
-                          {transaction.type === 'Collection' ? '+' : '-'}₱{parseFloat(transaction.amount || 0).toLocaleString()}
-                        </td>
-                        <td>{transaction.recipient || 'N/A'}</td>
-                        <td>{transaction.department || 'N/A'}</td>
-                        <td>{new Date(transaction.created_at).toLocaleDateString()}</td>
-                        <td>{transaction.created_by || 'System'}</td>
                         <td>
-                          <div className="action-buttons">
-                            <button 
-                              className="view-btn"
-                              onClick={() => viewTransactionDetails(transaction)}
-                              title="View Details"
-                            >
-                              <i className="fas fa-eye"></i>
-                            </button>
+                          <div className="tm-cell-content">
+                            <span className={`tm-type-badge ${transaction.type.toLowerCase()}`}>
+                              {transaction.type}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="tm-cell-content">
+                            <span className={`tm-amount ${transaction.type === 'Collection' ? 'tm-amount-positive' : 'tm-amount-negative'}`}>
+                              {transaction.type === 'Collection' ? '' : '-'}₱{Math.abs(parseFloat(transaction.amount || 0)).toLocaleString()}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="tm-cell-content">
+                            <span className="tm-recipient-name">{transaction.recipient || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="tm-cell-content">
+                            <span className="tm-department">{transaction.department || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="tm-cell-content">
+                            <span className="tm-date">
+                              {new Date(transaction.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="tm-action-cell">
+                          <div className="tm-cell-content">
+                            <div className="tm-action-buttons-group">
+                              <button 
+                                className="tm-action-btn-icon tm-view-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  viewTransactionDetails(transaction);
+                                }}
+                                title="View Details"
+                              >
+                                <i className="fas fa-eye"></i>
+                              </button>
+                            </div>
                           </div>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="8" className="no-data">
+                      <td colSpan="7" className="tm-no-data">
                         <i className="fas fa-inbox"></i>
                         <p>No transactions found matching your criteria.</p>
                       </td>
@@ -564,103 +668,37 @@ const TransactionManagement = () => {
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination */}
+            {filteredTransactions.length > 0 && (
+              <div className="tm-table-pagination">
+                <div className="tm-pagination-info">
+                  Showing {displayStart}-{displayEnd} of {filteredTransactions.length} transactions
+                </div>
+                <div className="tm-pagination-controls">
+                  <button
+                    type="button"
+                    className="tm-pagination-button"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  <span className="tm-pagination-info">Page {currentPage} of {totalPages}</span>
+                  <button
+                    type="button"
+                    className="tm-pagination-button"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages || filteredTransactions.length === 0}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Panel - Receive Money Form */}
-        <div className="tm-right-panel">
-          <div className="receive-money-panel">
-            <form onSubmit={handleReceiveMoneySubmit}>
-              <h3>Receive Money</h3>
-              
-              <div className="form-group">
-                <label>Payer Name *</label>
-                <input 
-                  type="text" 
-                  placeholder="Enter payer name"
-                  value={receiveMoneyForm.payerName}
-                  onChange={(e) => handleReceiveMoneyChange('payerName', e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div className="form-info">
-                <p><strong>Receipt Number:</strong> Will be auto-generated</p>
-                <p><strong>Reference Number:</strong> Will be auto-generated</p>
-              </div>
-              
-              <div className="form-group">
-                <label>Amount *</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  min="0.01"
-                  placeholder="Enter amount"
-                  value={receiveMoneyForm.amount}
-                  onChange={(e) => handleReceiveMoneyChange('amount', e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Reference (optional)</label>
-                <input 
-                  type="text" 
-                  placeholder="Enter reference"
-                  value={receiveMoneyForm.reference}
-                  onChange={(e) => handleReceiveMoneyChange('reference', e.target.value)}
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Payment Mode *</label>
-                <select 
-                  value={receiveMoneyForm.modeOfPayment}
-                  onChange={(e) => handleReceiveMoneyChange('modeOfPayment', e.target.value)}
-                  required
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                </select>
-              </div>
-              
-              <div className="form-group">
-                <label>Description (optional)</label>
-                <textarea 
-                  rows="2" 
-                  placeholder="Enter description"
-                  value={receiveMoneyForm.description}
-                  onChange={(e) => handleReceiveMoneyChange('description', e.target.value)}
-                ></textarea>
-              </div>
-              
-              <div className="form-group">
-                <label>Fund Account *</label>
-                <select 
-                  value={receiveMoneyForm.fundAccountId}
-                  onChange={(e) => handleReceiveMoneyChange('fundAccountId', e.target.value)}
-                  required
-                >
-                  <option value="">-- Select Fund Account --</option>
-                  {fundAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name} ({account.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <button 
-                type="submit" 
-                className="create-transaction-btn"
-                disabled={loading}
-              >
-                {loading ? 'Creating...' : 'Create Collection Transaction'}
-              </button>
-            </form>
-          </div>
-        </div>
       </div>
 
       {/* Transaction Details Modal */}

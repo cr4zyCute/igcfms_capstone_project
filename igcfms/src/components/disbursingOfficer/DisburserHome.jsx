@@ -66,9 +66,9 @@ const DisburserHome = () => {
 
         // Fetch transactions (disbursements only), fund accounts, and override requests
         const [transactionsRes, fundsRes, overrideRes] = await Promise.all([
-          axios.get('http://localhost:8000/api/transactions', { headers }),
-          axios.get('http://localhost:8000/api/fund-accounts', { headers }),
-          axios.get('http://localhost:8000/api/override-requests', { headers }).catch(() => ({ data: [] }))
+          axios.get('/api/transactions', { headers }),
+          axios.get('/api/fund-accounts', { headers }),
+          axios.get('/api/override-requests', { headers }).catch(() => ({ data: [] }))
         ]);
 
         const allTransactions = transactionsRes.data || [];

@@ -41,8 +41,8 @@ const CollectorHome = () => {
 
         // Fetch transactions (collections only) and receipts
         const [transactionsRes, receiptsRes] = await Promise.all([
-          axios.get('http://localhost:8000/api/transactions', { headers }),
-          axios.get('http://localhost:8000/api/receipts', { headers }).catch(() => ({ data: [] }))
+          axios.get('/api/transactions', { headers }),
+          axios.get('/api/receipts', { headers }).catch(() => ({ data: [] }))
         ]);
 
         const allTransactions = transactionsRes.data || [];
