@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import axios from "axios";
 import API_BASE_URL from "../../config/api";
 import "./css/transactionmanagement.css";
-import "./css/transaction-kpis.css";
+import "../analytics/TransactionAnalytics.jsx/css/transaction-kpis.css";
 
 // Lazy load chart components for better performance
 const TrendChart = lazy(() => import('../analytics/TransactionAnalytics.jsx/TrendChart'));
@@ -74,9 +74,6 @@ const TransactionManagement = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [transactions, filters]);
 
   const fetchTransactionData = async () => {
     try {
@@ -412,7 +409,7 @@ const TransactionManagement = () => {
                   <div className="kpi-label">Net Balance</div>
                   <div className="kpi-value">₱{stats.netBalance.toLocaleString()}</div>
                   <div className="kpi-subtitle">
-                    {stats.netBalance >= 0 ? '🟢 Surplus' : '🔴 Deficit'}
+                    {stats.netBalance >= 0 ? '⚫ Surplus' : '⚪ Deficit'}
                   </div>
                 </div>
               </div>
@@ -576,10 +573,10 @@ const TransactionManagement = () => {
             </div>
           </div>
 
-          {/* Transactions Table - IssueReceipt Style */}
-          <div className="tm-table-section">
-            <div className="tm-table-container">
-              <table className="tm-table">
+          {/* Transactions Table - IssueMoney Style */}
+          <div className="tm-table-section receipts-table-section">
+            <div className="tm-table-container receipts-table-container">
+              <table className="tm-table receipts-table">
                 <thead>
                   <tr>
                     <th><i className="fas fa-hashtag"></i> ID</th>
@@ -596,54 +593,54 @@ const TransactionManagement = () => {
                     currentTransactions.map((transaction) => (
                       <tr 
                         key={transaction.id}
-                        className="tm-table-row tm-clickable-row"
+                        className="table-row"
                         onClick={(e) => {
-                          if (!e.target.closest('.tm-action-cell')) {
+                          if (!e.target.closest('.action-cell')) {
                             viewTransactionDetails(transaction);
                           }
                         }}
                       >
                         <td>
-                          <div className="tm-cell-content">
-                            <span className="tm-transaction-id">#{transaction.id}</span>
+                          <div className="cell-content">
+                            <span className="receipt-id">#{transaction.id}</span>
                           </div>
                         </td>
                         <td>
-                          <div className="tm-cell-content">
+                          <div className="cell-content">
                             <span className={`tm-type-badge ${transaction.type.toLowerCase()}`}>
                               {transaction.type}
                             </span>
                           </div>
                         </td>
                         <td>
-                          <div className="tm-cell-content">
-                            <span className={`tm-amount ${transaction.type === 'Collection' ? 'tm-amount-positive' : 'tm-amount-negative'}`}>
+                          <div className="cell-content">
+                            <span className={`amount ${transaction.type === 'Collection' ? 'amount-positive' : 'amount-negative'}`}>
                               {transaction.type === 'Collection' ? '' : '-'}₱{Math.abs(parseFloat(transaction.amount || 0)).toLocaleString()}
                             </span>
                           </div>
                         </td>
                         <td>
-                          <div className="tm-cell-content">
-                            <span className="tm-recipient-name">{transaction.recipient || 'N/A'}</span>
+                          <div className="cell-content">
+                            <span className="payer-name">{transaction.recipient || 'N/A'}</span>
                           </div>
                         </td>
                         <td>
-                          <div className="tm-cell-content">
-                            <span className="tm-department">{transaction.department || 'N/A'}</span>
+                          <div className="cell-content">
+                            <span className="payer-name">{transaction.department || 'N/A'}</span>
                           </div>
                         </td>
                         <td>
-                          <div className="tm-cell-content">
-                            <span className="tm-date">
+                          <div className="cell-content">
+                            <span className="issue-date">
                               {new Date(transaction.created_at).toLocaleDateString()}
                             </span>
                           </div>
                         </td>
-                        <td className="tm-action-cell">
-                          <div className="tm-cell-content">
-                            <div className="tm-action-buttons-group">
+                        <td className="action-cell">
+                          <div className="cell-content">
+                            <div className="action-buttons-group">
                               <button 
-                                className="tm-action-btn-icon tm-view-btn"
+                                className="action-btn-icon"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   viewTransactionDetails(transaction);
@@ -659,7 +656,7 @@ const TransactionManagement = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" className="tm-no-data">
+                      <td colSpan="7" className="no-data">
                         <i className="fas fa-inbox"></i>
                         <p>No transactions found matching your criteria.</p>
                       </td>
@@ -669,25 +666,25 @@ const TransactionManagement = () => {
               </table>
             </div>
             
-            {/* Pagination */}
+            {/* Pagination - IssueMoney Style */}
             {filteredTransactions.length > 0 && (
-              <div className="tm-table-pagination">
-                <div className="tm-pagination-info">
+              <div className="table-pagination">
+                <div className="pagination-info">
                   Showing {displayStart}-{displayEnd} of {filteredTransactions.length} transactions
                 </div>
-                <div className="tm-pagination-controls">
+                <div className="pagination-controls">
                   <button
                     type="button"
-                    className="tm-pagination-button"
+                    className="pagination-button"
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
                   >
                     Previous
                   </button>
-                  <span className="tm-pagination-info">Page {currentPage} of {totalPages}</span>
+                  <span className="pagination-info">Page {currentPage} of {totalPages}</span>
                   <button
                     type="button"
-                    className="tm-pagination-button"
+                    className="pagination-button"
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages || filteredTransactions.length === 0}
                   >
@@ -701,71 +698,173 @@ const TransactionManagement = () => {
 
       </div>
 
-      {/* Transaction Details Modal */}
+      {/* Enhanced Transaction Details Modal */}
       {showDetailsModal && selectedTransaction && (
-        <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3><i className="fas fa-info-circle"></i> Transaction Details</h3>
-              <button className="modal-close" onClick={() => setShowDetailsModal(false)}>
+        <div className="tm-modal-backdrop" onClick={() => setShowDetailsModal(false)}>
+          <div className="tm-modal-container" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="tm-modal-header">
+              <div className="tm-modal-title-section">
+                <div className="tm-modal-icon">
+                  <i className="fas fa-receipt"></i>
+                </div>
+                <div className="tm-modal-title-content">
+                  <h2 className="tm-modal-title">Transaction Details</h2>
+                  <p className="tm-modal-subtitle">Complete transaction information</p>
+                </div>
+              </div>
+              <button className="tm-modal-close-btn" onClick={() => setShowDetailsModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            <div className="modal-body">
-              <div className="transaction-details-grid">
-                <div className="detail-item">
-                  <label>Transaction ID:</label>
-                  <span>#{selectedTransaction.id}</span>
+
+            {/* Modal Body */}
+            <div className="tm-modal-body">
+              {/* Transaction Summary Card */}
+              <div className="tm-transaction-summary-card">
+                <div className="tm-summary-left">
+                  <div className="tm-transaction-id">
+                    <span className="tm-id-label">Transaction ID</span>
+                    <span className="tm-id-value">#{selectedTransaction.id}</span>
+                  </div>
+                  <div className="tm-transaction-type">
+                    <span className={`tm-type-indicator ${selectedTransaction.type.toLowerCase()}`}>
+                      <i className={`fas ${selectedTransaction.type === 'Collection' ? 'fa-arrow-down' : 'fa-arrow-up'}`}></i>
+                      {selectedTransaction.type}
+                    </span>
+                  </div>
                 </div>
-                <div className="detail-item">
-                  <label>Type:</label>
-                  <span className={`transaction-type-badge ${selectedTransaction.type.toLowerCase()}`}>
-                    {selectedTransaction.type}
-                  </span>
-                </div>
-                <div className="detail-item">
-                  <label>Amount:</label>
-                  <span className={`amount ${selectedTransaction.type === 'Collection' ? 'positive' : 'negative'}`}>
-                    ₱{parseFloat(selectedTransaction.amount || 0).toLocaleString()}
-                  </span>
-                </div>
-                <div className="detail-item">
-                  <label>Description:</label>
-                  <span>{selectedTransaction.description || 'No description'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Recipient/Payer:</label>
-                  <span>{selectedTransaction.recipient || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Department:</label>
-                  <span>{selectedTransaction.department || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Category:</label>
-                  <span>{selectedTransaction.category || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Reference:</label>
-                  <span>{selectedTransaction.reference || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Receipt/Reference No:</label>
-                  <span>{selectedTransaction.receipt_no || selectedTransaction.reference_no || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Payment Mode:</label>
-                  <span>{selectedTransaction.mode_of_payment || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Created Date:</label>
-                  <span>{new Date(selectedTransaction.created_at).toLocaleString()}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Last Updated:</label>
-                  <span>{new Date(selectedTransaction.updated_at).toLocaleString()}</span>
+                <div className="tm-summary-right">
+                  <div className="tm-transaction-amount">
+                    <span className="tm-amount-label">Amount</span>
+                    <span className={`tm-amount-value ${selectedTransaction.type === 'Collection' ? 'tm-amount-positive' : 'tm-amount-negative'}`}>
+                      {selectedTransaction.type === 'Collection' ? '+' : '-'}₱{Math.abs(parseFloat(selectedTransaction.amount || 0)).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              {/* Transaction Details Grid */}
+              <div className="tm-details-section">
+                <h3 className="tm-section-title">
+                  <i className="fas fa-info-circle"></i>
+                  Transaction Information
+                </h3>
+                <div className="tm-details-grid">
+                  <div className="tm-detail-card">
+                    <div className="tm-detail-icon">
+                      <i className="fas fa-user"></i>
+                    </div>
+                    <div className="tm-detail-content">
+                      <label className="tm-detail-label">Recipient/Payer</label>
+                      <span className="tm-detail-value">{selectedTransaction.recipient || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="tm-detail-card">
+                    <div className="tm-detail-icon">
+                      <i className="fas fa-building"></i>
+                    </div>
+                    <div className="tm-detail-content">
+                      <label className="tm-detail-label">Department</label>
+                      <span className="tm-detail-value">{selectedTransaction.department || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="tm-detail-card">
+                    <div className="tm-detail-icon">
+                      <i className="fas fa-tag"></i>
+                    </div>
+                    <div className="tm-detail-content">
+                      <label className="tm-detail-label">Category</label>
+                      <span className="tm-detail-value">{selectedTransaction.category || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="tm-detail-card">
+                    <div className="tm-detail-icon">
+                      <i className="fas fa-credit-card"></i>
+                    </div>
+                    <div className="tm-detail-content">
+                      <label className="tm-detail-label">Payment Mode</label>
+                      <span className="tm-detail-value">{selectedTransaction.mode_of_payment || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="tm-detail-card">
+                    <div className="tm-detail-icon">
+                      <i className="fas fa-hashtag"></i>
+                    </div>
+                    <div className="tm-detail-content">
+                      <label className="tm-detail-label">Reference</label>
+                      <span className="tm-detail-value">{selectedTransaction.reference || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="tm-detail-card">
+                    <div className="tm-detail-icon">
+                      <i className="fas fa-receipt"></i>
+                    </div>
+                    <div className="tm-detail-content">
+                      <label className="tm-detail-label">Receipt/Reference No</label>
+                      <span className="tm-detail-value">{selectedTransaction.receipt_no || selectedTransaction.reference_no || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description Section */}
+              {selectedTransaction.description && (
+                <div className="tm-description-section">
+                  <h3 className="tm-section-title">
+                    <i className="fas fa-file-alt"></i>
+                    Description
+                  </h3>
+                  <div className="tm-description-card">
+                    <p className="tm-description-text">{selectedTransaction.description}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Timestamp Section */}
+              <div className="tm-timestamp-section">
+                <h3 className="tm-section-title">
+                  <i className="fas fa-clock"></i>
+                  Timeline
+                </h3>
+                <div className="tm-timestamp-grid">
+                  <div className="tm-timestamp-item">
+                    <div className="tm-timestamp-icon created">
+                      <i className="fas fa-plus-circle"></i>
+                    </div>
+                    <div className="tm-timestamp-content">
+                      <label className="tm-timestamp-label">Created</label>
+                      <span className="tm-timestamp-value">{new Date(selectedTransaction.created_at).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="tm-timestamp-item">
+                    <div className="tm-timestamp-icon updated">
+                      <i className="fas fa-edit"></i>
+                    </div>
+                    <div className="tm-timestamp-content">
+                      <label className="tm-timestamp-label">Last Updated</label>
+                      <span className="tm-timestamp-value">{new Date(selectedTransaction.updated_at).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="tm-modal-footer">
+              <button className="tm-modal-btn tm-btn-secondary" onClick={() => setShowDetailsModal(false)}>
+                <i className="fas fa-times"></i>
+                Close
+              </button>
+              <button className="tm-modal-btn tm-btn-primary" onClick={() => window.print()}>
+                <i className="fas fa-print"></i>
+                Print Details
+              </button>
             </div>
           </div>
         </div>
