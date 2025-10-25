@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../common/NotificationBell';
 
-const Navbar = ({ userRole, user, onNavigate }) => {
+const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -41,26 +41,17 @@ const Navbar = ({ userRole, user, onNavigate }) => {
   };
 
   return (
-    <header className="navbar">
-      <div className="navbar-left">
-        <div className="brand-container">
-         
+    <header className={`navbar ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <div className="navbar-right">
           <div className="brand-text">
               <h2>{user?.role} Menu</h2>
-
           </div>
-        </div>
-      </div>
-
-
-      <div className="navbar-right">
-
-        <div className="quick-actions">
-        <NotificationBell onNavigate={onNavigate} />
-        </div>
-
-        {/* User Profile */}
-        <div className="profile-dropdown" ref={dropdownRef}>
+          
+          <div className="navbar-actions">
+            <NotificationBell onNavigate={onNavigate} />
+            
+            {/* User Profile */}
+            <div className="profile-dropdown" ref={dropdownRef}>
           <button 
             className="profile-button"
             onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -121,7 +112,8 @@ const Navbar = ({ userRole, user, onNavigate }) => {
               </button>
             </div>
           )}
-        </div>
+            </div>
+          </div>
       </div>
     </header>
   );

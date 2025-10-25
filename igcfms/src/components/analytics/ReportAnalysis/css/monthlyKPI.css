@@ -1,0 +1,258 @@
+.monthly-kpi-container {
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  overflow-y: auto;
+}
+
+.monthly-kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #000000;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.monthly-kpi-header i {
+  font-size: 28px;
+  color: #000000;
+}
+
+.monthly-kpi-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #000000;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.header-legend {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.collections-dot {
+  background: #10b981;
+}
+
+.disbursements-dot {
+  background: #ef4444;
+}
+
+.monthly-kpi-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.kpi-metric-small {
+  text-align: center;
+  padding: 20px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.kpi-metric-small:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  border-color: #000000;
+}
+
+.kpi-metric-small .metric-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.kpi-metric-small .metric-value {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #000000;
+}
+
+.kpi-metric-small .metric-value.collections {
+  color: #000000;
+}
+
+.kpi-metric-small .metric-value.disbursements {
+  color: #000000;
+}
+
+.kpi-metric-small .metric-value.rate {
+  color: #000000;
+}
+
+.kpi-metric-small .metric-value.time {
+  color: #000000;
+}
+
+.monthly-graphs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 25px;
+  margin-top: 30px;
+}
+
+.graph-container {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 25px;
+  transition: all 0.3s ease;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.graph-container:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  border-color: #000000;
+}
+
+.graph-container h4 {
+  margin: 0 0 20px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #000000;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.line-chart-container {
+  grid-column: span 2;
+  min-height: 350px;
+}
+
+.bar-chart-container {
+  grid-column: span 2;
+  min-height: 350px;
+}
+
+.pie-chart-container {
+  grid-column: 1;
+  min-height: 300px;
+}
+
+.gauge-container {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 300px;
+}
+
+.gauge-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.gauge-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.gauge {
+  width: 100%;
+  height: 35px;
+  background: #e5e7eb;
+  border-radius: 18px;
+  overflow: hidden;
+  position: relative;
+  border: 2px solid #d1d5db;
+}
+
+.gauge-fill {
+  height: 100%;
+  border-radius: 18px;
+  transition: width 0.5s ease;
+  background: #000000;
+}
+
+.gauge-value {
+  font-size: 36px;
+  font-weight: 800;
+  margin-top: 15px;
+  color: #000000;
+}
+
+.gauge-label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.monthly-kpi-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 24px;
+  color: #3498db;
+}
+
+@media (max-width: 1200px) {
+  .monthly-kpi-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .monthly-graphs {
+    grid-template-columns: 1fr;
+  }
+  
+  .line-chart-container,
+  .bar-chart-container {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .monthly-kpi-metrics {
+    grid-template-columns: 1fr;
+  }
+  
+  .kpi-metric-small .metric-value {
+    font-size: 18px;
+  }
+}

@@ -2505,14 +2505,23 @@ textarea {
   margin-bottom: 20px;
 }
 
-.account-cards {
+.funds-accounts .account-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: row;
+  align-items: stretch;
+  gap: 1.5rem;
   margin-bottom: 30px;
 }
 
-.account-card {
+.funds-accounts .account-cards > * {
+  min-width: 0;
+}
+
+.funds-accounts .account-card-new,
+.funds-accounts .account-card {
+  width: 100%;
+  min-width: 0;
   background: #ffffff;
   border: 2px solid #f0f0f0;
   border-radius: 12px;
@@ -2824,8 +2833,9 @@ table tr:last-child td {
     align-items: stretch;
   }
   
+  /* Keep 3 columns grid layout regardless of screen size */
   .account-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   
   .modal {

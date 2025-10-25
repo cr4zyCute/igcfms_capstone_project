@@ -7,9 +7,17 @@ import DisbursingSidebar from '../disbursingOfficer/DisbursingSidebar';
 import '../common/css/Sidebar.css';
 
 
-const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
+const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab, onCollapseChange }) => {
   const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const handleCollapseToggle = () => {
+    const newCollapsedState = !isCollapsed;
+    setIsCollapsed(newCollapsedState);
+    if (onCollapseChange) {
+      onCollapseChange(newCollapsedState);
+    }
+  };
 
   const renderSidebarContent = () => {
     switch (user?.role) {
@@ -32,19 +40,19 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
       
       <div className={`sidebar ${isOpen ? 'sidebar-open' : ''} ${isCollapsed ? 'sidebar-collapsed' : ''}`}>
         <div className="sidebar-header">
-          <div className="logo-container" onClick={() => setIsCollapsed(!isCollapsed)}>
+          <div className="logo-container" onClick={handleCollapseToggle}>
             <div className="logo-circle">
               <i className="fas fa-university"></i>
             </div>
             {!isCollapsed && <h2 className="system-title">IGCFMS</h2>}
           </div>
-          <button
+          {/* <button
             className="collapse-toggle"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={handleCollapseToggle}
             aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <i className={`fas fa-${isCollapsed ? 'angle-double-right' : 'angle-double-left'}`}></i>
-          </button>
+          </button> */}
         </div>
         <div className="sidebar-content-wrapper">
           {renderSidebarContent()}

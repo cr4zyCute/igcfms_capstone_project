@@ -9,12 +9,18 @@
 
 .dashboard-main {
   flex: 1;
-  margin-right: calc(100% - 82% - 19.5%);
-  margin-left: 16.5%;
+  margin-left: 260px;
   margin-top: 40px;
   padding: 2rem;
-  width: calc(82% - 4rem);
   box-sizing: border-box;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Adjust main content when sidebar is collapsed */
+.dashboard-main.sidebar-collapsed {
+  margin-left: 88px;
+  padding-left: 0.75rem;
+  padding-right: 1.75rem;
 }
 
 .tab-content {

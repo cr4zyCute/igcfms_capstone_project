@@ -80,6 +80,7 @@
 }
 
 .admin-item-label {
+
   flex: 1;
   font-size: 14px;
   letter-spacing: 0.1px;
@@ -283,26 +284,26 @@
   .admin-sidebar-content {
     padding: 0 10px;
   }
-  
+
   .admin-sidebar-item {
     padding: 10px 12px;
     font-size: 13px;
   }
-  
+
   .admin-item-icon {
     font-size: 14px;
   }
-  
+
   .admin-section-header {
     padding: 10px 12px;
     font-size: 13px;
   }
-  
+
   .submenu-item {
     padding: 8px 12px 8px 24px;
     font-size: 12px;
   }
-  
+
   .notification-badge {
     font-size: 10px;
     padding: 1px 5px;

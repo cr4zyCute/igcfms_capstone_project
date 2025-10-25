@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./css/generatereports.css";
+import DailyKPI from "../analytics/ReportAnalysis/dailyKPI";
+import MonthlyKPI from "../analytics/ReportAnalysis/monthlyKPI";
+import YearlyKPI from "../analytics/ReportAnalysis/yearlyKPI";
 
 const GenerateReports = () => {
   const [loading, setLoading] = useState(false);
@@ -36,6 +39,7 @@ const GenerateReports = () => {
     searchTerm: ""
   });
 
+  const [showGenerateFormModal, setShowGenerateFormModal] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
@@ -72,6 +76,10 @@ const GenerateReports = () => {
 
       setReports(reportsRes.data || []);
       setTransactions(transactionsRes.data || []);
+      
+      // Debug: Log transactions
+      console.log('Fetched transactions:', transactionsRes.data);
+      console.log('Total transactions:', transactionsRes.data?.length || 0);
       
       // Calculate stats
       const reportData = reportsRes.data || [];
@@ -249,14 +257,23 @@ const GenerateReports = () => {
   }
 
   return (
+    <>
     <div className="generate-reports-page">
       <div className="gr-header">
-        <h2 className="gr-title">
-          <i className="fas fa-chart-line"></i> Generate Financial Reports
-        </h2>
-        <p className="gr-subtitle">
-          Generate comprehensive financial reports with customizable parameters and export options
-        </p>
+        <div className="gr-header-content">
+          <h1 className="gr-title">
+            <i className="fas fa-chart-line"></i> Generate Financial Reports
+          </h1>
+          <div className="gr-header-actions">
+            <button 
+              className="gr-btn-generate-report"
+              onClick={() => setShowGenerateFormModal(true)}
+            >
+              <i className="fas fa-plus-circle"></i>
+              Generate New Report
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -273,146 +290,25 @@ const GenerateReports = () => {
         </div>
       )}
 
+      {/* Financial Collections & Disbursement Dashboard */}
+
+
+      {/* DAILY REPORT Section */}
+      <div className="report-section">
+        <DailyKPI transactions={transactions} />
+      </div>
+
+      {/* MONTHLY REPORT Section */}
+      <div className="report-section">
+        <MonthlyKPI transactions={transactions} />
+      </div>
+
+      {/* YEARLY REPORT Section */}
+      <div className="report-section">
+        <YearlyKPI transactions={transactions} />
+      </div>
+
       <div className="gr-content-grid">
-        {/* Report Generation Form */}
-        <div className="generate-form-section">
-          <div className="form-header">
-            <h3><i className="fas fa-plus-circle"></i> Generate New Report</h3>
-          </div>
-          
-          <div className="report-form">
-            <div className="form-group">
-              <label>Report Type *</label>
-              <select
-                value={reportForm.reportType}
-                onChange={(e) => handleFormChange('reportType', e.target.value)}
-                required
-              >
-                <option value="daily">Daily Report</option>
-                <option value="monthly">Monthly Report</option>
-                <option value="yearly">Yearly Report</option>
-              </select>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Date From</label>
-                <input
-                  type="date"
-                  value={reportForm.dateFrom}
-                  onChange={(e) => handleFormChange('dateFrom', e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label>Date To</label>
-                <input
-                  type="date"
-                  value={reportForm.dateTo}
-                  onChange={(e) => handleFormChange('dateTo', e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Department Filter</label>
-                <select
-                  value={reportForm.department}
-                  onChange={(e) => handleFormChange('department', e.target.value)}
-                >
-                  <option value="all">All Departments</option>
-                  <option value="Finance">Finance</option>
-                  <option value="Administration">Administration</option>
-                  <option value="Operations">Operations</option>
-                  <option value="HR">HR</option>
-                  <option value="IT">IT</option>
-                  <option value="Legal">Legal</option>
-                  <option value="Procurement">Procurement</option>
-                  <option value="Public Works">Public Works</option>
-                  <option value="Health Services">Health Services</option>
-                  <option value="Education">Education</option>
-                  <option value="Social Services">Social Services</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Category Filter</label>
-                <select
-                  value={reportForm.category}
-                  onChange={(e) => handleFormChange('category', e.target.value)}
-                >
-                  <option value="all">All Categories</option>
-                  <option value="Tax Collection">Tax Collection</option>
-                  <option value="Permit Fees">Permit Fees</option>
-                  <option value="License Fees">License Fees</option>
-                  <option value="Service Fees">Service Fees</option>
-                  <option value="Fines and Penalties">Fines and Penalties</option>
-                  <option value="Salaries">Salaries</option>
-                  <option value="Office Supplies">Office Supplies</option>
-                  <option value="Equipment">Equipment</option>
-                  <option value="Utilities">Utilities</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Export Format</label>
-                <select
-                  value={reportForm.format}
-                  onChange={(e) => handleFormChange('format', e.target.value)}
-                >
-                  <option value="pdf">PDF Document</option>
-                  <option value="excel">Excel Spreadsheet</option>
-                  <option value="csv">CSV File</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Include Options</label>
-              <div className="checkbox-group">
-                <label className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={reportForm.includeTransactions}
-                    onChange={(e) => handleFormChange('includeTransactions', e.target.checked)}
-                  />
-                  <span>Include Transaction Details</span>
-                </label>
-                <label className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={reportForm.includeOverrides}
-                    onChange={(e) => handleFormChange('includeOverrides', e.target.checked)}
-                  />
-                  <span>Include Override Records</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button
-                type="button"
-                className="generate-btn"
-                onClick={handleGenerateReport}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i> Generating...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-chart-line"></i> Generate Report
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* Report Statistics */}
         <div className="report-stats-section">
           <div className="section-header">
@@ -790,6 +686,163 @@ const GenerateReports = () => {
         </div>
       )}
     </div>
+
+    {/* Generate Report Form Modal - Rendered outside main container */}
+    {showGenerateFormModal && (
+      <div className="modal-overlay" onClick={() => setShowGenerateFormModal(false)}>
+        <div className="modal-content generate-report-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3><i className="fas fa-plus-circle"></i> Generate New Report</h3>
+            <button className="modal-close" onClick={() => setShowGenerateFormModal(false)}>
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+          <div className="modal-body">
+            <div className="report-form">
+              <div className="form-group">
+                <label>Report Type *</label>
+                <select
+                  value={reportForm.reportType}
+                  onChange={(e) => handleFormChange('reportType', e.target.value)}
+                  required
+                >
+                  <option value="daily">Daily Report</option>
+                  <option value="monthly">Monthly Report</option>
+                  <option value="yearly">Yearly Report</option>
+                </select>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Date From</label>
+                  <input
+                    type="date"
+                    value={reportForm.dateFrom}
+                    onChange={(e) => handleFormChange('dateFrom', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date To</label>
+                  <input
+                    type="date"
+                    value={reportForm.dateTo}
+                    onChange={(e) => handleFormChange('dateTo', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Department Filter</label>
+                  <select
+                    value={reportForm.department}
+                    onChange={(e) => handleFormChange('department', e.target.value)}
+                  >
+                    <option value="all">All Departments</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Operations">Operations</option>
+                    <option value="HR">HR</option>
+                    <option value="IT">IT</option>
+                    <option value="Legal">Legal</option>
+                    <option value="Procurement">Procurement</option>
+                    <option value="Public Works">Public Works</option>
+                    <option value="Health Services">Health Services</option>
+                    <option value="Education">Education</option>
+                    <option value="Social Services">Social Services</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Category Filter</label>
+                  <select
+                    value={reportForm.category}
+                    onChange={(e) => handleFormChange('category', e.target.value)}
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="Tax Collection">Tax Collection</option>
+                    <option value="Permit Fees">Permit Fees</option>
+                    <option value="License Fees">License Fees</option>
+                    <option value="Service Fees">Service Fees</option>
+                    <option value="Fines and Penalties">Fines and Penalties</option>
+                    <option value="Salaries">Salaries</option>
+                    <option value="Office Supplies">Office Supplies</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Export Format</label>
+                  <select
+                    value={reportForm.format}
+                    onChange={(e) => handleFormChange('format', e.target.value)}
+                  >
+                    <option value="pdf">PDF Document</option>
+                    <option value="excel">Excel Spreadsheet</option>
+                    <option value="csv">CSV File</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Include Options</label>
+                <div className="checkbox-group">
+                  <label className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={reportForm.includeTransactions}
+                      onChange={(e) => handleFormChange('includeTransactions', e.target.checked)}
+                    />
+                    <span>Include Transaction Details</span>
+                  </label>
+                  <label className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={reportForm.includeOverrides}
+                      onChange={(e) => handleFormChange('includeOverrides', e.target.checked)}
+                    />
+                    <span>Include Override Records</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="cancel-btn"
+              onClick={() => setShowGenerateFormModal(false)}
+            >
+              <i className="fas fa-times"></i> Cancel
+            </button>
+            <button
+              type="button"
+              className="generate-btn"
+              onClick={() => {
+                setShowGenerateFormModal(false);
+                handleGenerateReport();
+              }}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <i className="fas fa-spinner fa-spin"></i> Generating...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-chart-line"></i> Generate Report
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

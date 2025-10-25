@@ -30,6 +30,7 @@ const Dashboard = () => {
     // Get the saved active tab from localStorage, default to 'dashboard'
     return localStorage.getItem('igcfms_activeTab') || 'dashboard';
   });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Wrapper function to save to localStorage when tab changes
   const setActiveTab = (tab) => {
@@ -76,14 +77,16 @@ const Dashboard = () => {
         userRole={userRole} 
         user={user} 
         onNavigate={setActiveTab}
+        isSidebarCollapsed={isSidebarCollapsed}
       />
       
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        onCollapseChange={setIsSidebarCollapsed}
       />
 
-      <main className="dashboard-main">
+      <main className={`dashboard-main ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <SelectedDashboard user={user} activeTab={activeTab} />
       </main>
     </div>
