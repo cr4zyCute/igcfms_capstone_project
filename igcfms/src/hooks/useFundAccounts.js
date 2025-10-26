@@ -31,14 +31,14 @@ export const useFundAccounts = (options = {}) => {
     queryKey: FUND_ACCOUNTS_KEYS.list({ page, limit, search }),
     queryFn: async () => {
       const accounts = await getFundAccounts();
-      
+
       // Client-side filtering and pagination for now
       // In a real app, this would be handled by the API
       let filteredAccounts = accounts;
       
       if (search) {
         const searchLower = search.toLowerCase();
-        filteredAccounts = accounts.filter(account => 
+        filteredAccounts = accounts.filter(account =>
           account.name?.toLowerCase().includes(searchLower) ||
           account.code?.toLowerCase().includes(searchLower) ||
           account.description?.toLowerCase().includes(searchLower) ||
@@ -47,6 +47,15 @@ export const useFundAccounts = (options = {}) => {
       }
       
       // Add basic graph data for each account (last 20 transactions)
+      const normalizeTransactions = (rawTransactions) => {
+        if (!rawTransactions) return [];
+        if (Array.isArray(rawTransactions)) return rawTransactions;
+        if (Array.isArray(rawTransactions.data)) return rawTransactions.data;
+        if (Array.isArray(rawTransactions.transactions)) return rawTransactions.transactions;
+        if (Array.isArray(rawTransactions?.data?.data)) return rawTransactions.data.data;
+        return [];
+      };
+
       const accountsWithGraphData = await Promise.all(
         filteredAccounts.map(async (account) => {
           try {
@@ -55,13 +64,12 @@ export const useFundAccounts = (options = {}) => {
               fund_account_id: account.id,
               limit: 20 
             });
-            
+
             // Ensure we only get transactions for this specific account
-            const accountTransactions = Array.isArray(transactions) 
-              ? transactions.filter(tx => 
-                  parseInt(tx.fund_account_id, 10) === parseInt(account.id, 10)
-                )
-              : [];
+            const normalizedTransactions = normalizeTransactions(transactions);
+            const accountTransactions = normalizedTransactions.filter(tx => 
+              parseInt(tx.fund_account_id, 10) === parseInt(account.id, 10)
+            );
             
             const graphData = accountTransactions
               .filter(tx => tx.type !== 'INITIAL_BALANCE')

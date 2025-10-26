@@ -1,22 +1,59 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import {
-  BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer
-} from 'recharts';
+import React, { useState, useEffect, useRef } from 'react';
+import Chart from 'chart.js/auto';
 import './css/yearlyKPI.css';
 
 const YearlyKPI = ({ transactions = [] }) => {
+  const mockCollections = 4800000;
+  const mockDisbursements = 3650000;
+  const mockNetBalance = mockCollections - mockDisbursements;
+  const mockYoyGrowth = 8.5;
+  const mockEfficiency = (mockDisbursements / mockCollections) * 100;
+
+  const generateMockMonthlyData = () => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return monthNames.map((month) => {
+      const collections = Math.floor(Math.random() * 450000) + 250000;
+      const disbursements = Math.floor(Math.random() * 320000) + 180000;
+      return {
+        month,
+        collections,
+        disbursements,
+        netBalance: collections - disbursements
+      };
+    });
+  };
+
+  const generateMockGrowthData = () => {
+    const currentYear = new Date().getFullYear();
+    const startYear = currentYear - 4;
+    let base = 3200000;
+    return Array.from({ length: 5 }, (_, idx) => {
+      const year = startYear + idx;
+      base += Math.floor(Math.random() * 200000) - 50000;
+      return {
+        year: year.toString(),
+        collections: Math.max(base, 2500000)
+      };
+    });
+  };
+
   const [yearlyData, setYearlyData] = useState({
-    totalCollections: 0,
-    totalDisbursements: 0,
-    yearlyNetBalance: 0,
-    yoyGrowth: 0,
-    costEfficiencyRatio: 0
+    totalCollections: mockCollections,
+    totalDisbursements: mockDisbursements,
+    yearlyNetBalance: mockNetBalance,
+    yoyGrowth: mockYoyGrowth,
+    costEfficiencyRatio: mockEfficiency
   });
-  const [monthlyData, setMonthlyData] = useState([]);
-  const [growthTrendData, setGrowthTrendData] = useState([]);
+  const [monthlyData, setMonthlyData] = useState(generateMockMonthlyData());
+  const [growthTrendData, setGrowthTrendData] = useState(generateMockGrowthData());
+
+  const monthlyBarRef = useRef(null);
+  const netBalanceRef = useRef(null);
+  const growthLineRef = useRef(null);
+
+  const monthlyBarInstance = useRef(null);
+  const netBalanceInstance = useRef(null);
+  const growthLineInstance = useRef(null);
 
   useEffect(() => {
     if (transactions && transactions.length > 0) {
@@ -24,112 +61,387 @@ const YearlyKPI = ({ transactions = [] }) => {
     }
   }, [transactions]);
 
+  useEffect(() => {
+    initializeMonthlyBarChart();
+    return () => {
+      if (monthlyBarInstance.current) {
+        monthlyBarInstance.current.destroy();
+      }
+    };
+  }, [monthlyData]);
+
+  useEffect(() => {
+    initializeNetBalanceChart();
+    return () => {
+      if (netBalanceInstance.current) {
+        netBalanceInstance.current.destroy();
+      }
+    };
+  }, [monthlyData]);
+
+  useEffect(() => {
+    initializeGrowthLineChart();
+    return () => {
+      if (growthLineInstance.current) {
+        growthLineInstance.current.destroy();
+      }
+    };
+  }, [growthTrendData]);
+
   const calculateYearlyData = () => {
-    // Get current year dates
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const yearStart = new Date(currentYear, 0, 1);
-    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59);
-      
-      // Filter current year transactions
-      const yearTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.created_at);
-        return transactionDate >= yearStart && transactionDate <= yearEnd;
-      });
-      
-      // Filter previous year transactions for YoY comparison
-      const prevYearStart = new Date(currentYear - 1, 0, 1);
-      const prevYearEnd = new Date(currentYear - 1, 11, 31, 23, 59, 59);
-      const prevYearTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.created_at);
-        return transactionDate >= prevYearStart && transactionDate <= prevYearEnd;
-      });
-      
-      // Calculate current year totals
-      const collections = yearTransactions
-        .filter(t => t.transaction_type === 'collection')
-        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-      
-      const disbursements = yearTransactions
-        .filter(t => t.transaction_type === 'disbursement')
-        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-      
-      // Calculate previous year totals
-      const prevCollections = prevYearTransactions
-        .filter(t => t.transaction_type === 'collection')
-        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-      
-      // Calculate YoY growth
-      const yoyGrowth = prevCollections > 0 
-        ? ((collections - prevCollections) / prevCollections) * 100 
-        : 0;
-      
-      // Calculate cost efficiency ratio
-      const costEfficiencyRatio = collections > 0 
-        ? (disbursements / collections) * 100 
-        : 0;
-      
-      setYearlyData({
-        totalCollections: collections,
-        totalDisbursements: disbursements,
-        yearlyNetBalance: collections - disbursements,
-        yoyGrowth: yoyGrowth,
-        costEfficiencyRatio: costEfficiencyRatio
-      });
-      
-      // Prepare monthly data for bar chart
-      const monthlyMap = {};
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      
-      for (let m = 0; m < 12; m++) {
-        monthlyMap[m] = {
-          month: monthNames[m],
-          collections: 0,
-          disbursements: 0,
-          netBalance: 0
-        };
-      }
-      
-      yearTransactions.forEach(t => {
-        const month = new Date(t.created_at).getMonth();
-        const amount = parseFloat(t.amount || 0);
-        
-        if (t.transaction_type === 'collection') {
-          monthlyMap[month].collections += amount;
-        } else if (t.transaction_type === 'disbursement') {
-          monthlyMap[month].disbursements += amount;
+    // Placeholder: when real transaction data is available, compute actual metrics here
+    // For now we simply retain the mock data to keep charts populated
+  };
+
+  const initializeMonthlyBarChart = () => {
+    if (!monthlyBarRef.current) return;
+
+    const ctx = monthlyBarRef.current.getContext('2d');
+
+    if (monthlyBarInstance.current) {
+      monthlyBarInstance.current.destroy();
+    }
+
+    monthlyBarInstance.current = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: monthlyData.map(d => d.month),
+        datasets: [
+          {
+            label: 'Collections',
+            data: monthlyData.map(d => d.collections),
+            backgroundColor: '#10b981',
+            borderRadius: 6,
+            barThickness: 24
+          },
+          {
+            label: 'Disbursements',
+            data: monthlyData.map(d => d.disbursements),
+            backgroundColor: '#ef4444',
+            borderRadius: 6,
+            barThickness: 24
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              font: { size: 12, weight: '600' },
+              color: '#111827',
+              usePointStyle: true,
+              padding: 16
+            }
+          },
+          tooltip: {
+            backgroundColor: '#111827',
+            titleColor: '#f9fafb',
+            bodyColor: '#f3f4f6',
+            borderColor: '#0f172a',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            stacked: false,
+            ticks: {
+              color: '#1f2937',
+              font: { size: 11, weight: '600' }
+            },
+            grid: {
+              display: false
+            }
+          },
+          y: {
+            stacked: false,
+            ticks: {
+              color: '#1f2937',
+              font: { size: 11, weight: '600' },
+              callback: (value) => formatShortCurrency(value)
+            },
+            grid: {
+              color: 'rgba(17, 24, 39, 0.08)',
+              drawBorder: false
+            }
+          }
         }
-      });
-      
-      // Calculate net balance for each month
-      Object.keys(monthlyMap).forEach(m => {
-        monthlyMap[m].netBalance = monthlyMap[m].collections - monthlyMap[m].disbursements;
-      });
-      
-      setMonthlyData(Object.values(monthlyMap));
-      
-      // Prepare growth trend data (last 5 years)
-      const growthData = [];
-      for (let y = currentYear - 4; y <= currentYear; y++) {
-        const yearStart = new Date(y, 0, 1);
-        const yearEnd = new Date(y, 11, 31, 23, 59, 59);
-        
-        const yearTrans = transactions.filter(t => {
-          const transactionDate = new Date(t.created_at);
-          return transactionDate >= yearStart && transactionDate <= yearEnd;
-        });
-        
-        const yearCollections = yearTrans
-          .filter(t => t.transaction_type === 'collection')
-          .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-        
-        growthData.push({
-          year: y.toString(),
-          collections: yearCollections
-        });
       }
-      
-      setGrowthTrendData(growthData);
+    });
+  };
+
+  const initializeNetBalanceChart = () => {
+    if (!netBalanceRef.current) return;
+
+    const ctx = netBalanceRef.current.getContext('2d');
+
+    if (netBalanceInstance.current) {
+      netBalanceInstance.current.destroy();
+    }
+
+    netBalanceInstance.current = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: monthlyData.map(d => d.month),
+        datasets: [
+          {
+            label: 'Net Balance',
+            data: monthlyData.map(d => d.netBalance),
+            backgroundColor: monthlyData.map(d => d.netBalance >= 0 ? '#10b981' : '#ef4444'),
+            borderRadius: 6,
+            barThickness: 28
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#111827',
+            titleColor: '#f9fafb',
+            bodyColor: '#f3f4f6',
+            borderColor: '#0f172a',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            callbacks: {
+              label: (context) => `Net Balance: ${formatCurrency(context.parsed.y)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#1f2937',
+              font: { size: 11, weight: '600' }
+            },
+            grid: {
+              display: false
+            }
+          },
+          y: {
+            ticks: {
+              color: '#1f2937',
+              font: { size: 11, weight: '600' },
+              callback: (value) => formatShortCurrency(value)
+            },
+            grid: {
+              color: 'rgba(17, 24, 39, 0.08)',
+              drawBorder: false
+            }
+          }
+        }
+      }
+    });
+  };
+
+  const initializeGrowthLineChart = () => {
+    if (!growthLineRef.current) return;
+
+    const ctx = growthLineRef.current.getContext('2d');
+
+    if (growthLineInstance.current) {
+      growthLineInstance.current.destroy();
+    }
+
+    // Chart area background gradient plugin
+    const chartAreaBackgroundPlugin = {
+      id: 'chartAreaBackgroundPlugin',
+      beforeDraw: (chart) => {
+        const { ctx: pluginCtx, chartArea } = chart;
+        if (!chartArea) return;
+        const backgroundGradient = pluginCtx.createLinearGradient(
+          chartArea.left,
+          chartArea.top,
+          chartArea.right,
+          chartArea.bottom
+        );
+        backgroundGradient.addColorStop(0, '#ffffff');
+        backgroundGradient.addColorStop(1, '#f3f4f6');
+        pluginCtx.save();
+        pluginCtx.fillStyle = backgroundGradient;
+        pluginCtx.fillRect(
+          chartArea.left,
+          chartArea.top,
+          chartArea.right - chartArea.left,
+          chartArea.bottom - chartArea.top
+        );
+        pluginCtx.restore();
+      }
+    };
+
+    // Value label plugin for data points
+    const valueLabelPlugin = {
+      id: 'valueLabelPlugin',
+      afterDatasetsDraw: (chart) => {
+        const { ctx: pluginCtx, data } = chart;
+        const dataset = data.datasets[0];
+        if (!dataset) return;
+        const meta = chart.getDatasetMeta(0);
+        pluginCtx.save();
+        pluginCtx.font = "600 12px 'Inter', 'Segoe UI', sans-serif";
+        pluginCtx.fillStyle = '#0f172a';
+        pluginCtx.textAlign = 'center';
+        pluginCtx.textBaseline = 'bottom';
+
+        meta.data.forEach((point, index) => {
+          const raw = dataset.data[index];
+          if (raw === undefined || raw === null) return;
+          const text = formatShortCurrency(raw);
+          const x = point.x;
+          const y = point.y - 8;
+          pluginCtx.fillText(text, x, y);
+        });
+
+        pluginCtx.restore();
+      }
+    };
+
+    growthLineInstance.current = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: growthTrendData.map(d => d.year),
+        datasets: [
+          {
+            label: 'Collections',
+            data: growthTrendData.map(d => d.collections),
+            borderColor: '#000000',
+            backgroundColor: 'rgba(0, 0, 0, 0.08)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 9,
+            pointBackgroundColor: '#000000',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointHoverBackgroundColor: '#111827',
+            pointHoverBorderColor: '#fff',
+            pointHoverBorderWidth: 3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+          duration: 1800,
+          easing: 'easeInOutCubic',
+          delay: (context) => {
+            if (context.type === 'data' && context.mode === 'default') {
+              return context.dataIndex * 100;
+            }
+            return 0;
+          }
+        },
+        layout: {
+          padding: {
+            top: 24,
+            bottom: 12,
+            left: 14,
+            right: 14
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#111827',
+            titleColor: '#f9fafb',
+            bodyColor: '#f3f4f6',
+            borderColor: '#0f172a',
+            borderWidth: 1,
+            cornerRadius: 10,
+            displayColors: true,
+            padding: 12,
+            titleFont: {
+              size: 13,
+              weight: 'bold',
+              family: "'Inter', 'Segoe UI', sans-serif"
+            },
+            bodyFont: {
+              size: 12,
+              weight: '500',
+              family: "'Inter', 'Segoe UI', sans-serif"
+            },
+            callbacks: {
+              title: (context) => `Year ${context[0].label}`,
+              label: (context) => ` Collections: ${formatCurrency(context.parsed.y)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: false
+            },
+            ticks: {
+              color: '#1f2937',
+              font: { size: 12, weight: '600' },
+              padding: 10
+            },
+            grid: {
+              color: 'rgba(17, 24, 39, 0.12)',
+              lineWidth: 1,
+              drawBorder: false,
+              drawTicks: false
+            },
+            border: {
+              display: true,
+              color: '#d1d5db'
+            }
+          },
+          y: {
+            beginAtZero: false,
+            title: {
+              display: true,
+              text: 'Collections (₱)',
+              color: '#111827',
+              font: {
+                size: 13,
+                weight: '700',
+                family: "'Inter', 'Segoe UI', sans-serif"
+              },
+              padding: { top: 0, bottom: 10 }
+            },
+            ticks: {
+              color: '#1f2937',
+              font: { size: 11, weight: '600' },
+              padding: 10,
+              callback: (value) => formatShortCurrency(value)
+            },
+            grid: {
+              color: 'rgba(17, 24, 39, 0.12)',
+              lineWidth: 1,
+              drawBorder: false,
+              drawTicks: false
+            },
+            border: {
+              display: true,
+              color: '#d1d5db'
+            }
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        }
+      },
+      plugins: [chartAreaBackgroundPlugin, valueLabelPlugin]
+    });
   };
 
   const formatCurrency = (amount) => {
@@ -139,6 +451,13 @@ const YearlyKPI = ({ transactions = [] }) => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  const formatShortCurrency = (value) => {
+    if (value >= 1000000) {
+      return `₱${(value / 1000000).toFixed(1)}M`;
+    }
+    return `₱${(value / 1000).toFixed(0)}K`;
   };
 
   const formatPercentage = (value) => {
@@ -195,47 +514,25 @@ const YearlyKPI = ({ transactions = [] }) => {
         {/* Bar Chart: Monthly Collections vs Disbursements */}
         <div className="graph-container bar-chart-container">
           <h4>Collections vs Disbursements (per month)</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => formatCurrency(value)} />
-              <Legend />
-              <Bar dataKey="collections" fill="#10b981" name="Collections" />
-              <Bar dataKey="disbursements" fill="#ef4444" name="Disbursements" />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="chart-wrapper">
+            <canvas ref={monthlyBarRef}></canvas>
+          </div>
         </div>
         
         {/* Stacked Bar Chart: Yearly Net Balance */}
         <div className="graph-container stacked-chart-container">
           <h4>Stacked Chart: Yearly Net Balance</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => formatCurrency(value)} />
-              <Legend />
-              <Bar dataKey="netBalance" fill="#10b981" name="Net Balance" />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="chart-wrapper">
+            <canvas ref={netBalanceRef}></canvas>
+          </div>
         </div>
         
         {/* Line Chart: Year-over-Year Growth Trend */}
         <div className="graph-container growth-chart-container">
-          <h4>Year-over-Year Growth Trend</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={growthTrendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis />
-              <Tooltip formatter={(value) => formatCurrency(value)} />
-              <Legend />
-              <Line type="monotone" dataKey="collections" stroke="#3b82f6" strokeWidth={3} name="Collections" />
-            </LineChart>
-          </ResponsiveContainer>
+          <div className="chart-wrapper" style={{ position: 'relative' }}>
+            <h4 style={{ position: 'absolute', top: '3px', left: '56%', margin: 0, zIndex: 10, fontSize: '13px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px' }}>YEAR-OVER-YEAR GROWTH TREND</h4>
+            <canvas ref={growthLineRef}></canvas>
+          </div>
         </div>
       </div>
     </div>

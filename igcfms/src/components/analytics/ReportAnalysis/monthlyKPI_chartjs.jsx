@@ -85,169 +85,6 @@ const MonthlyKPI = ({ transactions = [] }) => {
     };
   }, [processingTimeData]);
 
-  const calculateMonthlyData = () => {
-    // Get current month dates
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      
-    console.log('MonthlyKPI - Date range:', firstDay, 'to', lastDay);
-      
-      // Filter this month's transactions
-      const monthTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.created_at);
-        return transactionDate >= firstDay && transactionDate <= lastDay;
-      });
-      
-      console.log('MonthlyKPI - This month transactions:', monthTransactions.length);
-      console.log('MonthlyKPI - Sample transaction:', monthTransactions[0]);
-      
-      // Check if we should use mock data
-      const useMockData = monthTransactions.length === 0;
-      
-      if (useMockData) {
-        // Mock data for demonstration
-        const mockCollections = 850000;
-        const mockDisbursements = 620000;
-        const mockTarget = 1000000;
-        
-        setMonthlyData({
-          totalCollections: mockCollections,
-          totalDisbursements: mockDisbursements,
-          collectionRate: (mockCollections / mockTarget) * 100,
-          target: mockTarget,
-          approvedCount: 45,
-          rejectedCount: 5,
-          avgProcessingTime: 2.5
-        });
-        
-        // Mock daily data (30 days)
-        const mockDailyData = [];
-        for (let day = 1; day <= 30; day++) {
-          mockDailyData.push({
-            date: day,
-            collections: Math.floor(Math.random() * 40000) + 20000,
-            disbursements: Math.floor(Math.random() * 30000) + 15000
-          });
-        }
-        setDailyData(mockDailyData);
-        
-        // Mock approval data
-        setApprovalData([
-          { name: 'Approved', value: 45, color: '#10b981' },
-          { name: 'Rejected', value: 5, color: '#dc2626' }
-        ]);
-        
-        // Mock processing time data
-        setProcessingTimeData([
-          { department: 'Finance', avgTime: 2.3 },
-          { department: 'Admin', avgTime: 3.1 },
-          { department: 'Operations', avgTime: 1.8 },
-          { department: 'HR', avgTime: 2.7 },
-          { department: 'IT', avgTime: 2.1 }
-        ]);
-        
-        return; // Exit early with mock data
-      }
-      
-      // Calculate totals
-      const collections = monthTransactions
-        .filter(t => t.transaction_type === 'collection')
-        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-      
-      const disbursements = monthTransactions
-        .filter(t => t.transaction_type === 'disbursement')
-        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-      
-      // Calculate approval distribution
-      const approved = monthTransactions.filter(t => t.status === 'approved').length;
-      const rejected = monthTransactions.filter(t => t.status === 'rejected').length;
-      
-      // Calculate collection rate
-      const target = 1000000; // This should come from backend
-      const collectionRate = target > 0 ? (collections / target) * 100 : 0;
-      
-      // Calculate average processing time
-      const processingTimes = monthTransactions
-        .filter(t => t.processed_at && t.created_at)
-        .map(t => {
-          const created = new Date(t.created_at);
-          const processed = new Date(t.processed_at);
-          return (processed - created) / (1000 * 60 * 60); // hours
-        });
-      const avgProcessingTime = processingTimes.length > 0
-        ? processingTimes.reduce((sum, time) => sum + time, 0) / processingTimes.length
-        : 0;
-      
-      const calculatedData = {
-        totalCollections: collections,
-        totalDisbursements: disbursements,
-        collectionRate: collectionRate,
-        target: target,
-        approvedCount: approved,
-        rejectedCount: rejected,
-        avgProcessingTime: avgProcessingTime
-      };
-      
-      console.log('MonthlyKPI - Calculated data:', calculatedData);
-      
-      setMonthlyData(calculatedData);
-      
-      // Prepare daily data for line chart
-      const dailyMap = {};
-      for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
-        const dateKey = d.toISOString().split('T')[0];
-        dailyMap[dateKey] = { date: dateKey, collections: 0, disbursements: 0 };
-      }
-      
-      monthTransactions.forEach(t => {
-        const dateKey = new Date(t.created_at).toISOString().split('T')[0];
-        if (dailyMap[dateKey]) {
-          if (t.transaction_type === 'collection') {
-            dailyMap[dateKey].collections += parseFloat(t.amount || 0);
-          } else if (t.transaction_type === 'disbursement') {
-            dailyMap[dateKey].disbursements += parseFloat(t.amount || 0);
-          }
-        }
-      });
-      
-      setDailyData(Object.values(dailyMap).map(d => ({
-        date: new Date(d.date).getDate(),
-        collections: d.collections,
-        disbursements: d.disbursements
-      })));
-      
-      // Prepare approval data for pie chart
-      setApprovalData([
-        { name: 'Approved', value: approved, color: '#10b981' },
-        { name: 'Rejected', value: rejected, color: '#ef4444' }
-      ]);
-      
-      // Prepare processing time data by department
-      const deptMap = {};
-      monthTransactions.forEach(t => {
-        if (t.processed_at && t.created_at && t.department) {
-          const dept = t.department;
-          const created = new Date(t.created_at);
-          const processed = new Date(t.processed_at);
-          const hours = (processed - created) / (1000 * 60 * 60);
-          
-          if (!deptMap[dept]) {
-            deptMap[dept] = { total: 0, count: 0 };
-          }
-          deptMap[dept].total += hours;
-          deptMap[dept].count += 1;
-        }
-      });
-      
-      const processingData = Object.keys(deptMap).map(dept => ({
-        department: dept,
-        avgTime: deptMap[dept].total / deptMap[dept].count
-      }));
-      
-      setProcessingTimeData(processingData);
-  };
-
   const initializeLineChart = () => {
     if (!lineChartRef.current) return;
 
@@ -276,8 +113,8 @@ const MonthlyKPI = ({ transactions = [] }) => {
               backgroundColor: 'rgba(16, 185, 129, 0.1)',
               borderWidth: 3,
               fill: true,
-              tension: 0,
-              pointRadius: 3,
+              tension: 0.4,
+              pointRadius: 0,
               pointHoverRadius: 6,
               pointBackgroundColor: '#10b981',
               pointBorderColor: '#fff',
@@ -290,8 +127,8 @@ const MonthlyKPI = ({ transactions = [] }) => {
               backgroundColor: 'rgba(239, 68, 68, 0.1)',
               borderWidth: 3,
               fill: true,
-              tension: 0,
-              pointRadius: 3,
+              tension: 0.4,
+              pointRadius: 0,
               pointHoverRadius: 6,
               pointBackgroundColor: '#ef4444',
               pointBorderColor: '#fff',
@@ -308,7 +145,14 @@ const MonthlyKPI = ({ transactions = [] }) => {
           },
           plugins: {
             legend: {
-              display: false
+              display: true,
+              position: 'top',
+              labels: {
+                font: { size: 12, weight: '600' },
+                color: '#111827',
+                usePointStyle: true,
+                padding: 15
+              }
             },
             tooltip: {
               backgroundColor: '#111827',
@@ -356,18 +200,10 @@ const MonthlyKPI = ({ transactions = [] }) => {
   };
 
   const initializePieChart = () => {
-    if (!pieChartRef.current) {
-      console.log('Pie chart ref not available');
-      return;
-    }
+    if (!pieChartRef.current) return;
 
     setTimeout(() => {
-      if (!pieChartRef.current) {
-        console.log('Pie chart ref lost after timeout');
-        return;
-      }
-
-      console.log('Initializing pie chart with data:', approvalData);
+      if (!pieChartRef.current) return;
 
       const ctx = pieChartRef.current.getContext('2d');
 
@@ -382,26 +218,21 @@ const MonthlyKPI = ({ transactions = [] }) => {
           datasets: [{
             data: approvalData.map(d => d.value),
             backgroundColor: approvalData.map(d => d.color),
-            borderWidth: 3,
+            borderWidth: 2,
             borderColor: '#ffffff'
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          animation: {
-            duration: 1400,
-            easing: 'easeInOutCubic'
-          },
           plugins: {
             legend: {
               position: 'bottom',
               labels: {
-                font: { size: 13, weight: '600' },
+                font: { size: 12, weight: '600' },
                 color: '#111827',
-                padding: 20,
-                usePointStyle: true,
-                pointStyle: 'circle'
+                padding: 15,
+                usePointStyle: true
               }
             },
             tooltip: {
@@ -419,9 +250,7 @@ const MonthlyKPI = ({ transactions = [] }) => {
           }
         }
       });
-
-      console.log('Pie chart initialized successfully');
-    }, 150);
+    }, 100);
   };
 
   const initializeBarChart = () => {
@@ -568,7 +397,7 @@ const MonthlyKPI = ({ transactions = [] }) => {
         {/* Line Chart: Daily Collections vs Disbursements */}
         <div className="graph-container line-chart-container">
           <h4>Daily Collections vs Disbursements</h4>
-          <div className="chart-wrapper">
+          <div className="chart-wrapper" style={{ height: '280px', position: 'relative', padding: '10px' }}>
             <canvas ref={lineChartRef}></canvas>
           </div>
         </div>
@@ -576,7 +405,7 @@ const MonthlyKPI = ({ transactions = [] }) => {
         {/* Pie Chart: Approved vs Rejected */}
         <div className="graph-container pie-chart-container">
           <h4>Approved vs Rejected</h4>
-          <div className="chart-wrapper">
+          <div className="chart-wrapper" style={{ height: '220px', position: 'relative', padding: '10px' }}>
             <canvas ref={pieChartRef}></canvas>
           </div>
         </div>
@@ -584,7 +413,7 @@ const MonthlyKPI = ({ transactions = [] }) => {
         {/* Bar Chart: Processing Time by Department */}
         <div className="graph-container bar-chart-container">
           <h4>Avg Processing Time by Department</h4>
-          <div className="chart-wrapper">
+          <div className="chart-wrapper" style={{ height: '280px', position: 'relative', padding: '10px' }}>
             <canvas ref={barChartRef}></canvas>
           </div>
         </div>

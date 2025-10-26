@@ -7,6 +7,8 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5e7eb;
   overflow-y: auto;
+  box-sizing: border-box;
+  margin: 0;
 }
 
 .monthly-kpi-header {
@@ -169,7 +171,18 @@
 
 .pie-chart-container {
   grid-column: 1;
-  min-height: 300px;
+  min-height: 350px;
+}
+
+.chart-wrapper {
+  flex: 1;
+  width: 100%;
+  position: relative;
+}
+
+.chart-wrapper canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .gauge-container {
@@ -181,14 +194,18 @@
 .gauge-container {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 25px 30px;
+  gap: 20px;
 }
 
 .gauge-wrapper {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .gauge {
