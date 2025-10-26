@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import Chart from 'chart.js/auto';
 import './css/dailyKPI.css';
 
@@ -12,6 +11,12 @@ const DailyKPI = ({ transactions = [] }) => {
     pendingApprovals: 0
   });
   const [hourlyData, setHourlyData] = useState([]);
+  const [hasDailyTransactions, setHasDailyTransactions] = useState(false);
+  const [roleSummary, setRoleSummary] = useState([]);
+  const [summaryStats, setSummaryStats] = useState({
+    totalRecords: 0,
+    activeRoles: 0
+  });
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -21,88 +26,80 @@ const DailyKPI = ({ transactions = [] }) => {
     
     // Filter today's transactions
     const todayTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.created_at).toISOString().split('T')[0];
+      const createdAt = new Date(t.created_at || t.createdAt || t.created_at_local);
+      if (Number.isNaN(createdAt.getTime())) return false;
+      const transactionDate = createdAt.toISOString().split('T')[0];
       return transactionDate === today;
     });
     
-    // Use mock data if no transactions available
-    const useMockData = todayTransactions.length === 0;
-    
-    if (useMockData) {
-      // Mock data for demonstration
-      const mockCollections = 125000;
-      const mockDisbursements = 87500;
-      
-      setDailyData({
-        totalCollections: mockCollections,
-        totalDisbursements: mockDisbursements,
-        netBalance: mockCollections - mockDisbursements,
-        totalTransactions: 24,
-        pendingApprovals: 3
-      });
-      
-      // Mock hourly data with realistic distribution
-      const mockHourlyData = [
-        { hour: 0, transactions: 0 },
-        { hour: 1, transactions: 0 },
-        { hour: 2, transactions: 0 },
-        { hour: 3, transactions: 0 },
-        { hour: 4, transactions: 0 },
-        { hour: 5, transactions: 0 },
-        { hour: 6, transactions: 1 },
-        { hour: 7, transactions: 2 },
-        { hour: 8, transactions: 4 },
-        { hour: 9, transactions: 5 },
-        { hour: 10, transactions: 3 },
-        { hour: 11, transactions: 2 },
-        { hour: 12, transactions: 1 },
-        { hour: 13, transactions: 3 },
-        { hour: 14, transactions: 4 },
-        { hour: 15, transactions: 2 },
-        { hour: 16, transactions: 1 },
-        { hour: 17, transactions: 0 },
-        { hour: 18, transactions: 0 },
-        { hour: 19, transactions: 0 },
-        { hour: 20, transactions: 0 },
-        { hour: 21, transactions: 0 },
-        { hour: 22, transactions: 0 },
-        { hour: 23, transactions: 0 }
-      ];
-      
-      setHourlyData(mockHourlyData);
-    } else {
-      // Calculate totals from real data
-      const collections = todayTransactions
-        .filter(t => t.transaction_type === 'collection')
-        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-      
-      const disbursements = todayTransactions
-        .filter(t => t.transaction_type === 'disbursement')
-        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-      
-      const pending = todayTransactions.filter(t => t.status === 'pending').length;
-      
-      setDailyData({
-        totalCollections: collections,
-        totalDisbursements: disbursements,
-        netBalance: collections - disbursements,
-        totalTransactions: todayTransactions.length,
-        pendingApprovals: pending
-      });
-      
-      // Prepare hourly data for line chart
-      const hourlyMap = {};
-      for (let h = 0; h < 24; h++) {
-        hourlyMap[h] = { hour: h, transactions: 0 };
+    const hasTransactions = todayTransactions.length > 0;
+    setHasDailyTransactions(hasTransactions);
+
+    const collections = todayTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+    const disbursements = todayTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+    const pending = todayTransactions.filter(t => (t.status || '').toLowerCase() === 'pending').length;
+
+    setDailyData({
+      totalCollections: collections,
+      totalDisbursements: disbursements,
+      netBalance: collections - disbursements,
+      totalTransactions: todayTransactions.length,
+      pendingApprovals: pending
+    });
+
+    const hourlyBuckets = Array.from({ length: 24 }, (_, hour) => ({ hour, transactions: 0 }));
+
+    todayTransactions.forEach(t => {
+      const createdAt = new Date(t.created_at || t.createdAt);
+      if (!Number.isNaN(createdAt.getTime())) {
+        const hour = createdAt.getHours();
+        if (hourlyBuckets[hour]) {
+          hourlyBuckets[hour].transactions += 1;
+        }
       }
-      
-      todayTransactions.forEach(t => {
-        const hour = new Date(t.created_at).getHours();
-        hourlyMap[hour].transactions += 1;
-      });
-      
-      setHourlyData(Object.values(hourlyMap));
+    });
+
+    const computedHourlyData = hourlyBuckets.filter(bucket => bucket.transactions > 0);
+    setHourlyData(computedHourlyData.length > 0 ? computedHourlyData : hourlyBuckets);
+
+    const rolesMap = todayTransactions.reduce((acc, transaction) => {
+      const role = transaction.user_role
+        || transaction.role
+        || transaction.user?.role
+        || transaction.creator?.role
+        || transaction.created_by_role
+        || 'Unspecified';
+      acc[role] = (acc[role] || 0) + 1;
+      return acc;
+    }, {});
+
+    let roleList = Object.entries(rolesMap)
+      .map(([role, count]) => ({ role, count }))
+      .sort((a, b) => b.count - a.count);
+
+    if (roleList.length === 0 && todayTransactions.length > 0) {
+      const typeCounts = todayTransactions.reduce((acc, t) => {
+        const kind = (t.transaction_type || t.type || 'Transaction').toLowerCase();
+        const label = kind === 'collection' ? 'Collections' : kind === 'disbursement' ? 'Disbursements' : 'Transactions';
+        acc[label] = (acc[label] || 0) + 1;
+        return acc;
+      }, {});
+      roleList = Object.entries(typeCounts)
+        .map(([role, count]) => ({ role, count }))
+        .sort((a, b) => b.count - a.count);
     }
+
+    setRoleSummary(roleList);
+    setSummaryStats({
+      totalRecords: todayTransactions.length,
+      activeRoles: roleList.length
+    });
   };
 
   useEffect(() => {
@@ -113,6 +110,9 @@ const DailyKPI = ({ transactions = [] }) => {
   useEffect(() => {
     if (hourlyData.length > 0) {
       initializeChart();
+    } else if (chartInstance.current) {
+      chartInstance.current.destroy();
+      chartInstance.current = null;
     }
     return () => {
       if (chartInstance.current) {
@@ -262,7 +262,6 @@ const DailyKPI = ({ transactions = [] }) => {
         }
       });
 
-      console.log('Daily transactions chart created', { chartLabels, chartData });
     }, 100);
   };
 
@@ -275,59 +274,44 @@ const DailyKPI = ({ transactions = [] }) => {
       
       <div className="daily-kpi-metrics">
         <div className="kpi-metric-card">
-          <div className="metric-icon collections-icon">
-            <i className="fas fa-coins"></i>
-          </div>
           <div className="metric-info">
-            <div className="metric-label">Total Collections Today</div>
+            <div className="metric-label">Total Collections</div>
             <div className="metric-value collections">
               {formatCurrency(dailyData.totalCollections)}
             </div>
           </div>
         </div>
-        
+
         <div className="kpi-metric-card">
-          <div className="metric-icon disbursements-icon">
-            <i className="fas fa-money-bill-wave"></i>
-          </div>
           <div className="metric-info">
-            <div className="metric-label">Total Disbursements Today</div>
+            <div className="metric-label">Total Disbursements</div>
             <div className="metric-value disbursements">
               {formatCurrency(dailyData.totalDisbursements)}
             </div>
           </div>
         </div>
-        
+
         <div className="kpi-metric-card">
-          <div className="metric-icon balance-icon">
-            <i className="fas fa-chart-line"></i>
-          </div>
           <div className="metric-info">
-            <div className="metric-label">Net Balance Today</div>
+            <div className="metric-label">Net Balance</div>
             <div className="metric-value net-balance">
               {formatCurrency(dailyData.netBalance)}
             </div>
           </div>
         </div>
-        
+
         <div className="kpi-metric-card">
-          <div className="metric-icon transactions-icon">
-            <i className="fas fa-exchange-alt"></i>
-          </div>
           <div className="metric-info">
-            <div className="metric-label">Total Transactions Today</div>
+            <div className="metric-label">Total Transactions</div>
             <div className="metric-value transactions">
               {dailyData.totalTransactions}
             </div>
           </div>
         </div>
-        
+
         <div className="kpi-metric-card">
-          <div className="metric-icon pending-icon">
-            <i className="fas fa-clock"></i>
-          </div>
           <div className="metric-info">
-            <div className="metric-label">Pending Approvals Today</div>
+            <div className="metric-label">Pending Approvals</div>
             <div className="metric-value pending">
               {dailyData.pendingApprovals}
             </div>
@@ -341,63 +325,35 @@ const DailyKPI = ({ transactions = [] }) => {
         <div className="daily-summary-box">
           <h4>Daily Report Status</h4>
           
-          {/* Role Report Status */}
           <div className="role-cards-container">
-            {/* Disburser */}
-            <div className="role-card">
-              <div className="role-card-header">
-                <div className="role-card-title">
-                  <i className="fas fa-hand-holding-usd"></i>
-                  <span>Disburser</span>
+            {roleSummary.length > 0 ? (
+              roleSummary.map(({ role, count }) => (
+                <div className="role-card" key={role}>
+                  <div className="role-card-header">
+                    <div className="role-card-title">
+                      <span>{role}</span>
+                    </div>
+                    <div className={`role-status-indicator ${count > 0 ? 'active' : 'inactive'}`}></div>
+                  </div>
+                  <div className="role-card-content">
+                    <span className="role-card-label">Records Submitted</span>
+                    <span className={`role-card-value ${count > 0 ? 'active' : 'inactive'}`}>{count}</span>
+                  </div>
                 </div>
-                <div className="role-status-indicator active"></div>
-              </div>
-              <div className="role-card-content">
-                <span className="role-card-label">Reports Sent</span>
-                <span className="role-card-value active">3</span>
-              </div>
-            </div>
-
-            {/* Collector */}
-            <div className="role-card">
-              <div className="role-card-header">
-                <div className="role-card-title">
-                  <i className="fas fa-coins"></i>
-                  <span>Collector</span>
-                </div>
-                <div className="role-status-indicator active"></div>
-              </div>
-              <div className="role-card-content">
-                <span className="role-card-label">Reports Sent</span>
-                <span className="role-card-value active">5</span>
-              </div>
-            </div>
-
-            {/* Cashier */}
-            <div className="role-card">
-              <div className="role-card-header">
-                <div className="role-card-title">
-                  <i className="fas fa-cash-register"></i>
-                  <span>Cashier</span>
-                </div>
-                <div className="role-status-indicator inactive"></div>
-              </div>
-              <div className="role-card-content">
-                <span className="role-card-label">Reports Sent</span>
-                <span className="role-card-value inactive">0</span>
-              </div>
-            </div>
+              ))
+            ) : (
+              <div className="empty-state small">No roles recorded activity today.</div>
+            )}
           </div>
 
-          {/* Summary Stats */}
           <div className="summary-stats">
             <div className="summary-stat-row">
-              <span className="summary-stat-label">Total Reports Today</span>
-              <span className="summary-stat-value">8</span>
+              <span className="summary-stat-label">Total Records Today</span>
+              <span className="summary-stat-value">{summaryStats.totalRecords}</span>
             </div>
             <div className="summary-stat-row">
               <span className="summary-stat-label">Active Roles</span>
-              <span className="summary-stat-value small success">2/3</span>
+              <span className="summary-stat-value small success">{summaryStats.activeRoles}</span>
             </div>
           </div>
         </div>
@@ -406,7 +362,11 @@ const DailyKPI = ({ transactions = [] }) => {
         <div className="daily-chart-container">
           <h4>Transactions Per Hour (Daily Activity Trend)</h4>
           <div className="chart-container">
-            <canvas ref={chartRef}></canvas>
+            {hasDailyTransactions && hourlyData.length > 0 ? (
+              <canvas ref={chartRef}></canvas>
+            ) : (
+              <div className="empty-state">No hourly transaction activity recorded today.</div>
+            )}
           </div>
         </div>
       </div>

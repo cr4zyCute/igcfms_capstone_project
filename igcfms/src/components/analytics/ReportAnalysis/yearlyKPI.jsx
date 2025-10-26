@@ -3,49 +3,18 @@ import Chart from 'chart.js/auto';
 import './css/yearlyKPI.css';
 
 const YearlyKPI = ({ transactions = [] }) => {
-  const mockCollections = 4800000;
-  const mockDisbursements = 3650000;
-  const mockNetBalance = mockCollections - mockDisbursements;
-  const mockYoyGrowth = 8.5;
-  const mockEfficiency = (mockDisbursements / mockCollections) * 100;
-
-  const generateMockMonthlyData = () => {
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return monthNames.map((month) => {
-      const collections = Math.floor(Math.random() * 450000) + 250000;
-      const disbursements = Math.floor(Math.random() * 320000) + 180000;
-      return {
-        month,
-        collections,
-        disbursements,
-        netBalance: collections - disbursements
-      };
-    });
-  };
-
-  const generateMockGrowthData = () => {
-    const currentYear = new Date().getFullYear();
-    const startYear = currentYear - 4;
-    let base = 3200000;
-    return Array.from({ length: 5 }, (_, idx) => {
-      const year = startYear + idx;
-      base += Math.floor(Math.random() * 200000) - 50000;
-      return {
-        year: year.toString(),
-        collections: Math.max(base, 2500000)
-      };
-    });
-  };
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   const [yearlyData, setYearlyData] = useState({
-    totalCollections: mockCollections,
-    totalDisbursements: mockDisbursements,
-    yearlyNetBalance: mockNetBalance,
-    yoyGrowth: mockYoyGrowth,
-    costEfficiencyRatio: mockEfficiency
+    totalCollections: 0,
+    totalDisbursements: 0,
+    yearlyNetBalance: 0,
+    yoyGrowth: 0,
+    costEfficiencyRatio: 0
   });
-  const [monthlyData, setMonthlyData] = useState(generateMockMonthlyData());
-  const [growthTrendData, setGrowthTrendData] = useState(generateMockGrowthData());
+  const [monthlyData, setMonthlyData] = useState([]);
+  const [growthTrendData, setGrowthTrendData] = useState([]);
+  const [hasYearlyTransactions, setHasYearlyTransactions] = useState(false);
 
   const monthlyBarRef = useRef(null);
   const netBalanceRef = useRef(null);
@@ -56,9 +25,7 @@ const YearlyKPI = ({ transactions = [] }) => {
   const growthLineInstance = useRef(null);
 
   useEffect(() => {
-    if (transactions && transactions.length > 0) {
-      calculateYearlyData();
-    }
+    calculateYearlyData();
   }, [transactions]);
 
   useEffect(() => {
@@ -89,12 +56,147 @@ const YearlyKPI = ({ transactions = [] }) => {
   }, [growthTrendData]);
 
   const calculateYearlyData = () => {
-    // Placeholder: when real transaction data is available, compute actual metrics here
-    // For now we simply retain the mock data to keep charts populated
+    if (!Array.isArray(transactions)) {
+      setYearlyData({
+        totalCollections: 0,
+        totalDisbursements: 0,
+        yearlyNetBalance: 0,
+        yoyGrowth: 0,
+        costEfficiencyRatio: 0
+      });
+      setMonthlyData([]);
+      setGrowthTrendData([]);
+      setHasYearlyTransactions(false);
+      return;
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear + 1, 0, 0, 23, 59, 59, 999);
+
+    const yearTransactions = transactions.filter(t => {
+      const created = new Date(t?.created_at);
+      return !Number.isNaN(created.getTime()) && created >= startOfYear && created <= endOfYear;
+    });
+
+    setHasYearlyTransactions(yearTransactions.length > 0);
+
+    if (yearTransactions.length === 0) {
+      setYearlyData({
+        totalCollections: 0,
+        totalDisbursements: 0,
+        yearlyNetBalance: 0,
+        yoyGrowth: 0,
+        costEfficiencyRatio: 0
+      });
+      setMonthlyData([]);
+      const yearsRange = Array.from({ length: 5 }, (_, idx) => (currentYear - 4 + idx).toString());
+      const growthData = yearsRange
+        .map(year => ({
+          year,
+          collections: 0
+        }));
+      setGrowthTrendData(growthData);
+      return;
+    }
+
+    const totalCollections = yearTransactions
+      .filter(t => (t?.transaction_type || t?.type || '').toLowerCase() === 'collection')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t?.amount) || 0), 0);
+
+    const totalDisbursements = yearTransactions
+      .filter(t => (t?.transaction_type || t?.type || '').toLowerCase() === 'disbursement')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t?.amount) || 0), 0);
+
+    const yearlyNetBalance = totalCollections - totalDisbursements;
+
+    const previousYear = currentYear - 1;
+    const previousYearCollections = transactions
+      .filter(t => {
+        const created = new Date(t?.created_at);
+        return !Number.isNaN(created.getTime()) && created.getFullYear() === previousYear && (t?.transaction_type || t?.type || '').toLowerCase() === 'collection';
+      })
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t?.amount) || 0), 0);
+
+    const yoyGrowth = previousYearCollections > 0
+      ? ((totalCollections - previousYearCollections) / previousYearCollections) * 100
+      : 0;
+
+    const costEfficiencyRatio = totalCollections > 0
+      ? (totalDisbursements / totalCollections) * 100
+      : 0;
+
+    setYearlyData({
+      totalCollections,
+      totalDisbursements,
+      yearlyNetBalance,
+      yoyGrowth,
+      costEfficiencyRatio
+    });
+
+    const monthlyBuckets = monthNames.map((name, index) => ({
+      month: name,
+      monthIndex: index,
+      collections: 0,
+      disbursements: 0
+    }));
+
+    yearTransactions.forEach(t => {
+      const created = new Date(t?.created_at);
+      const amount = Math.abs(parseFloat(t?.amount) || 0);
+      if (Number.isNaN(created.getTime())) return;
+      const monthIdx = created.getMonth();
+      const bucket = monthlyBuckets[monthIdx];
+      if (!bucket) return;
+
+      const kind = (t?.transaction_type || t?.type || '').toLowerCase();
+      if (kind === 'collection') {
+        bucket.collections += amount;
+      } else if (kind === 'disbursement') {
+        bucket.disbursements += amount;
+      }
+    });
+
+    const monthlyAggregates = monthlyBuckets
+      .map(bucket => ({
+        month: bucket.month,
+        collections: bucket.collections,
+        disbursements: bucket.disbursements,
+        netBalance: bucket.collections - bucket.disbursements
+      }))
+      .filter(bucket => bucket.collections > 0 || bucket.disbursements > 0);
+
+    setMonthlyData(monthlyAggregates);
+
+    const yearsRange = Array.from({ length: 5 }, (_, idx) => currentYear - 4 + idx);
+    const growthData = yearsRange.map(year => {
+      const collections = transactions
+        .filter(t => {
+          const created = new Date(t?.created_at);
+          return !Number.isNaN(created.getTime()) && created.getFullYear() === year && (t?.transaction_type || t?.type || '').toLowerCase() === 'collection';
+        })
+        .reduce((sum, t) => sum + Math.abs(parseFloat(t?.amount) || 0), 0);
+
+      return {
+        year: year.toString(),
+        collections
+      };
+    });
+
+    setGrowthTrendData(growthData);
   };
 
   const initializeMonthlyBarChart = () => {
     if (!monthlyBarRef.current) return;
+
+    if (monthlyData.length === 0) {
+      if (monthlyBarInstance.current) {
+        monthlyBarInstance.current.destroy();
+        monthlyBarInstance.current = null;
+      }
+      return;
+    }
 
     const ctx = monthlyBarRef.current.getContext('2d');
 
@@ -181,6 +283,14 @@ const YearlyKPI = ({ transactions = [] }) => {
   const initializeNetBalanceChart = () => {
     if (!netBalanceRef.current) return;
 
+    if (monthlyData.length === 0) {
+      if (netBalanceInstance.current) {
+        netBalanceInstance.current.destroy();
+        netBalanceInstance.current = null;
+      }
+      return;
+    }
+
     const ctx = netBalanceRef.current.getContext('2d');
 
     if (netBalanceInstance.current) {
@@ -249,6 +359,14 @@ const YearlyKPI = ({ transactions = [] }) => {
 
   const initializeGrowthLineChart = () => {
     if (!growthLineRef.current) return;
+
+    if (growthTrendData.length === 0) {
+      if (growthLineInstance.current) {
+        growthLineInstance.current.destroy();
+        growthLineInstance.current = null;
+      }
+      return;
+    }
 
     const ctx = growthLineRef.current.getContext('2d');
 
