@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
+import axios from 'axios';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import './css/yearlyKPI.css';
 
-const YearlyKPI = ({ transactions = [] }) => {
+const YearlyKPI = ({ transactions = [], reports = [] }) => {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   const [yearlyData, setYearlyData] = useState({
@@ -15,6 +18,13 @@ const YearlyKPI = ({ transactions = [] }) => {
   const [monthlyData, setMonthlyData] = useState([]);
   const [growthTrendData, setGrowthTrendData] = useState([]);
   const [hasYearlyTransactions, setHasYearlyTransactions] = useState(false);
+  const [autoGenerateEnabled, setAutoGenerateEnabled] = useState(true);
+  const [lastAutoGenYear, setLastAutoGenYear] = useState(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedYear, setSelectedYear] = useState('');
+  const [historyData, setHistoryData] = useState([]);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
 
   const monthlyBarRef = useRef(null);
   const netBalanceRef = useRef(null);
@@ -568,7 +578,456 @@ const YearlyKPI = ({ transactions = [] }) => {
       currency: 'PHP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount);
+    }).format(amount || 0);
+  };
+
+  // Auto-generate yearly report on December 31st at 11:59 PM
+  useEffect(() => {
+    const savedAutoGen = localStorage.getItem('yearlyReportAutoGen');
+    const savedLastYear = localStorage.getItem('yearlyReportLastAutoGen');
+    
+    if (savedAutoGen === null) {
+      setAutoGenerateEnabled(true);
+      localStorage.setItem('yearlyReportAutoGen', 'true');
+    } else {
+      setAutoGenerateEnabled(savedAutoGen === 'true');
+    }
+    
+    if (savedLastYear) {
+      setLastAutoGenYear(savedLastYear);
+    }
+
+    const checkAndGenerateReport = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const currentYear = now.getFullYear().toString();
+      const currentMonth = now.getMonth() + 1; // 1-12
+      const currentDay = now.getDate();
+
+      if (!autoGenerateEnabled && savedAutoGen !== 'true') return;
+      if (lastAutoGenYear === currentYear || savedLastYear === currentYear) return;
+      
+      // Generate on December 31st at 11:59 PM
+      if (currentMonth === 12 && currentDay === 31 && currentHour === 23 && currentMinute === 59) {
+        generateYearlyReportAutomatically();
+      }
+    };
+
+    const interval = setInterval(checkAndGenerateReport, 60000);
+    checkAndGenerateReport();
+
+    return () => clearInterval(interval);
+  }, [autoGenerateEnabled, lastAutoGenYear, yearlyData]);
+
+  const generateYearlyReportAutomatically = async () => {
+    try {
+      const now = new Date();
+      const currentYear = now.getFullYear().toString();
+      const token = localStorage.getItem('token');
+      const API_BASE = require('../../../config/api').default;
+
+      const reportData = {
+        report_type: 'yearly',
+        generated_at: new Date().toISOString(),
+        status: 'Generated',
+        data: {
+          year: currentYear,
+          totalCollections: yearlyData.totalCollections,
+          totalDisbursements: yearlyData.totalDisbursements,
+          yearlyNetBalance: yearlyData.yearlyNetBalance,
+          yoyGrowth: yearlyData.yoyGrowth,
+          costEfficiencyRatio: yearlyData.costEfficiencyRatio
+        }
+      };
+
+      await axios.post(`${API_BASE}/reports`, reportData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      setLastAutoGenYear(currentYear);
+      localStorage.setItem('yearlyReportLastAutoGen', currentYear);
+
+      console.log('Yearly report auto-generated successfully for:', currentYear);
+    } catch (error) {
+      console.error('Error auto-generating yearly report:', error);
+    }
+  };
+
+  const formatCurrencyForPDF = (amount) => {
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(Math.abs(amount));
+    return 'PHP ' + formatted;
+  };
+
+  const handleOpenHistory = () => {
+    setShowHistoryModal(true);
+    const lastYear = new Date().getFullYear() - 1;
+    setSelectedYear(lastYear.toString());
+    loadHistoryData(lastYear.toString());
+  };
+
+  const handleCloseHistory = () => {
+    setShowHistoryModal(false);
+    setHistoryData([]);
+  };
+
+  const handleYearChange = (e) => {
+    const newYear = e.target.value;
+    setSelectedYear(newYear);
+    loadHistoryData(newYear);
+  };
+
+  const loadHistoryData = (year) => {
+    if (!year) return;
+    
+    // Filter YEARLY reports for the selected year
+    const yearReports = reports.filter(r => {
+      const generatedAt = new Date(r.generated_at || r.createdAt || r.created_at);
+      if (Number.isNaN(generatedAt.getTime())) return false;
+      
+      const isInYear = generatedAt.getFullYear().toString() === year;
+      const reportType = (r.report_type || r.type || '').toLowerCase();
+      const isYearlyReport = reportType.includes('yearly') || reportType.includes('annual');
+      
+      return isInYear && isYearlyReport;
+    });
+
+    const transformedReports = yearReports
+      .map(report => ({
+        id: `report-${report.id}`,
+        created_at: report.generated_at || report.createdAt || report.created_at,
+        report_type: report.report_type || report.type || 'Report',
+        status: report.status || 'Generated',
+        user_role: report.generated_by?.role || report.user_role || 'N/A',
+        generated_by: report.generated_by?.name || report.generated_by_name || 'N/A'
+      }))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    setHistoryData(transformedReports);
+  };
+
+  const handleRowClick = (report) => {
+    const reportDate = new Date(report.created_at);
+    const year = reportDate.getFullYear();
+    
+    const yearTransactions = transactions.filter(t => {
+      const createdAt = new Date(t.created_at || t.createdAt || t.created_at_local);
+      if (Number.isNaN(createdAt.getTime())) return false;
+      return createdAt.getFullYear() === year;
+    });
+
+    const collections = yearTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+    const collectionCount = yearTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection').length;
+
+    const disbursements = yearTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+    const disbursementCount = yearTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement').length;
+
+    const enrichedReport = {
+      ...report,
+      totalTransactions: yearTransactions.length,
+      collections,
+      collectionCount,
+      disbursements,
+      disbursementCount
+    };
+
+    setSelectedReport(enrichedReport);
+    setShowDetailsModal(true);
+  };
+
+  const handleCloseDetails = () => {
+    setShowDetailsModal(false);
+    setSelectedReport(null);
+  };
+
+  const handleDownloadPDF = () => {
+    if (!selectedReport) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(2);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, 10, pageWidth - 20, 35, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('YEARLY REPORT DETAILS', pageWidth / 2, 25, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('IGCFMS - Management & Planning', pageWidth / 2, 35, { align: 'center' });
+
+    let yPos = 55;
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORT INFORMATION', 15, yPos + 5.5);
+    
+    yPos += 15;
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Field', 'Value']],
+      body: [
+        ['Report Type', selectedReport.report_type || 'N/A'],
+        ['Status', selectedReport.status || 'Generated'],
+        ['Generated By', selectedReport.generated_by || 'N/A'],
+        ['Role', selectedReport.user_role || 'N/A'],
+        ['Generated Date', new Date(selectedReport.created_at).toLocaleString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit'
+        })]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9
+      },
+      columnStyles: {
+        0: { cellWidth: 50, fontStyle: 'bold', textColor: [107, 114, 128] },
+        1: { cellWidth: 'auto' }
+      },
+      margin: { left: 15, right: 15 }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TRANSACTION STATISTICS', 15, yPos + 5.5);
+    
+    yPos += 15;
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Metric', 'Count', 'Amount']],
+      body: [
+        ['Total Transactions', String(selectedReport.totalTransactions || 0), '-'],
+        ['Collections', String(selectedReport.collectionCount || 0), formatCurrencyForPDF(selectedReport.collections || 0)],
+        ['Disbursements', String(selectedReport.disbursementCount || 0), formatCurrencyForPDF(selectedReport.disbursements || 0)]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { cellWidth: 70, fontStyle: 'bold', textColor: [107, 114, 128] },
+        1: { cellWidth: 25, halign: 'center' },
+        2: { cellWidth: 85, halign: 'right', fontStyle: 'bold', overflow: 'linebreak' }
+      },
+      didParseCell: function(data) {
+        if (data.row.index === 1 && data.column.index === 2) {
+          data.cell.styles.textColor = [22, 101, 52];
+        }
+        if (data.row.index === 2 && data.column.index === 2) {
+          data.cell.styles.textColor = [153, 27, 27];
+        }
+      },
+      margin: { left: 15, right: 15 },
+      tableWidth: 'auto'
+    });
+
+    const footerY = pageHeight - 15;
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleString('en-US')}`, 15, footerY);
+    doc.text(`Page 1 of 1`, pageWidth - 15, footerY, { align: 'right' });
+
+    const fileName = `Yearly_Report_${selectedReport.report_type || 'Details'}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+  };
+
+  const handleDownloadHistoryPDF = () => {
+    if (!historyData || historyData.length === 0) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(2);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, 10, pageWidth - 20, 35, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('YEARLY REPORT HISTORY', pageWidth / 2, 25, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Year: ${selectedYear}`, pageWidth / 2, 35, { align: 'center' });
+
+    let yPos = 55;
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY', 15, yPos + 5.5);
+    
+    yPos += 15;
+
+    const totalReports = historyData.length;
+    const adminReports = historyData.filter(r => r.user_role === 'Admin').length;
+    const otherReports = historyData.filter(r => r.user_role !== 'Admin').length;
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Metric', 'Count']],
+      body: [
+        ['Total Reports Generated', String(totalReports)],
+        ['By Admin', String(adminReports)],
+        ['By Other Roles', String(otherReports)]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9
+      },
+      columnStyles: {
+        0: { cellWidth: 100, fontStyle: 'bold', textColor: [107, 114, 128] },
+        1: { cellWidth: 'auto', halign: 'center', fontStyle: 'bold' }
+      },
+      margin: { left: 15, right: 15 }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORTS LIST', 15, yPos + 5.5);
+    
+    yPos += 15;
+
+    const reportRows = historyData.map(report => {
+      const createdAt = new Date(report.created_at);
+      const timeStr = !Number.isNaN(createdAt.getTime()) 
+        ? createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        : 'N/A';
+      
+      const reportDate = new Date(report.created_at);
+      const year = reportDate.getFullYear();
+      
+      const yearTransactions = transactions.filter(t => {
+        const createdAt = new Date(t.created_at || t.createdAt || t.created_at_local);
+        if (Number.isNaN(createdAt.getTime())) return false;
+        return createdAt.getFullYear() === year;
+      });
+
+      const totalTrans = yearTransactions.length;
+      
+      const collections = yearTransactions
+        .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection')
+        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+      const disbursements = yearTransactions
+        .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement')
+        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+      
+      return [
+        timeStr,
+        report.report_type || 'Report',
+        report.generated_by || 'N/A',
+        report.user_role || 'N/A',
+        String(totalTrans),
+        formatCurrencyForPDF(collections),
+        formatCurrencyForPDF(disbursements)
+      ];
+    });
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Date/Time', 'Type', 'Generated By', 'Role', 'Total Trans.', 'Collections', 'Disbursements']],
+      body: reportRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8
+      },
+      bodyStyles: {
+        fontSize: 7,
+        cellPadding: 2
+      },
+      columnStyles: {
+        0: { cellWidth: 28, halign: 'center' },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 16, halign: 'center' },
+        5: { cellWidth: 32, halign: 'right', textColor: [22, 101, 52], fontStyle: 'bold' },
+        6: { cellWidth: 32, halign: 'right', textColor: [153, 27, 27], fontStyle: 'bold' }
+      },
+      margin: { left: 10, right: 10 }
+    });
+
+    const footerY = pageHeight - 15;
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleString('en-US')}`, 15, footerY);
+    doc.text(`Page 1 of 1`, pageWidth - 15, footerY, { align: 'right' });
+
+    const fileName = `Yearly_Report_History_${selectedYear}.pdf`;
+    doc.save(fileName);
   };
 
   const formatShortCurrency = (value) => {
@@ -585,8 +1044,14 @@ const YearlyKPI = ({ transactions = [] }) => {
   return (
     <div className="yearly-kpi-container">
       <div className="yearly-kpi-header">
-        <i className="fas fa-calendar"></i>
-        <h3>YEARLY REPORT (Management & Planning)</h3>
+        <div className="header-left">
+          <i className="fas fa-calendar"></i>
+          <h3>YEARLY REPORT (Management & Planning)</h3>
+        </div>
+        <button className="history-button" onClick={handleOpenHistory}>
+          <i className="fas fa-history"></i>
+          History
+        </button>
       </div>
       
       {/* KPI Metrics */}
@@ -653,6 +1118,207 @@ const YearlyKPI = ({ transactions = [] }) => {
           </div>
         </div>
       </div>
+
+      {/* History Modal */}
+      {showHistoryModal && (
+        <div className="history-modal-overlay" onClick={handleCloseHistory}>
+          <div className="history-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="history-modal-header">
+              <h3>
+                <i className="fas fa-history"></i>
+                Report History
+              </h3>
+              <div className="header-actions">
+                <button className="download-button" onClick={handleDownloadHistoryPDF} title="Download History PDF">
+                  <i className="fas fa-download"></i>
+                  Download PDF
+                </button>
+                <button className="close-button" onClick={handleCloseHistory}>
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div className="history-modal-body">
+              <div className="date-selector">
+                <label htmlFor="history-year">Select Year:</label>
+                <input
+                  type="number"
+                  id="history-year"
+                  value={selectedYear}
+                  onChange={handleYearChange}
+                  min="2000"
+                  max={new Date().getFullYear()}
+                  placeholder="YYYY"
+                />
+              </div>
+
+              <div className="history-summary">
+                <div className="history-summary-item">
+                  <span className="label">Total Reports Generated:</span>
+                  <span className="value">{historyData.length}</span>
+                </div>
+                <div className="history-summary-item">
+                  <span className="label">By Admin:</span>
+                  <span className="value">
+                    {historyData.filter(r => r.user_role === 'Admin').length}
+                  </span>
+                </div>
+                <div className="history-summary-item">
+                  <span className="label">By Other Roles:</span>
+                  <span className="value">
+                    {historyData.filter(r => r.user_role !== 'Admin').length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="history-table-container">
+                {historyData.length > 0 ? (
+                  <table className="history-table">
+                    <thead>
+                      <tr>
+                        <th>Time Generated</th>
+                        <th>Report Type</th>
+                        <th>Generated By</th>
+                        <th>Role</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyData.map((report, index) => {
+                        const createdAt = new Date(report.created_at);
+                        const timeStr = !Number.isNaN(createdAt.getTime()) 
+                          ? createdAt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                          : 'N/A';
+                        const reportType = report.report_type || 'Report';
+                        const role = report.user_role || 'N/A';
+                        const generatedBy = report.generated_by || 'N/A';
+                        
+                        return (
+                          <tr 
+                            key={report.id || index}
+                            className="clickable-row"
+                            onClick={() => handleRowClick(report)}
+                            title="Click to view details"
+                          >
+                            <td>{timeStr}</td>
+                            <td>
+                              <span className="type-badge report">
+                                {reportType}
+                              </span>
+                            </td>
+                            <td>{generatedBy}</td>
+                            <td>{role}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="empty-state">No reports generated in the selected year.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Details Modal */}
+      {showDetailsModal && selectedReport && (
+        <div className="history-modal-overlay" onClick={handleCloseDetails}>
+          <div className="details-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="history-modal-header">
+              <h3>
+                <i className="fas fa-file-alt"></i>
+                Report Details
+              </h3>
+              <div className="header-actions">
+                <button className="download-button" onClick={handleDownloadPDF} title="Download PDF">
+                  <i className="fas fa-download"></i>
+                  Download PDF
+                </button>
+                <button className="close-button" onClick={handleCloseDetails}>
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div className="details-modal-body">
+              {/* Report Information Section */}
+              <div className="detail-section">
+                <h4 className="section-title">Report Information</h4>
+                <div className="detail-grid">
+                  <div className="detail-card">
+                    <span className="detail-label">Report Type</span>
+                    <span className="detail-value">
+                      <span className="type-badge report">
+                        {selectedReport.report_type || 'Report'}
+                      </span>
+                    </span>
+                  </div>
+                  
+                  <div className="detail-card">
+                    <span className="detail-label">Status</span>
+                    <span className="detail-value">
+                      <span className={`status-badge ${(selectedReport.status || 'Generated').toLowerCase()}`}>
+                        {selectedReport.status || 'Generated'}
+                      </span>
+                    </span>
+                  </div>
+                  
+                  <div className="detail-card">
+                    <span className="detail-label">Generated By</span>
+                    <span className="detail-value">{selectedReport.generated_by || 'N/A'}</span>
+                  </div>
+                  
+                  <div className="detail-card">
+                    <span className="detail-label">Role</span>
+                    <span className="detail-value">{selectedReport.user_role || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transaction Statistics Section */}
+              <div className="detail-section">
+                <h4 className="section-title">Transaction Statistics</h4>
+                <div className="detail-grid">
+                  <div className="detail-card stat-card">
+                    <span className="detail-label">Total Transactions</span>
+                    <span className="detail-value stat-value">{selectedReport.totalTransactions || 0}</span>
+                  </div>
+                  
+                  <div className="detail-card stat-card collections-card">
+                    <span className="detail-label">Collections</span>
+                    <div className="stat-group">
+                      <span className="detail-value stat-value">{formatCurrency(selectedReport.collections || 0)}</span>
+                      <span className="stat-count">({selectedReport.collectionCount || 0} transactions)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="detail-card stat-card disbursements-card">
+                    <span className="detail-label">Disbursements</span>
+                    <div className="stat-group">
+                      <span className="detail-value stat-value">{formatCurrency(selectedReport.disbursements || 0)}</span>
+                      <span className="stat-count">({selectedReport.disbursementCount || 0} transactions)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="detail-card stat-card">
+                    <span className="detail-label">Generated</span>
+                    <span className="detail-value">
+                      {new Date(selectedReport.created_at).toLocaleString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric',
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

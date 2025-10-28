@@ -1,15 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import "./css/collectordashboard.css";
 import axios from "axios";
-import Chart from 'chart.js/auto';
-import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
-import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
 
 const CollectorHome = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const categoryChartRef = useRef(null);
-  const categoryChartInstance = useRef(null);
   const [collectionStats, setCollectionStats] = useState({
     todayCollections: 0,
     weeklyCollections: 0,
@@ -31,28 +26,6 @@ const CollectorHome = () => {
   const [collectionsByDepartment, setCollectionsByDepartment] = useState([]);
   const [dailyCollectionTrend, setDailyCollectionTrend] = useState([]);
   const [receipts, setReceipts] = useState([]);
-  const [activeList, setActiveList] = useState('collections');
-  const [receiptStats, setReceiptStats] = useState({
-    totalReceiptsIssued: 0,
-    totalReceiptAmount: 0,
-    averageReceiptAmount: 0,
-    todayReceipts: 0,
-    weeklyReceipts: 0
-  });
-  const [payerAnalytics, setPayerAnalytics] = useState({
-    payerDistribution: [],
-    isLoading: false,
-    error: null
-  });
-
-  // Auto-slide between tabs every 5 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveList(prev => prev === 'collections' ? 'receipts' : 'collections');
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     const fetchCollectorData = async () => {
@@ -228,73 +201,8 @@ const CollectorHome = () => {
         // Recent receipts
         const recentReceiptData = allReceipts
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 10)
-          .map(receipt => {
-            const relatedTransaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
-            const amountValue = parseFloat(receipt.amount ?? relatedTransaction?.amount ?? 0);
-            return {
-              ...receipt,
-              amount: amountValue,
-            };
-          });
+          .slice(0, 8);
         setReceipts(recentReceiptData);
-
-        // Calculate receipt statistics
-        const totalReceiptsIssued = allReceipts.length;
-        
-        // Calculate total receipt amount by matching with transactions
-        const totalReceiptAmount = allReceipts.reduce((sum, receipt) => {
-          const transaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
-          return sum + parseFloat(transaction?.amount || 0);
-        }, 0);
-
-        const averageReceiptAmount = totalReceiptsIssued > 0 ? totalReceiptAmount / totalReceiptsIssued : 0;
-
-        // Today's receipts
-        const todayReceipts = allReceipts
-          .filter(receipt => new Date(receipt.created_at).toDateString() === today).length;
-
-        // Weekly receipts
-        const weeklyReceipts = allReceipts
-          .filter(receipt => new Date(receipt.created_at) >= weekStart).length;
-
-        setReceiptStats({
-          totalReceiptsIssued,
-          totalReceiptAmount,
-          averageReceiptAmount,
-          todayReceipts,
-          weeklyReceipts
-        });
-
-        // Calculate payer distribution for analytics
-        const payerCounts = {};
-        const payerAmounts = {};
-        
-        allReceipts.forEach(receipt => {
-          const payerName = receipt.payer_name || 'Unknown';
-          const transaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
-          const amount = parseFloat(receipt.amount ?? transaction?.amount ?? 0);
-          
-          payerCounts[payerName] = (payerCounts[payerName] || 0) + 1;
-          payerAmounts[payerName] = (payerAmounts[payerName] || 0) + amount;
-        });
-
-        const payerDistribution = Object.entries(payerCounts)
-          .sort(([,a], [,b]) => b - a)
-          .slice(0, 6)
-          .map(([name, count]) => ({
-            name: name.length > 12 ? name.substring(0, 12) + '...' : name,
-            fullName: name,
-            count,
-            amount: payerAmounts[name] || 0,
-            percentage: ((count / allReceipts.length) * 100).toFixed(1)
-          }));
-
-        setPayerAnalytics({
-          payerDistribution,
-          isLoading: false,
-          error: null
-        });
 
       } catch (err) {
         console.error('Collector dashboard error:', err);
@@ -321,103 +229,6 @@ const CollectorHome = () => {
 
     fetchCollectorData();
   }, []);
-
-  // Initialize pie chart for category collections
-  useEffect(() => {
-    if (collectionsByCategory.length > 0 && categoryChartRef.current) {
-      // Destroy existing chart
-      if (categoryChartInstance.current) {
-        categoryChartInstance.current.destroy();
-      }
-
-      const ctx = categoryChartRef.current.getContext('2d');
-      
-      // Generate grayscale colors for black and white theme
-      const generateGrayscaleColors = (count) => {
-        const colors = [];
-        const step = 180 / count; // Range from #4a4a4a to #cccccc
-        for (let i = 0; i < count; i++) {
-          const value = Math.floor(74 + (step * i)); // Start from #4a4a4a (74) to lighter grays
-          const hex = value.toString(16).padStart(2, '0');
-          colors.push(`#${hex}${hex}${hex}`);
-        }
-        return colors;
-      };
-
-      const colors = generateGrayscaleColors(collectionsByCategory.length);
-
-      categoryChartInstance.current = new Chart(ctx, {
-        type: 'pie',
-        data: {
-          labels: collectionsByCategory.map(cat => cat.category),
-          datasets: [{
-            data: collectionsByCategory.map(cat => cat.amount),
-            backgroundColor: colors,
-            borderColor: '#ffffff',
-            borderWidth: 2
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'right',
-              labels: {
-                color: '#000000',
-                font: {
-                  size: 12,
-                  weight: '600'
-                },
-                padding: 15,
-                generateLabels: function(chart) {
-                  const data = chart.data;
-                  if (data.labels.length && data.datasets.length) {
-                    return data.labels.map((label, i) => {
-                      const value = data.datasets[0].data[i];
-                      const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
-                      const percentage = ((value / total) * 100).toFixed(1);
-                      return {
-                        text: `${label} (${percentage}%)`,
-                        fillStyle: data.datasets[0].backgroundColor[i],
-                        hidden: false,
-                        index: i
-                      };
-                    });
-                  }
-                  return [];
-                }
-              }
-            },
-            tooltip: {
-              backgroundColor: '#000000',
-              titleColor: '#ffffff',
-              bodyColor: '#ffffff',
-              borderColor: '#333333',
-              borderWidth: 1,
-              padding: 12,
-              displayColors: true,
-              callbacks: {
-                label: function(context) {
-                  const label = context.label || '';
-                  const value = context.parsed || 0;
-                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                  const percentage = ((value / total) * 100).toFixed(1);
-                  return `${label}: ₱${value.toLocaleString()} (${percentage}%)`;
-                }
-              }
-            }
-          }
-        }
-      });
-    }
-
-    return () => {
-      if (categoryChartInstance.current) {
-        categoryChartInstance.current.destroy();
-      }
-    };
-  }, [collectionsByCategory]);
 
   if (loading) {
     return (
@@ -498,16 +309,14 @@ const CollectorHome = () => {
     );
   }
 
-  const displayedActivityItems = activeList === 'collections'
-    ? recentCollections.slice(0, 5)
-    : receipts.slice(0, 5);
-
   return (
     <div className="collector-page">
       <div className="collector-header">
         <h2 className="collector-title">
           <i className="fas fa-hand-holding-usd"></i> Collecting Officer Dashboard
-        </h2>      </div>
+        </h2>
+        <p className="collector-subtitle">Monitor revenue collections, receipts, and collection performance</p>
+      </div>
 
       {error && (
         <div className="error-banner">
@@ -517,7 +326,7 @@ const CollectorHome = () => {
       )}
 
       {/* Primary KPI - Featured Card */}
-      <div className="collector-featured-layout">
+      <div className="collector-featured-kpi">
         <div className="featured-kpi-card">
           <div className="featured-kpi-header">
             <div className="featured-icon">
@@ -535,6 +344,7 @@ const CollectorHome = () => {
                 <span className="stat-label">Transactions</span>
                 <span className="stat-value">{collectionStats.todayTransactionCount}</span>
               </div>
+              <div className="featured-stat-divider"></div>
               <div className="featured-stat-item">
                 <span className="stat-label">vs Yesterday</span>
                 <span className={`stat-value ${collectionStats.collectionGrowth >= 0 ? 'positive' : 'negative'}`}>
@@ -542,64 +352,12 @@ const CollectorHome = () => {
                   <i className={`fas fa-arrow-${collectionStats.collectionGrowth >= 0 ? 'up' : 'down'}`}></i>
                 </span>
               </div>
+              <div className="featured-stat-divider"></div>
               <div className="featured-stat-item">
                 <span className="stat-label">Yesterday</span>
                 <span className="stat-value">₱{collectionStats.yesterdayCollections.toLocaleString()}</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="featured-receipts-card">
-          <div className="featured-tabs">
-            <button
-              className={`tab-button ${activeList === 'collections' ? 'active' : ''}`}
-              type="button"
-              onClick={() => setActiveList('collections')}
-            >
-              <i className="fas fa-clipboard-list"></i>
-              <span>Recent Activity</span>
-            </button>
-            <button
-              className={`tab-button ${activeList === 'receipts' ? 'active' : ''}`}
-              type="button"
-              onClick={() => setActiveList('receipts')}
-            >
-              <i className="fas fa-receipt"></i>
-              <span>Recent Receipts</span>
-            </button>
-          </div>
-          <div className="receipts-list">
-            {displayedActivityItems.length > 0 ? (
-              displayedActivityItems.map((item) => {
-                const isCollectionView = activeList === 'collections';
-                const identifier = isCollectionView ? item.id : item.receipt_number || item.id;
-                const name = isCollectionView ? (item.recipient || 'N/A') : (item.payer_name || 'N/A');
-                const dateValue = new Date(item.created_at).toLocaleDateString();
-                const amountValue = isCollectionView
-                  ? parseFloat(item.amount || 0)
-                  : parseFloat(item.amount || 0);
-
-                return (
-                  <div
-                    key={`${activeList}-${identifier}`}
-                    className={`collection-list-item ${isCollectionView ? '' : 'receipt-item'}`}
-                  >
-                    <div className="collection-id">#{identifier}</div>
-                    <div className="collection-details">
-                      <span className="collection-payer">{name}</span>
-                      <span className="collection-date">{dateValue}</span>
-                    </div>
-                    <div className="collection-amount">₱{amountValue.toLocaleString()}</div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="no-data">
-                <i className="fas fa-clipboard-list"></i>
-                <p>{activeList === 'collections' ? 'No recent collections found.' : 'No recent receipts found.'}</p>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -664,58 +422,54 @@ const CollectorHome = () => {
         </div>
       </div>
 
-      {/* Receipt Analytics KPIs - From IssueReceipt */}
+      {/* Secondary KPIs - Operations */}
       <div className="collector-kpi-section">
         <div className="kpi-section-title">
-          <i className="fas fa-file-invoice"></i>
-          <span>Receipt Analytics</span>
+          <i className="fas fa-tasks"></i>
+          <span>Operations & Processing</span>
         </div>
         <div className="collector-kpi-row secondary">
           <div className="collector-kpi-card">
             <div className="kpi-icon">
-              <i className="fas fa-file-alt"></i>
+              <i className="fas fa-receipt"></i>
             </div>
             <div className="kpi-content">
-              <div className="kpi-label">Total Receipts Issued</div>
-              <div className="kpi-value">{receiptStats.totalReceiptsIssued}</div>
+              <div className="kpi-label">Pending Receipts</div>
+              <div className="kpi-value">{collectionStats.pendingReceipts}</div>
+              <div className="kpi-status pending">Requires Action</div>
+            </div>
+          </div>
+          <div className="collector-kpi-card">
+            <div className="kpi-icon">
+              <i className="fas fa-check-circle"></i>
+            </div>
+            <div className="kpi-content">
+              <div className="kpi-label">Processed Receipts</div>
+              <div className="kpi-value">{collectionStats.processedReceipts}</div>
+              <div className="kpi-status completed">Completed</div>
+            </div>
+          </div>
+          <div className="collector-kpi-card">
+            <div className="kpi-icon">
+              <i className="fas fa-calculator"></i>
+            </div>
+            <div className="kpi-content">
+              <div className="kpi-label">Average Collection</div>
+              <div className="kpi-value">₱{collectionStats.averageCollection.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               <div className="kpi-comparison">
-                <span className="comparison-label">All Time</span>
+                <span className="comparison-label">Per Transaction</span>
               </div>
             </div>
           </div>
           <div className="collector-kpi-card">
             <div className="kpi-icon">
-              <i className="fas fa-money-check-alt"></i>
+              <i className="fas fa-star"></i>
             </div>
             <div className="kpi-content">
-              <div className="kpi-label">Total Receipt Amount</div>
-              <div className="kpi-value">₱{receiptStats.totalReceiptAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div className="kpi-label">Top Category</div>
+              <div className="kpi-value category-name">{collectionStats.topCategory}</div>
               <div className="kpi-comparison">
-                <span className="comparison-label">All Receipts</span>
-              </div>
-            </div>
-          </div>
-          <div className="collector-kpi-card">
-            <div className="kpi-icon">
-              <i className="fas fa-chart-bar"></i>
-            </div>
-            <div className="kpi-content">
-              <div className="kpi-label">Average Receipt Amount</div>
-              <div className="kpi-value">₱{receiptStats.averageReceiptAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              <div className="kpi-comparison">
-                <span className="comparison-label">Per Receipt</span>
-              </div>
-            </div>
-          </div>
-          <div className="collector-kpi-card">
-            <div className="kpi-icon">
-              <i className="fas fa-calendar-check"></i>
-            </div>
-            <div className="kpi-content">
-              <div className="kpi-label">Today's Receipts</div>
-              <div className="kpi-value">{receiptStats.todayReceipts}</div>
-              <div className="kpi-comparison">
-                <span className="comparison-label">Weekly: {receiptStats.weeklyReceipts}</span>
+                <span className="comparison-label">Highest Revenue</span>
               </div>
             </div>
           </div>
@@ -724,21 +478,74 @@ const CollectorHome = () => {
 
       {/* Data Tables and Analytics */}
       <div className="collector-data-grid">
+        
+        {/* Recent Collections */}
+        <div className="collector-table-card">
+          <div className="table-header">
+            <h3><i className="fas fa-history"></i> Recent Collections</h3>
+            <span className="table-subtitle">Latest collection transactions</span>
+          </div>
+          <div className="table-container">
+            <table className="collector-table">
+              <thead>
+                <tr>
+                  <th><i className="fas fa-hashtag"></i> ID</th>
+                  <th><i className="fas fa-money-bill"></i> Amount</th>
+                  <th><i className="fas fa-tag"></i> Category</th>
+                  <th><i className="fas fa-building"></i> Department</th>
+                  <th><i className="fas fa-user"></i> Payer</th>
+                  <th><i className="fas fa-calendar"></i> Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentCollections.length > 0 ? (
+                  recentCollections.map((collection) => (
+                    <tr key={collection.id}>
+                      <td>#{collection.id}</td>
+                      <td className="amount-positive">₱{parseFloat(collection.amount || 0).toLocaleString()}</td>
+                      <td>{collection.category || 'N/A'}</td>
+                      <td>{collection.department || 'N/A'}</td>
+                      <td>{collection.recipient || 'N/A'}</td>
+                      <td>{new Date(collection.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="no-data">
+                      <i className="fas fa-inbox"></i>
+                      <p>No recent collections found.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Collections by Category */}
         <div className="collector-table-card">
           <div className="table-header">
             <h3><i className="fas fa-chart-pie"></i> Collections by Category</h3>
             <span className="table-subtitle">Revenue breakdown by category</span>
           </div>
-          <div className="pie-chart-container">
-            {collectionsByCategory.length > 0 ? (
-              <canvas ref={categoryChartRef}></canvas>
-            ) : (
-              <div className="no-data">
-                <i className="fas fa-chart-pie"></i>
-                <p>No category data available.</p>
+          <div className="category-grid">
+            {collectionsByCategory.slice(0, 6).map((category, index) => (
+              <div key={category.category} className="category-card">
+                <div className="category-header">
+                  <h4>{category.category}</h4>
+                  <span className="category-count">{category.count} transactions</span>
+                </div>
+                <div className="category-amount">₱{category.amount.toLocaleString()}</div>
+                <div className="category-bar">
+                  <div 
+                    className="category-progress" 
+                    style={{ 
+                      width: `${(category.amount / collectionsByCategory[0]?.amount) * 100}%` 
+                    }}
+                  ></div>
+                </div>
               </div>
-            )}
+            ))}
           </div>
         </div>
 
@@ -749,13 +556,13 @@ const CollectorHome = () => {
             <span className="table-subtitle">Last 7 days performance</span>
           </div>
           <div className="trend-container">
-            {dailyCollectionTrend.map((day) => (
+            {dailyCollectionTrend.map((day, index) => (
               <div key={day.date} className="trend-day">
                 <div className="trend-bar-container">
                   <div 
                     className="trend-bar" 
                     style={{ 
-                      height: `${Math.max((day.amount / Math.max(...dailyCollectionTrend.map(d => d.amount || 0))) * 100 || 0, 5)}%`
+                      height: `${Math.max((day.amount / Math.max(...dailyCollectionTrend.map(d => d.amount))) * 100, 5)}%` 
                     }}
                   ></div>
                 </div>
@@ -767,11 +574,38 @@ const CollectorHome = () => {
           </div>
         </div>
 
-        {/* Top Payer Performance */}
-        <PayerDistributionAnalytics analyticsData={payerAnalytics} />
+        {/* Recent Receipts */}
+        <div className="collector-table-card">
+          <div className="table-header">
+            <h3><i className="fas fa-receipt"></i> Recent Receipts</h3>
+            <span className="table-subtitle">Receipt processing status</span>
+          </div>
+          <div className="receipts-container">
+            {receipts.length > 0 ? (
+              receipts.map((receipt) => (
+                <div key={receipt.id} className="receipt-card">
+                  <div className="receipt-header">
+                    <span className="receipt-number">#{receipt.receipt_number || receipt.id}</span>
+                    <span className={`receipt-status ${receipt.status || 'pending'}`}>
+                      {receipt.status || 'pending'}
+                    </span>
+                  </div>
+                  <div className="receipt-amount">₱{parseFloat(receipt.amount || 0).toLocaleString()}</div>
+                  <div className="receipt-details">
+                    <div className="receipt-payer">{receipt.payer_name || 'N/A'}</div>
+                    <div className="receipt-date">{new Date(receipt.created_at).toLocaleDateString()}</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="no-data">
+                <i className="fas fa-receipt"></i>
+                <p>No recent receipts found.</p>
+              </div>
+            )}
+          </div>
+        </div>
 
-        {/* Issued Receipts Summary */}
-        <ReceiptCountAnalytics receipts={receipts} analyticsData={payerAnalytics} />
       </div>
     </div>
   );

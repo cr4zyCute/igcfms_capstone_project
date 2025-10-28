@@ -61,7 +61,14 @@ const GenerateReports = ({ user }) => {
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    fetchInitialData();
+    fetchInitialData(true); // Show loading on initial fetch
+    
+    // Set up real-time polling every 5 seconds (without loading spinner)
+    const pollInterval = setInterval(() => {
+      fetchInitialData(false);
+    }, 5000);
+    
+    return () => clearInterval(pollInterval);
   }, [token]);
 
   useEffect(() => {
@@ -95,9 +102,11 @@ const GenerateReports = ({ user }) => {
     }
   }, [filteredReports.length, currentPage]);
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = async (showLoadingSpinner = true) => {
     try {
-      setLoading(true);
+      if (showLoadingSpinner) {
+        setLoading(true);
+      }
       setError("");
 
       if (!token) {
@@ -116,10 +125,6 @@ const GenerateReports = ({ user }) => {
       setReports(reportsRes.data || []);
       setTransactions(transactionsRes.data || []);
       
-      // Debug: Log transactions
-      console.log('Fetched transactions:', transactionsRes.data);
-      console.log('Total transactions:', transactionsRes.data?.length || 0);
-      
       // Calculate stats
       const reportData = reportsRes.data || [];
       setStats({
@@ -131,9 +136,13 @@ const GenerateReports = ({ user }) => {
 
     } catch (err) {
       console.error('Generate reports error:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load data');
+      if (showLoadingSpinner) {
+        setError(err.response?.data?.message || err.message || 'Failed to load data');
+      }
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   };
 
@@ -363,12 +372,12 @@ const GenerateReports = ({ user }) => {
 
           {/* MONTHLY REPORT Section */}
           <div className="report-section">
-            <MonthlyKPI transactions={transactions} />
+            <MonthlyKPI transactions={transactions} reports={reports} />
           </div>
 
           {/* YEARLY REPORT Section */}
           <div className="report-section">
-            <YearlyKPI transactions={transactions} />
+            <YearlyKPI transactions={transactions} reports={reports} />
           </div>
         </>
       )}

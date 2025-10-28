@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import axios from 'axios';
 import './css/monthlyKPI.css';
 
-const MonthlyKPI = ({ transactions = [] }) => {
+const MonthlyKPI = ({ transactions = [], reports = [] }) => {
   const [monthlyData, setMonthlyData] = useState({
     totalCollections: 0,
     totalDisbursements: 0,
@@ -16,6 +19,13 @@ const MonthlyKPI = ({ transactions = [] }) => {
   const [approvalData, setApprovalData] = useState([]);
   const [processingTimeData, setProcessingTimeData] = useState([]);
   const [hasMonthlyTransactions, setHasMonthlyTransactions] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [historyData, setHistoryData] = useState([]);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [autoGenerateEnabled, setAutoGenerateEnabled] = useState(true);
+  const [lastAutoGenMonth, setLastAutoGenMonth] = useState(null);
 
   // Chart refs
   const lineChartRef = useRef(null);
@@ -484,6 +494,517 @@ const MonthlyKPI = ({ transactions = [] }) => {
     }).format(amount || 0);
   };
 
+  const formatCurrencyForPDF = (amount) => {
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(Math.abs(amount));
+    return 'PHP ' + formatted;
+  };
+
+  // Auto-generate monthly report on last day of month at 11:59 PM
+  useEffect(() => {
+    const savedAutoGen = localStorage.getItem('monthlyReportAutoGen');
+    const savedLastMonth = localStorage.getItem('monthlyReportLastAutoGen');
+    
+    if (savedAutoGen === null) {
+      setAutoGenerateEnabled(true);
+      localStorage.setItem('monthlyReportAutoGen', 'true');
+    } else {
+      setAutoGenerateEnabled(savedAutoGen === 'true');
+    }
+    
+    if (savedLastMonth) {
+      setLastAutoGenMonth(savedLastMonth);
+    }
+
+    const checkAndGenerateReport = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Check if it's the last day of the month
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const isLastDayOfMonth = tomorrow.getMonth() !== now.getMonth();
+
+      if (!autoGenerateEnabled && savedAutoGen !== 'true') return;
+      if (lastAutoGenMonth === currentMonth || savedLastMonth === currentMonth) return;
+      
+      // Generate on last day of month at 11:59 PM
+      if (isLastDayOfMonth && currentHour === 23 && currentMinute === 59) {
+        generateMonthlyReportAutomatically();
+      }
+    };
+
+    const interval = setInterval(checkAndGenerateReport, 60000);
+    checkAndGenerateReport();
+
+    return () => clearInterval(interval);
+  }, [autoGenerateEnabled, lastAutoGenMonth, monthlyData]);
+
+  const generateMonthlyReportAutomatically = async () => {
+    try {
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const token = localStorage.getItem('token');
+      const API_BASE = require('../../../config/api').default;
+
+      const reportData = {
+        report_type: 'monthly',
+        generated_at: new Date().toISOString(),
+        status: 'Generated',
+        data: {
+          month: currentMonth,
+          totalCollections: monthlyData.totalCollections,
+          totalDisbursements: monthlyData.totalDisbursements,
+          collectionRate: monthlyData.collectionRate,
+          approvedCount: monthlyData.approvedCount,
+          rejectedCount: monthlyData.rejectedCount,
+          avgProcessingTime: monthlyData.avgProcessingTime
+        }
+      };
+
+      await axios.post(`${API_BASE}/reports`, reportData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      setLastAutoGenMonth(currentMonth);
+      localStorage.setItem('monthlyReportLastAutoGen', currentMonth);
+
+      console.log('Monthly report auto-generated successfully for:', currentMonth);
+    } catch (error) {
+      console.error('Error auto-generating monthly report:', error);
+    }
+  };
+
+  const handleOpenHistory = () => {
+    setShowHistoryModal(true);
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(monthStr);
+    loadHistoryData(monthStr);
+  };
+
+  const handleCloseHistory = () => {
+    setShowHistoryModal(false);
+    setHistoryData([]);
+  };
+
+  const handleMonthChange = (e) => {
+    const newMonth = e.target.value;
+    setSelectedMonth(newMonth);
+    loadHistoryData(newMonth);
+  };
+
+  const loadHistoryData = (monthStr) => {
+    if (!monthStr) return;
+    
+    const [year, month] = monthStr.split('-').map(Number);
+    
+    console.log('Loading monthly history for:', monthStr);
+    console.log('Total reports available:', reports.length);
+    
+    // Filter MONTHLY reports for the selected month (show all reports generated within that month)
+    const monthReports = reports.filter(r => {
+      const generatedAt = new Date(r.generated_at || r.createdAt || r.created_at);
+      if (Number.isNaN(generatedAt.getTime())) return false;
+      
+      // Check if it's in the selected month
+      const isInMonth = generatedAt.getFullYear() === year && generatedAt.getMonth() + 1 === month;
+      
+      // Check if it's a monthly report (accept monthly, report, or empty)
+      const reportType = (r.report_type || r.type || '').toLowerCase();
+      const isMonthlyReport = reportType.includes('monthly') || reportType === 'report' || reportType === '';
+      
+      console.log('Report:', {
+        id: r.id,
+        type: r.report_type,
+        generatedAt: generatedAt.toISOString(),
+        isInMonth: isInMonth,
+        isMonthlyReport: isMonthlyReport
+      });
+      
+      return isInMonth && isMonthlyReport;
+    });
+
+    console.log('Filtered monthly reports:', monthReports.length);
+
+    // Transform reports to display format and sort by time (most recent first)
+    const transformedReports = monthReports
+      .map(report => ({
+        id: `report-${report.id}`,
+        created_at: report.generated_at || report.createdAt || report.created_at,
+        report_type: report.report_type || report.type || 'Report',
+        status: report.status || 'Generated',
+        user_role: report.generated_by?.role || report.user_role || 'N/A',
+        generated_by: report.generated_by?.name || report.generated_by_name || 'N/A'
+      }))
+      .sort((a, b) => {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateB - dateA; // Most recent first
+      });
+
+    setHistoryData(transformedReports);
+  };
+
+  const handleRowClick = (report) => {
+    // Get the month of the report
+    const reportDate = new Date(report.created_at);
+    const year = reportDate.getFullYear();
+    const month = reportDate.getMonth();
+    
+    // Filter transactions for that month
+    const monthTransactions = transactions.filter(t => {
+      const createdAt = new Date(t.created_at || t.createdAt || t.created_at_local);
+      if (Number.isNaN(createdAt.getTime())) return false;
+      return createdAt.getFullYear() === year && createdAt.getMonth() === month;
+    });
+
+    // Calculate transaction stats
+    const collections = monthTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+    const collectionCount = monthTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection').length;
+
+    const disbursements = monthTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+    const disbursementCount = monthTransactions
+      .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement').length;
+
+    // Add transaction stats to report
+    const enrichedReport = {
+      ...report,
+      totalTransactions: monthTransactions.length,
+      collections,
+      collectionCount,
+      disbursements,
+      disbursementCount
+    };
+
+    setSelectedReport(enrichedReport);
+    setShowDetailsModal(true);
+  };
+
+  const handleCloseDetails = () => {
+    setShowDetailsModal(false);
+    setSelectedReport(null);
+  };
+
+  const handleDownloadPDF = () => {
+    if (!selectedReport) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Add black border
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(2);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+    // Header - Black background
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, 10, pageWidth - 20, 35, 'F');
+    
+    // Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORT DETAILS', pageWidth / 2, 25, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('IGCFMS - Monthly Performance Evaluation', pageWidth / 2, 35, { align: 'center' });
+
+    let yPos = 55;
+
+    // Report Information Section
+    doc.setTextColor(0, 0, 0);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORT INFORMATION', 15, yPos + 5.5);
+    
+    yPos += 15;
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+
+    // Report Info Table
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Field', 'Value']],
+      body: [
+        ['Report Type', selectedReport.report_type || 'N/A'],
+        ['Status', selectedReport.status || 'Generated'],
+        ['Generated By', selectedReport.generated_by || 'N/A'],
+        ['Role', selectedReport.user_role || 'N/A'],
+        ['Generated Date', new Date(selectedReport.created_at).toLocaleString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit'
+        })]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9
+      },
+      columnStyles: {
+        0: { cellWidth: 50, fontStyle: 'bold', textColor: [107, 114, 128] },
+        1: { cellWidth: 'auto' }
+      },
+      margin: { left: 15, right: 15 }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    // Transaction Statistics Section
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TRANSACTION STATISTICS', 15, yPos + 5.5);
+    
+    yPos += 15;
+
+    // Stats Table
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Metric', 'Count', 'Amount']],
+      body: [
+        ['Total Transactions', String(selectedReport.totalTransactions || 0), '-'],
+        ['Collections', String(selectedReport.collectionCount || 0), formatCurrencyForPDF(selectedReport.collections || 0)],
+        ['Disbursements', String(selectedReport.disbursementCount || 0), formatCurrencyForPDF(selectedReport.disbursements || 0)]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { cellWidth: 70, fontStyle: 'bold', textColor: [107, 114, 128] },
+        1: { cellWidth: 25, halign: 'center' },
+        2: { cellWidth: 85, halign: 'right', fontStyle: 'bold', overflow: 'linebreak' }
+      },
+      didParseCell: function(data) {
+        if (data.row.index === 1 && data.column.index === 2) {
+          data.cell.styles.textColor = [22, 101, 52]; // Dark green for collections
+        }
+        if (data.row.index === 2 && data.column.index === 2) {
+          data.cell.styles.textColor = [153, 27, 27]; // Dark red for disbursements
+        }
+      },
+      margin: { left: 15, right: 15 },
+      tableWidth: 'auto'
+    });
+
+    // Footer
+    const footerY = pageHeight - 15;
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleString('en-US')}`, 15, footerY);
+    doc.text(`Page 1 of 1`, pageWidth - 15, footerY, { align: 'right' });
+
+    // Save PDF
+    const fileName = `Monthly_Report_${selectedReport.report_type || 'Details'}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+  };
+
+  const handleDownloadHistoryPDF = () => {
+    if (!historyData || historyData.length === 0) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Add black border
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(2);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+    // Header - Black background
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, 10, pageWidth - 20, 35, 'F');
+    
+    // Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MONTHLY REPORT HISTORY', pageWidth / 2, 25, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const [year, month] = selectedMonth.split('-');
+    const monthName = new Date(year, month - 1).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+    doc.text(`Month: ${monthName}`, pageWidth / 2, 35, { align: 'center' });
+
+    let yPos = 55;
+
+    // Summary Section
+    doc.setTextColor(0, 0, 0);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY', 15, yPos + 5.5);
+    
+    yPos += 15;
+
+    // Summary Table
+    const totalReports = historyData.length;
+    const adminReports = historyData.filter(r => r.user_role === 'Admin').length;
+    const otherReports = historyData.filter(r => r.user_role !== 'Admin').length;
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Metric', 'Count']],
+      body: [
+        ['Total Reports Generated', String(totalReports)],
+        ['By Admin', String(adminReports)],
+        ['By Other Roles', String(otherReports)]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9
+      },
+      columnStyles: {
+        0: { cellWidth: 100, fontStyle: 'bold', textColor: [107, 114, 128] },
+        1: { cellWidth: 'auto', halign: 'center', fontStyle: 'bold' }
+      },
+      margin: { left: 15, right: 15 }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    // Reports List Section
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORTS LIST', 15, yPos + 5.5);
+    
+    yPos += 15;
+
+    // Reports Table with transaction stats
+    const [yearNum, monthNum] = selectedMonth.split('-').map(Number);
+    const reportRows = historyData.map(report => {
+      const createdAt = new Date(report.created_at);
+      const timeStr = !Number.isNaN(createdAt.getTime()) 
+        ? createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        : 'N/A';
+      
+      // Get the month of the report
+      const reportDate = new Date(report.created_at);
+      const year = reportDate.getFullYear();
+      const month = reportDate.getMonth();
+      
+      // Filter transactions for that month
+      const monthTransactions = transactions.filter(t => {
+        const createdAt = new Date(t.created_at || t.createdAt || t.created_at_local);
+        if (Number.isNaN(createdAt.getTime())) return false;
+        return createdAt.getFullYear() === year && createdAt.getMonth() === month;
+      });
+
+      // Calculate transaction stats
+      const totalTrans = monthTransactions.length;
+      
+      const collections = monthTransactions
+        .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection')
+        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+      const disbursements = monthTransactions
+        .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement')
+        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+      
+      return [
+        timeStr,
+        report.report_type || 'Report',
+        report.generated_by || 'N/A',
+        report.user_role || 'N/A',
+        String(totalTrans),
+        formatCurrencyForPDF(collections),
+        formatCurrencyForPDF(disbursements)
+      ];
+    });
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Date/Time', 'Type', 'Generated By', 'Role', 'Total Trans.', 'Collections', 'Disbursements']],
+      body: reportRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8
+      },
+      bodyStyles: {
+        fontSize: 7,
+        cellPadding: 2
+      },
+      columnStyles: {
+        0: { cellWidth: 28, halign: 'center' },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 16, halign: 'center' },
+        5: { cellWidth: 32, halign: 'right', textColor: [22, 101, 52], fontStyle: 'bold' },
+        6: { cellWidth: 32, halign: 'right', textColor: [153, 27, 27], fontStyle: 'bold' }
+      },
+      margin: { left: 10, right: 10 }
+    });
+
+    // Footer
+    const footerY = pageHeight - 15;
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleString('en-US')}`, 15, footerY);
+    doc.text(`Page 1 of 1`, pageWidth - 15, footerY, { align: 'right' });
+
+    // Save PDF
+    const fileName = `Monthly_Report_History_${selectedMonth}.pdf`;
+    doc.save(fileName);
+  };
+
   const safeRate = Number.isFinite(monthlyData.collectionRate) ? monthlyData.collectionRate : 0;
   const gaugeFillWidth = `${Math.min(Math.max(safeRate, 0), 100)}%`;
   const hasTarget = Number.isFinite(monthlyData.target) && monthlyData.target > 0;
@@ -495,15 +1016,21 @@ const MonthlyKPI = ({ transactions = [] }) => {
           <i className="fas fa-calendar-alt"></i>
           <h3>MONTHLY REPORT (Performance Evaluation)</h3>
         </div>
-        <div className="header-legend">
-          <span className="legend-item">
-            <span className="legend-dot collections-dot"></span>
-            Collections
-          </span>
-          <span className="legend-item">
-            <span className="legend-dot disbursements-dot"></span>
-            Disbursements
-          </span>
+        <div className="header-right">
+          <div className="header-legend">
+            <span className="legend-item">
+              <span className="legend-dot collections-dot"></span>
+              Collections
+            </span>
+            <span className="legend-item">
+              <span className="legend-dot disbursements-dot"></span>
+              Disbursements
+            </span>
+          </div>
+          <button className="history-button" onClick={handleOpenHistory}>
+            <i className="fas fa-history"></i>
+            History
+          </button>
         </div>
       </div>
 
@@ -606,6 +1133,205 @@ const MonthlyKPI = ({ transactions = [] }) => {
           )}
         </div>
       </div>
+
+      {/* History Modal */}
+      {showHistoryModal && (
+        <div className="history-modal-overlay" onClick={handleCloseHistory}>
+          <div className="history-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="history-modal-header">
+              <h3>
+                <i className="fas fa-history"></i>
+                Report History
+              </h3>
+              <div className="header-actions">
+                <button className="download-button" onClick={handleDownloadHistoryPDF} title="Download History PDF">
+                  <i className="fas fa-download"></i>
+                  Download PDF
+                </button>
+                <button className="close-button" onClick={handleCloseHistory}>
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div className="history-modal-body">
+              <div className="date-selector">
+                <label htmlFor="history-month">Select Month:</label>
+                <input
+                  type="month"
+                  id="history-month"
+                  value={selectedMonth}
+                  onChange={handleMonthChange}
+                  max={new Date().toISOString().slice(0, 7)}
+                />
+              </div>
+
+              <div className="history-summary">
+                <div className="history-summary-item">
+                  <span className="label">Total Reports Generated:</span>
+                  <span className="value">{historyData.length}</span>
+                </div>
+                <div className="history-summary-item">
+                  <span className="label">By Admin:</span>
+                  <span className="value">
+                    {historyData.filter(r => r.user_role === 'Admin').length}
+                  </span>
+                </div>
+                <div className="history-summary-item">
+                  <span className="label">By Other Roles:</span>
+                  <span className="value">
+                    {historyData.filter(r => r.user_role !== 'Admin').length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="history-table-container">
+                {historyData.length > 0 ? (
+                  <table className="history-table">
+                    <thead>
+                      <tr>
+                        <th>Time Generated</th>
+                        <th>Report Type</th>
+                        <th>Generated By</th>
+                        <th>Role</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyData.map((report, index) => {
+                        const createdAt = new Date(report.created_at);
+                        const timeStr = !Number.isNaN(createdAt.getTime()) 
+                          ? createdAt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                          : 'N/A';
+                        const reportType = report.report_type || 'Report';
+                        const role = report.user_role || 'N/A';
+                        const generatedBy = report.generated_by || 'N/A';
+                        
+                        return (
+                          <tr 
+                            key={report.id || index}
+                            className="clickable-row"
+                            onClick={() => handleRowClick(report)}
+                            title="Click to view details"
+                          >
+                            <td>{timeStr}</td>
+                            <td>
+                              <span className="type-badge report">
+                                {reportType}
+                              </span>
+                            </td>
+                            <td>{generatedBy}</td>
+                            <td>{role}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="empty-state">No reports generated in the selected month.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Details Modal */}
+      {showDetailsModal && selectedReport && (
+        <div className="history-modal-overlay" onClick={handleCloseDetails}>
+          <div className="details-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="history-modal-header">
+              <h3>
+                <i className="fas fa-file-alt"></i>
+                Report Details
+              </h3>
+              <div className="header-actions">
+                <button className="download-button" onClick={handleDownloadPDF} title="Download PDF">
+                  <i className="fas fa-download"></i>
+                  Download PDF
+                </button>
+                <button className="close-button" onClick={handleCloseDetails}>
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div className="details-modal-body">
+              {/* Report Information Section */}
+              <div className="detail-section">
+                <h4 className="section-title">Report Information</h4>
+                <div className="detail-grid">
+                  <div className="detail-card">
+                    <span className="detail-label">Report Type</span>
+                    <span className="detail-value">
+                      <span className="type-badge report">
+                        {selectedReport.report_type || 'Report'}
+                      </span>
+                    </span>
+                  </div>
+                  
+                  <div className="detail-card">
+                    <span className="detail-label">Status</span>
+                    <span className="detail-value">
+                      <span className={`status-badge ${(selectedReport.status || 'Generated').toLowerCase()}`}>
+                        {selectedReport.status || 'Generated'}
+                      </span>
+                    </span>
+                  </div>
+                  
+                  <div className="detail-card">
+                    <span className="detail-label">Generated By</span>
+                    <span className="detail-value">{selectedReport.generated_by || 'N/A'}</span>
+                  </div>
+                  
+                  <div className="detail-card">
+                    <span className="detail-label">Role</span>
+                    <span className="detail-value">{selectedReport.user_role || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transaction Statistics Section */}
+              <div className="detail-section">
+                <h4 className="section-title">Transaction Statistics</h4>
+                <div className="detail-grid">
+                  <div className="detail-card stat-card">
+                    <span className="detail-label">Total Transactions</span>
+                    <span className="detail-value stat-value">{selectedReport.totalTransactions || 0}</span>
+                  </div>
+                  
+                  <div className="detail-card stat-card collections-card">
+                    <span className="detail-label">Collections</span>
+                    <div className="stat-group">
+                      <span className="detail-value stat-value">{formatCurrency(selectedReport.collections || 0)}</span>
+                      <span className="stat-count">({selectedReport.collectionCount || 0} transactions)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="detail-card stat-card disbursements-card">
+                    <span className="detail-label">Disbursements</span>
+                    <div className="stat-group">
+                      <span className="detail-value stat-value">{formatCurrency(selectedReport.disbursements || 0)}</span>
+                      <span className="stat-count">({selectedReport.disbursementCount || 0} transactions)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="detail-card stat-card">
+                    <span className="detail-label">Generated</span>
+                    <span className="detail-value">
+                      {new Date(selectedReport.created_at).toLocaleString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric',
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
