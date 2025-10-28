@@ -179,13 +179,13 @@ const MonthlyKPI = ({ transactions = [] }) => {
     setDailyData(normalizedDailyData);
 
     let approvals = [];
-    if (approved > 0) approvals.push({ name: 'Approved', value: approved, color: '#10b981' });
-    if (rejected > 0) approvals.push({ name: 'Rejected', value: rejected, color: '#ef4444' });
+    if (approved > 0) approvals.push({ name: 'Approved', value: approved, color: '#166534' });
+    if (rejected > 0) approvals.push({ name: 'Rejected', value: rejected, color: '#991b1b' });
     if (approvals.length === 0 && monthTransactions.length > 0) {
       const collectionCount = monthTransactions.filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection').length;
       const disbursementCount = monthTransactions.filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement').length;
-      if (collectionCount > 0) approvals.push({ name: 'Collections', value: collectionCount, color: '#10b981' });
-      if (disbursementCount > 0) approvals.push({ name: 'Disbursements', value: disbursementCount, color: '#ef4444' });
+      if (collectionCount > 0) approvals.push({ name: 'Collections', value: collectionCount, color: '#166534' });
+      if (disbursementCount > 0) approvals.push({ name: 'Disbursements', value: disbursementCount, color: '#991b1b' });
       if (approvals.length === 0) {
         approvals.push({ name: 'Transactions', value: monthTransactions.length, color: '#3b82f6' });
       }
@@ -253,28 +253,28 @@ const MonthlyKPI = ({ transactions = [] }) => {
             {
               label: 'Collections',
               data: collectionsData,
-              borderColor: '#10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              borderColor: '#166534',
+              backgroundColor: 'rgba(22, 101, 52, 0.1)',
               borderWidth: 3,
               fill: true,
               tension: 0,
               pointRadius: 3,
               pointHoverRadius: 6,
-              pointBackgroundColor: '#10b981',
+              pointBackgroundColor: '#166534',
               pointBorderColor: '#fff',
               pointBorderWidth: 2
             },
             {
               label: 'Disbursements',
               data: disbursementsData,
-              borderColor: '#ef4444',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              borderColor: '#991b1b',
+              backgroundColor: 'rgba(153, 27, 27, 0.1)',
               borderWidth: 3,
               fill: true,
               tension: 0,
               pointRadius: 3,
               pointHoverRadius: 6,
-              pointBackgroundColor: '#ef4444',
+              pointBackgroundColor: '#991b1b',
               pointBorderColor: '#fff',
               pointBorderWidth: 2
             }
@@ -590,7 +590,7 @@ const MonthlyKPI = ({ transactions = [] }) => {
                   className="gauge-fill"
                   style={{
                     width: gaugeFillWidth,
-                    backgroundColor: monthlyData.collectionRate >= 90 ? '#10b981' : monthlyData.collectionRate >= 70 ? '#f59e0b' : '#ef4444'
+                    backgroundColor: monthlyData.collectionRate >= 90 ? '#166534' : monthlyData.collectionRate >= 70 ? '#f59e0b' : '#991b1b'
                   }}
                 ></div>
               </div>

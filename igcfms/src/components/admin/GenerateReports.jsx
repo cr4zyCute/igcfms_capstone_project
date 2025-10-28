@@ -4,10 +4,11 @@ import "./css/generatereports.css";
 import DailyKPI from "../analytics/ReportAnalysis/dailyKPI";
 import MonthlyKPI from "../analytics/ReportAnalysis/monthlyKPI";
 import YearlyKPI from "../analytics/ReportAnalysis/yearlyKPI";
+import ReportPageSkeleton from "../ui/ReportPageSL";
 
 const REPORTS_PER_PAGE = 10;
 
-const GenerateReports = () => {
+const GenerateReports = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -20,6 +21,9 @@ const GenerateReports = () => {
     monthlyReports: 0,
     yearlyReports: 0
   });
+
+  // Check if user is Admin
+  const isAdmin = user?.role === 'Admin';
 
   // Report generation form
   const [reportForm, setReportForm] = useState({
@@ -312,12 +316,7 @@ const GenerateReports = () => {
   };
 
   if (loading && reports.length === 0) {
-    return (
-      <div className="generate-reports-loading">
-        <div className="spinner"></div>
-        <div className="loading-text">Loading report management...</div>
-      </div>
-    );
+    return <ReportPageSkeleton isAdmin={isAdmin} />;
   }
 
   return (
@@ -354,30 +353,30 @@ const GenerateReports = () => {
         </div>
       )}
 
-      {/* Financial Collections & Disbursement Dashboard */}
+      {/* Financial Collections & Disbursement Dashboard - Only for Admin */}
+      {isAdmin && (
+        <>
+          {/* DAILY REPORT Section */}
+          <div className="report-section">
+            <DailyKPI transactions={transactions} reports={reports} />
+          </div>
 
+          {/* MONTHLY REPORT Section */}
+          <div className="report-section">
+            <MonthlyKPI transactions={transactions} />
+          </div>
 
-      {/* DAILY REPORT Section */}
-      <div className="report-section">
-        <DailyKPI transactions={transactions} />
-      </div>
-
-      {/* MONTHLY REPORT Section */}
-      <div className="report-section">
-        <MonthlyKPI transactions={transactions} />
-      </div>
-
-      {/* YEARLY REPORT Section */}
-      <div className="report-section">
-        <YearlyKPI transactions={transactions} />
-      </div>
+          {/* YEARLY REPORT Section */}
+          <div className="report-section">
+            <YearlyKPI transactions={transactions} />
+          </div>
+        </>
+      )}
 
       <div className="gr-content-grid">
         {/* Report Statistics */}
         <div className="report-stats-section">
-          <div className="section-header">
-            <h3><i className="fas fa-chart-bar"></i> Report Statistics</h3>
-          </div>
+
           
           <div className="stats-grid">
             <div className="stat-card">
@@ -420,59 +419,6 @@ const GenerateReports = () => {
         </div>
       </div>
 
-      {/* Filters Section */}
-      <div className="gr-filters-section">
-        <div className="filters-header">
-          <h3><i className="fas fa-filter"></i> Filter Reports</h3>
-          <button className="clear-filters-btn" onClick={clearFilters}>
-            <i className="fas fa-times"></i> Clear Filters
-          </button>
-        </div>
-        
-        <div className="filters-grid">
-          <div className="filter-group">
-            <label>Report Type</label>
-            <select 
-              value={filters.type} 
-              onChange={(e) => handleFilterChange('type', e.target.value)}
-            >
-              <option value="all">All Types</option>
-              <option value="daily">Daily</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Date From</label>
-            <input 
-              type="date" 
-              value={filters.dateFrom}
-              onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Date To</label>
-            <input 
-              type="date" 
-              value={filters.dateTo}
-              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Search</label>
-            <input 
-              type="text" 
-              placeholder="Search reports..."
-              value={filters.searchTerm}
-              onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Reports Table */}
       <div className="gr-reports-section">
         <div className="gr-reports-header">
@@ -485,6 +431,26 @@ const GenerateReports = () => {
           </div>
           <div className="gr-header-controls">
             <div className="gr-search-filter-container">
+              <div className="gr-date-filter-group">
+                <label>Date From</label>
+                <input 
+                  type="date" 
+                  value={filters.dateFrom}
+                  onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                  className="gr-date-input"
+                />
+              </div>
+              
+              <div className="gr-date-filter-group">
+                <label>Date To</label>
+                <input 
+                  type="date" 
+                  value={filters.dateTo}
+                  onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                  className="gr-date-input"
+                />
+              </div>
+
               <div className="gr-account-search-container">
                 <input
                   type="text"

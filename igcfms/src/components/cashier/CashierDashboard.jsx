@@ -12,7 +12,7 @@ import '../common/css/Sidebar.css';
 const CashierDashboard = ({ user,activeTab }) => {
   switch (activeTab) {
     case "generate-reports":
-      return <GenerateReports />;
+      return <GenerateReports user={user} />;
     case "override-transactions":
       return <OverrideTransactions/>;
     case "view-transactions":

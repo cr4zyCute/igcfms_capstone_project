@@ -170,9 +170,9 @@ const YearlyKPI = ({ transactions = [] }) => {
     setMonthlyData(monthlyAggregates);
 
     const yearsRange = Array.from({ length: 5 }, (_, idx) => currentYear - 4 + idx);
-    const growthData = yearsRange.map(year => {
+    const growthData = yearsRange.map((year) => {
       const collections = transactions
-        .filter(t => {
+        .filter((t) => {
           const created = new Date(t?.created_at);
           return !Number.isNaN(created.getTime()) && created.getFullYear() === year && (t?.transaction_type || t?.type || '').toLowerCase() === 'collection';
         })
@@ -180,7 +180,7 @@ const YearlyKPI = ({ transactions = [] }) => {
 
       return {
         year: year.toString(),
-        collections
+        collections: collections
       };
     });
 
@@ -212,14 +212,14 @@ const YearlyKPI = ({ transactions = [] }) => {
           {
             label: 'Collections',
             data: monthlyData.map(d => d.collections),
-            backgroundColor: '#10b981',
+            backgroundColor: '#166534',
             borderRadius: 6,
             barThickness: 24
           },
           {
             label: 'Disbursements',
             data: monthlyData.map(d => d.disbursements),
-            backgroundColor: '#ef4444',
+            backgroundColor: '#991b1b',
             borderRadius: 6,
             barThickness: 24
           }
@@ -305,7 +305,7 @@ const YearlyKPI = ({ transactions = [] }) => {
           {
             label: 'Net Balance',
             data: monthlyData.map(d => d.netBalance),
-            backgroundColor: monthlyData.map(d => d.netBalance >= 0 ? '#10b981' : '#ef4444'),
+            backgroundColor: monthlyData.map(d => d.netBalance >= 0 ? '#166534' : '#991b1b'),
             borderRadius: 6,
             barThickness: 28
           }

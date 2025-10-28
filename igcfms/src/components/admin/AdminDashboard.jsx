@@ -35,7 +35,7 @@ const AdminDashboard = ({ user, activeTab }) => {
       case "view-transactions":
         return <ViewTransactions />;
       case "generate-reports":
-        return <GenerateReports />;
+        return <GenerateReports user={user} />;
       case "manage-staff":
         return <ManageStaff />;
       case "funds-accounts":

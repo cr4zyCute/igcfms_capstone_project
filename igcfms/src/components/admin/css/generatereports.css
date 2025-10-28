@@ -1,7 +1,6 @@
 /* Generate Reports Styles */
 .generate-reports-page {
   padding: 20px 20px 20px 5px;
-  background: #f3f4f6;
   min-height: 100vh;
   font-family: 'Segoe UI', Arial, sans-serif;
   overflow: visible;
@@ -499,14 +498,13 @@
 
 /* Report Statistics Section */
 .report-stats-section {
-  background: #ffffff;
-  border: 2px solid #f0f0f0;
-  border-radius: 12px;
-  padding: 25px;
+ margin-top: 2%;
+
 }
 
 .section-header {
-  margin-bottom: 20px;
+  margin-top: 25%;
+  margin-bottom: 0px;
   padding-bottom: 15px;
   border-bottom: 2px solid #f0f0f0;
 }
@@ -716,10 +714,49 @@
 
 .gr-search-filter-container {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   flex: 1;
-  max-width: 600px;
+  max-width: 800px;
+}
+
+.gr-date-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gr-date-filter-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.gr-date-input {
+  padding: 10px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 160px;
+  height: 42px;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  color: #1f2937;
+  font-family: inherit;
+}
+
+.gr-date-input:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.gr-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.5);
 }
 
 .gr-account-search-container {
@@ -871,6 +908,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   border: 2px solid #000000;
   border-top: none;
+  margin-top: 2%;
 }
 
 .gr-table-container {

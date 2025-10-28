@@ -36,3 +36,11 @@
     transform: rotate(360deg);
   }
 }
+
+/* Global Modal Overlay Blur Effect */
+.modal-overlay,
+.history-modal-overlay,
+[class*="modal-overlay"] {
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}

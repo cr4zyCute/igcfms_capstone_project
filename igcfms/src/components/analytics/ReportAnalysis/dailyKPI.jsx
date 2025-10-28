@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import './css/dailyKPI.css';
 
-const DailyKPI = ({ transactions = [] }) => {
+const DailyKPI = ({ transactions = [], reports = [] }) => {
   const [dailyData, setDailyData] = useState({
     totalCollections: 0,
     totalDisbursements: 0,
@@ -15,8 +15,12 @@ const DailyKPI = ({ transactions = [] }) => {
   const [roleSummary, setRoleSummary] = useState([]);
   const [summaryStats, setSummaryStats] = useState({
     totalRecords: 0,
-    activeRoles: 0
+    activeRoles: 0,
+    totalReportsGenerated: 0
   });
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [historyData, setHistoryData] = useState([]);
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -68,19 +72,52 @@ const DailyKPI = ({ transactions = [] }) => {
     const computedHourlyData = hourlyBuckets.filter(bucket => bucket.transactions > 0);
     setHourlyData(computedHourlyData.length > 0 ? computedHourlyData : hourlyBuckets);
 
-    const rolesMap = todayTransactions.reduce((acc, transaction) => {
+    // Filter today's reports
+    const todayReports = reports.filter(r => {
+      const generatedAt = new Date(r.generated_at || r.createdAt || r.created_at);
+      if (Number.isNaN(generatedAt.getTime())) return false;
+      const reportDate = generatedAt.toISOString().split('T')[0];
+      return reportDate === today;
+    });
+
+    // Combine transactions and reports for role tracking
+    const rolesMap = {};
+
+    // Track transaction activity by role
+    todayTransactions.forEach(transaction => {
       const role = transaction.user_role
         || transaction.role
         || transaction.user?.role
         || transaction.creator?.role
         || transaction.created_by_role
         || 'Unspecified';
-      acc[role] = (acc[role] || 0) + 1;
-      return acc;
-    }, {});
+      
+      if (!rolesMap[role]) {
+        rolesMap[role] = { transactions: 0, reports: 0 };
+      }
+      rolesMap[role].transactions += 1;
+    });
+
+    // Track report generation activity by role
+    todayReports.forEach(report => {
+      const userData = report.generated_by && typeof report.generated_by === 'object'
+        ? report.generated_by
+        : null;
+      const role = userData?.role || report.user_role || 'Unspecified';
+      
+      if (!rolesMap[role]) {
+        rolesMap[role] = { transactions: 0, reports: 0 };
+      }
+      rolesMap[role].reports += 1;
+    });
 
     let roleList = Object.entries(rolesMap)
-      .map(([role, count]) => ({ role, count }))
+      .map(([role, counts]) => ({ 
+        role, 
+        count: counts.transactions + counts.reports,
+        transactions: counts.transactions,
+        reports: counts.reports
+      }))
       .sort((a, b) => b.count - a.count);
 
     if (roleList.length === 0 && todayTransactions.length > 0) {
@@ -91,21 +128,22 @@ const DailyKPI = ({ transactions = [] }) => {
         return acc;
       }, {});
       roleList = Object.entries(typeCounts)
-        .map(([role, count]) => ({ role, count }))
+        .map(([role, count]) => ({ role, count, transactions: count, reports: 0 }))
         .sort((a, b) => b.count - a.count);
     }
 
     setRoleSummary(roleList);
     setSummaryStats({
       totalRecords: todayTransactions.length,
-      activeRoles: roleList.length
+      activeRoles: roleList.length,
+      totalReportsGenerated: todayReports.length
     });
   };
 
   useEffect(() => {
     // Always calculate data (will use mock data if no transactions)
     calculateDailyData();
-  }, [transactions]);
+  }, [transactions, reports]);
 
   useEffect(() => {
     if (hourlyData.length > 0) {
@@ -127,6 +165,38 @@ const DailyKPI = ({ transactions = [] }) => {
       currency: 'PHP',
       minimumFractionDigits: 2
     }).format(amount);
+  };
+
+  const handleOpenHistory = () => {
+    setShowHistoryModal(true);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    setSelectedDate(yesterday.toISOString().split('T')[0]);
+    loadHistoryData(yesterday.toISOString().split('T')[0]);
+  };
+
+  const handleCloseHistory = () => {
+    setShowHistoryModal(false);
+    setHistoryData([]);
+  };
+
+  const handleDateChange = (e) => {
+    const newDate = e.target.value;
+    setSelectedDate(newDate);
+    loadHistoryData(newDate);
+  };
+
+  const loadHistoryData = (date) => {
+    if (!date) return;
+    
+    const dateTransactions = transactions.filter(t => {
+      const createdAt = new Date(t.created_at || t.createdAt || t.created_at_local);
+      if (Number.isNaN(createdAt.getTime())) return false;
+      const transactionDate = createdAt.toISOString().split('T')[0];
+      return transactionDate === date;
+    });
+
+    setHistoryData(dateTransactions);
   };
 
   const initializeChart = () => {
@@ -268,8 +338,14 @@ const DailyKPI = ({ transactions = [] }) => {
   return (
     <div className="daily-kpi-container">
       <div className="daily-kpi-header">
-        <i className="fas fa-calendar-day"></i>
-        <h3>DAILY REPORT (Operational Monitoring)</h3>
+        <div className="header-left">
+          <i className="fas fa-calendar-day"></i>
+          <h3>DAILY REPORT (Operational Monitoring)</h3>
+        </div>
+        <button className="history-button" onClick={handleOpenHistory}>
+          <i className="fas fa-history"></i>
+          History
+        </button>
       </div>
       
       <div className="daily-kpi-metrics">
@@ -327,7 +403,7 @@ const DailyKPI = ({ transactions = [] }) => {
           
           <div className="role-cards-container">
             {roleSummary.length > 0 ? (
-              roleSummary.map(({ role, count }) => (
+              roleSummary.map(({ role, count, transactions, reports }) => (
                 <div className="role-card" key={role}>
                   <div className="role-card-header">
                     <div className="role-card-title">
@@ -336,8 +412,20 @@ const DailyKPI = ({ transactions = [] }) => {
                     <div className={`role-status-indicator ${count > 0 ? 'active' : 'inactive'}`}></div>
                   </div>
                   <div className="role-card-content">
-                    <span className="role-card-label">Records Submitted</span>
-                    <span className={`role-card-value ${count > 0 ? 'active' : 'inactive'}`}>{count}</span>
+                    <div className="role-card-stats">
+                      <div className="role-stat-item">
+                        <span className="role-card-label">Transactions</span>
+                        <span className={`role-card-value ${transactions > 0 ? 'active' : 'inactive'}`}>{transactions || 0}</span>
+                      </div>
+                      <div className="role-stat-item">
+                        <span className="role-card-label">Reports Generated</span>
+                        <span className={`role-card-value ${reports > 0 ? 'active' : 'inactive'}`}>{reports || 0}</span>
+                      </div>
+                    </div>
+                    <div className="role-card-total">
+                      <span className="role-card-label">Total Activity</span>
+                      <span className={`role-card-value total ${count > 0 ? 'active' : 'inactive'}`}>{count}</span>
+                    </div>
                   </div>
                 </div>
               ))
@@ -348,8 +436,12 @@ const DailyKPI = ({ transactions = [] }) => {
 
           <div className="summary-stats">
             <div className="summary-stat-row">
-              <span className="summary-stat-label">Total Records Today</span>
+              <span className="summary-stat-label">Total Transactions Today</span>
               <span className="summary-stat-value">{summaryStats.totalRecords}</span>
+            </div>
+            <div className="summary-stat-row">
+              <span className="summary-stat-label">Reports Generated Today</span>
+              <span className="summary-stat-value">{summaryStats.totalReportsGenerated}</span>
             </div>
             <div className="summary-stat-row">
               <span className="summary-stat-label">Active Roles</span>
@@ -370,6 +462,110 @@ const DailyKPI = ({ transactions = [] }) => {
           </div>
         </div>
       </div>
+
+      {/* History Modal */}
+      {showHistoryModal && (
+        <div className="history-modal-overlay" onClick={handleCloseHistory}>
+          <div className="history-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="history-modal-header">
+              <h3>
+                <i className="fas fa-history"></i>
+                Transaction History
+              </h3>
+              <button className="close-button" onClick={handleCloseHistory}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="history-modal-body">
+              <div className="date-selector">
+                <label htmlFor="history-date">Select Date:</label>
+                <input
+                  type="date"
+                  id="history-date"
+                  value={selectedDate}
+                  onChange={handleDateChange}
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+
+              <div className="history-summary">
+                <div className="history-summary-item">
+                  <span className="label">Total Transactions:</span>
+                  <span className="value">{historyData.length}</span>
+                </div>
+                <div className="history-summary-item">
+                  <span className="label">Collections:</span>
+                  <span className="value collections">
+                    {formatCurrency(
+                      historyData
+                        .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection')
+                        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0)
+                    )}
+                  </span>
+                </div>
+                <div className="history-summary-item">
+                  <span className="label">Disbursements:</span>
+                  <span className="value disbursements">
+                    {formatCurrency(
+                      historyData
+                        .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'disbursement')
+                        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0)
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div className="history-table-container">
+                {historyData.length > 0 ? (
+                  <table className="history-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Department</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyData.map((transaction, index) => {
+                        const createdAt = new Date(transaction.created_at || transaction.createdAt);
+                        const timeStr = !Number.isNaN(createdAt.getTime()) 
+                          ? createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                          : 'N/A';
+                        const type = (transaction.transaction_type || transaction.type || 'N/A').toLowerCase();
+                        const status = transaction.status || 'N/A';
+                        const department = transaction.department || transaction.department_name || 'N/A';
+                        
+                        return (
+                          <tr key={transaction.id || index}>
+                            <td>{timeStr}</td>
+                            <td>
+                              <span className={`type-badge ${type}`}>
+                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                              </span>
+                            </td>
+                            <td className="amount">{formatCurrency(Math.abs(parseFloat(transaction.amount) || 0))}</td>
+                            <td>
+                              <span className={`status-badge ${status.toLowerCase()}`}>
+                                {status}
+                              </span>
+                            </td>
+                            <td>{department}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="empty-state">No transactions found for the selected date.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -35,6 +35,7 @@ const DisbursingSidebar = ({ activeTab, setActiveTab }) => {
       title: 'Reports',
       icon: 'fas fa-chart-line',
       items: [
+        { id: 'generate-reports', label: 'Generate Reports', icon: <i className="fas fa-chart-line"></i> },
         { id: 'daily-summary', label: 'Daily Summary', icon: <i className="fas fa-calendar-day"></i> }
       ]
     }
