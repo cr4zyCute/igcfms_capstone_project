@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../common/NotificationBell';
 
-const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed }) => {
+const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -40,17 +40,40 @@ const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed }) => {
     return 'U';
   };
 
+  // Map tab IDs to display names
+  const getTabDisplayName = (tabId) => {
+    const tabNames = {
+      'dashboard': 'Dashboard',
+      'notifications': 'Notifications',
+      'receive-money': 'Receive Money',
+      'issue-receipt': 'Receipt',
+      'issue-money': 'Issue Money',
+      'issue-check': 'Issue Cheque',
+      'override-transactions': 'Override Transactions',
+      'transaction-management': 'Transaction Management',
+      'recipient-account': 'Recipient Account',
+      'funds-accounts': 'Fund Accounts',
+      'generate-reports': 'Reports',
+      'manage-staff': 'Manage Staff',
+      'view-transactions': 'View All Transactions',
+      'activity-dashboard': 'Activity Monitor',
+      'profile-settings': 'Profile Settings'
+    };
+    return tabNames[tabId] || tabId;
+  };
+
   return (
     <header className={`navbar ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <div className="navbar-right">
           <div className="brand-text">
-              <h2>{user?.role} Menu</h2>
+              <h2>{user?.role}</h2>
+              <span className="breadcrumb-separator">/</span>
+              <span className="current-section">{getTabDisplayName(activeTab)}</span>
           </div>
           
           <div className="navbar-actions">
             <NotificationBell onNavigate={onNavigate} />
             
-            {/* User Profile */}
             <div className="profile-dropdown" ref={dropdownRef}>
           <button 
             className="profile-button"

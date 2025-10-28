@@ -21,7 +21,7 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
       icon: "fas fa-exchange-alt",
       items: [
         { id: "receive-money", label: "Receive Money", icon: <i className="fas fa-money-bill-wave"></i> },
-        { id: "issue-receipt", label: "Issue Receipt", icon: <i className="fas fa-receipt"></i> },
+        { id: "issue-receipt", label: "Receipt", icon: <i className="fas fa-receipt"></i> },
         { id: "issue-money", label: "Issue Money", icon: <i className="fas fa-hand-holding-usd"></i> },
         { id: "issue-check", label: "Issue Cheque", icon: <i className="fas fa-money-check-alt"></i> },
         { id: "override-transactions", label: "Override Transactions", icon: <i className="fas fa-exchange-alt"></i> },

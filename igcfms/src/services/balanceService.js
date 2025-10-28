@@ -86,13 +86,13 @@ class BalanceService {
         amount: parseFloat(amount) 
       });
 
-      // Check for low balance warning
+      // Check for low balance warning (async, don't wait)
       if (newBalance < 10000 && operation === 'SUBTRACT') {
-        await notificationService.notifyTransaction('LOW_BALANCE_WARNING', {
+        notificationService.notifyTransaction('LOW_BALANCE_WARNING', {
           fund_account: transactionData.fund_account_name || `Fund Account #${fundAccountId}`,
           fund_account_id: fundAccountId,
           balance: newBalance
-        });
+        }).catch(err => console.warn('Low balance notification failed:', err));
       }
 
       console.log(`Fund balance updated: ${currentBalance} → ${newBalance} (${operation} ${amount})`);
@@ -184,14 +184,14 @@ class BalanceService {
             { fund_account_name }
           );
 
-          // Send notification
-          await notificationService.notifyTransaction('MONEY_RECEIVED', {
+          // Send notification asynchronously (don't wait)
+          notificationService.notifyTransaction('MONEY_RECEIVED', {
             amount: amount,
             payer: transactionData.payer || transactionData.recipient,
             fund_account: fund_account_name || `Fund Account #${fund_account_id}`,
             transaction_id: transactionData.transaction_id,
             fund_account_id: fund_account_id
-          });
+          }).catch(err => console.warn('Notification failed:', err));
 
           return receiveResult;
 
@@ -204,14 +204,14 @@ class BalanceService {
             { fund_account_name }
           );
 
-          // Send notification
-          await notificationService.notifyTransaction('MONEY_ISSUED', {
+          // Send notification asynchronously (don't wait)
+          notificationService.notifyTransaction('MONEY_ISSUED', {
             amount: amount,
             recipient: transactionData.recipient || transactionData.payee_name,
             fund_account: fund_account_name || `Fund Account #${fund_account_id}`,
             transaction_id: transactionData.transaction_id,
             fund_account_id: fund_account_id
-          });
+          }).catch(err => console.warn('Notification failed:', err));
 
           return issueResult;
 
@@ -224,15 +224,15 @@ class BalanceService {
             { fund_account_name }
           );
 
-          // Send notification
-          await notificationService.notifyTransaction('CHEQUE_ISSUED', {
+          // Send notification asynchronously (don't wait)
+          notificationService.notifyTransaction('CHEQUE_ISSUED', {
             amount: amount,
             recipient: transactionData.recipient || transactionData.payee_name,
             fund_account: fund_account_name || `Fund Account #${fund_account_id}`,
             transaction_id: transactionData.transaction_id,
             fund_account_id: fund_account_id,
             cheque_number: transactionData.cheque_number
-          });
+          }).catch(err => console.warn('Notification failed:', err));
 
           return chequeResult;
 

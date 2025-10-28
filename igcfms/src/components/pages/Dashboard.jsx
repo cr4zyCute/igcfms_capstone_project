@@ -65,7 +65,7 @@ const Dashboard = () => {
   if (!SelectedDashboard) {
     return (
       <div className="dashboard-page">
-        <Navbar userRole={userRole} user={user} onNavigate={setActiveTab} />
+        <Navbar userRole={userRole} user={user} onNavigate={setActiveTab} activeTab={activeTab} />
         <AccessDenied role={userRole} />
       </div>
     );
@@ -78,6 +78,7 @@ const Dashboard = () => {
         user={user} 
         onNavigate={setActiveTab}
         isSidebarCollapsed={isSidebarCollapsed}
+        activeTab={activeTab}
       />
       
       <Sidebar

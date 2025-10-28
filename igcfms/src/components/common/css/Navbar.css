@@ -38,11 +38,29 @@
   gap: 1rem;
 }
 
+.brand-text {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .brand-text h2 {
   font-size: 1.4rem;
   font-weight: 700;
   margin: 0;
   color: #000000;
+}
+
+.breadcrumb-separator {
+  font-size: 1.2rem;
+  color: #cccccc;
+  font-weight: 300;
+}
+
+.current-section {
+  font-size: 0.9rem;
+  color: #666666;
+  font-weight: 500;
 }
 
 .logo {
@@ -448,6 +466,11 @@
   
   .brand-text h2 {
     font-size: 1.1rem;
+  }
+  
+  .breadcrumb-separator,
+  .current-section {
+    display: none;
   }
   
   .profile-button {
