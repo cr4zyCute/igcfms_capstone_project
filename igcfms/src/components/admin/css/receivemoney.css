@@ -1,6 +1,6 @@
 .receive-money-container {
   padding: 15px;
-  background: #ffffff;
+
   height: 100vh;
   overflow: hidden;
   display: flex;
@@ -10,9 +10,7 @@
 .receive-money-form {
   max-width: 1200px !important;
   margin: 0 auto !important;
-  background: #ffffff !important;
   border-radius: 12px !important;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06) !important;
   overflow: hidden !important;
   flex: 1 !important;
   display: flex !important;
@@ -478,7 +476,37 @@
   gap: 12px;
   margin-top: 20px;
   padding: 16px 0;
-  border-top: 1px solid #e9ecef;
+}
+
+/* Total Amount Display at Top */
+.total-amount-display-top {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 20px !important;
+  margin-bottom: 16px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.total-amount-display-top .total-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #000000;
+}
+
+.total-amount-display-top .total-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #000000;
 }
 
 /* Form Actions (bottom full-width) */
@@ -488,10 +516,9 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-top: -45px !important;
+  margin-top: 0 !important;
   margin-bottom: 0;  
   padding: 20px 24px;
-  background: linear-gradient(135deg, #f8f9fa, #ffffff);
   border-radius: 12px;
 }
 
@@ -690,7 +717,6 @@
   color: #6b7280;
   margin-top: 6px;
 }
-
 .field-hint i {
   font-size: 11px;
 }
@@ -704,7 +730,20 @@
   padding: 16px;
   background: #f9fafb;
   border-radius: 8px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid #000000;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Hide scrollbar for fund accounts list but keep functionality */
+.selected-fund-accounts-list::-webkit-scrollbar {
+  display: none;
+}
+
+.selected-fund-accounts-list {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 .fund-account-item {
@@ -714,7 +753,7 @@
   padding: 12px;
   background: #ffffff;
   border-radius: 6px;
-  border: 1px solid #e5e7eb;
+  border: 2px solid #000000 !important;
   transition: all 0.2s ease;
 }
 
@@ -779,28 +818,6 @@
 .remove-fund-btn:hover {
   background: #dc2626;
   transform: scale(1.05);
-}
-
-.allocation-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  background: #ffffff;
-  border-radius: 6px;
-  border: 2px solid #000000;
-  font-size: 14px;
-  margin-top: 4px;
-}
-
-.allocation-summary strong {
-  font-size: 16px;
-  color: #000000;
-}
-
-.allocation-of {
-  color: #6b7280;
-  margin-left: auto;
 }
 
 .add-fund-account-btn {
@@ -1490,10 +1507,10 @@
   border-top: 1px solid #e5e7eb;
 }
 
-/* Print styles - 3 inches wide x 5 inches long */
+/* Print styles - Envelope #10 (4.125 x 9.5 inches) with 7-inch receipt */
 @media print {
   @page {
-    size: 3in 5in;
+    size: 4.125in 9.5in; /* Envelope #10 size */
     margin: 0;
   }
 
@@ -1558,10 +1575,10 @@
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    width: 3in !important;
-    height: 5in !important;
-    max-width: 3in !important;
-    max-height: 5in !important;
+    width: 4.125in !important;
+    height: 7in !important; /* Receipt content is 7 inches */
+    max-width: 4.125in !important;
+    max-height: 7in !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
@@ -1572,8 +1589,8 @@
   }
 
   .receipt-print-area {
-    width: 3in;
-    height: 5in;
+    width: 4.125in;
+    height: 7in; /* Receipt content is 7 inches on 9.5 inch paper */
     padding: 0.15in;
     overflow: hidden;
     box-sizing: border-box;
@@ -2197,5 +2214,320 @@
   
   .account-info h6 {
     font-size: 14px;
+  }
+}
+
+/* ========================================
+   RECEIVE MONEY MODAL STYLES (rm-*)
+   ======================================== */
+
+/* Modal Overlay */
+.rm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+  animation: rmFadeIn 0.2s ease;
+}
+
+@keyframes rmFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Container */
+.rm-fund-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: rmSlideUp 0.3s ease;
+  overflow: hidden;
+}
+
+@keyframes rmSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal Header */
+.rm-modal-header {
+  background: #000000;
+  color: #ffffff !important;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-bottom: 4px solid #ffffff;
+}
+
+.rm-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rm-modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 1px;
+  color: #ffffff !important;
+}
+
+.rm-close-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 32px;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.rm-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: rotate(90deg);
+}
+
+/* Modal Body */
+.rm-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Hide scrollbar for modal body but keep functionality */
+.rm-modal-body::-webkit-scrollbar {
+  display: none;
+}
+
+.rm-modal-body {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Search Container in Header */
+.rm-search-container {
+  position: relative;
+  width: 100%;
+}
+
+.rm-search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.rm-search-input {
+  width: 100%;
+  padding: 12px 16px 12px 48px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
+  color: #ffffff;
+}
+.rm-search-container i{
+  color: #000000;
+  margin-left: 90%;
+}
+.rm-search-input:focus {
+  outline: none;
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.rm-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Accounts List */
+.rm-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 450px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Hide Scrollbar but keep functionality */
+.rm-accounts-list::-webkit-scrollbar {
+  display: none;
+}
+
+.rm-accounts-list {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Account Card */
+.rm-account-card {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 18px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rm-account-card:hover {
+  border-color: #000000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Account Main Row */
+.rm-account-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.rm-account-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0;
+  flex: 1;
+}
+
+.rm-chevron {
+  color: #9ca3af;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.rm-account-card:hover .rm-chevron {
+  color: #000000;
+  transform: translateX(4px);
+}
+
+/* Account Info Row */
+.rm-account-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.rm-code-badge {
+  background: #000000;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.rm-type-badge {
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Account Balance Row */
+.rm-account-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.rm-balance-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: 0.5px;
+}
+
+.rm-balance-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000000;
+}
+
+/* No Results */
+.rm-no-results {
+  text-align: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+}
+
+.rm-no-results i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.rm-no-results p {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .rm-fund-modal {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .rm-modal-header {
+    padding: 20px 24px;
+  }
+  
+  .rm-modal-title {
+    font-size: 18px;
+  }
+  
+  .rm-modal-body {
+    padding: 20px;
+  }
+  
+  .rm-account-name {
+    font-size: 16px;
   }
 }

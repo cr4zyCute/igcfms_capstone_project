@@ -4351,3 +4351,392 @@ input[type="text"].edit-form-input:disabled {
 .summary-metric-timestamp i {
   font-size: 9px;
 }
+
+/* Print-Optimized Receipt Styles - ReceiveMoney Design */
+.receipt-print-area {
+  background: #ffffff;
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  max-height: calc(90vh - 60px);
+}
+
+/* Custom scrollbar for receipt */
+.receipt-print-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.receipt-print-area::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.receipt-print-area::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.receipt-print-area::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.official-receipt-header {
+  border: 2px solid #000000;
+  padding: 12px 16px;
+  margin-bottom: 0;
+  background: #ffffff;
+}
+
+.receipt-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.accountable-no {
+  color: #000000;
+}
+
+.receipt-type {
+  color: #000000;
+}
+
+.receipt-title-section {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.receipt-logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+}
+
+.logo-image {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  padding: 5px;
+  background: #ffffff;
+  font-size: 40px;
+  color: #000;
+}
+
+.logo-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.logo-image.left-logo,
+.logo-image.right-logo {
+  flex-shrink: 0;
+}
+
+.receipt-title-content {
+  flex: 1;
+  max-width: 500px;
+}
+
+.receipt-title-content h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  color: #000000;
+  letter-spacing: 2px;
+}
+
+.system-name {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 3px 0 2px 0;
+  color: #000000;
+  line-height: 1.3;
+}
+
+.department-name {
+  font-size: 10px;
+  margin: 2px 0;
+  color: #333333;
+  line-height: 1.2;
+}
+
+.contact-info {
+  font-size: 9px;
+  margin: 3px 0 0 0;
+  color: #666666;
+}
+
+.receipt-number-section {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 2px solid #000000;
+}
+
+.receipt-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
+}
+
+.receipt-number {
+  font-size: 16px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.official-receipt-body {
+  border: 2px solid #000000;
+  border-top: none;
+  padding: 25px 20px 25px 20px;
+  position: relative;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+}
+
+.receipt-center-logos {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.center-logo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+}
+
+.center-logo-image {
+  width: 280px;
+  height: 280px;
+  opacity: 0.12;
+  filter: grayscale(100%);
+  object-fit: contain;
+}
+
+.receipt-body-spacer {
+  flex: 1;
+  min-height: 100px;
+}
+
+.receipt-fund-info {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 15px;
+  padding: 12px 14px;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+}
+
+.fund-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 10px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.fund-items-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+.fund-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 11px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.fund-item:last-child {
+  border-bottom: none;
+}
+
+.fund-name {
+  color: #000000;
+  font-weight: 600;
+  flex: 1;
+}
+
+.fund-amount {
+  color: #059669;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+.receipt-payer-info {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 15px;
+}
+
+.receipt-payer-info p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.receipt-total-right {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 8px 0;
+}
+
+.total-label-bold {
+  font-size: 15px;
+  font-weight: 700;
+  color: #000000;
+  letter-spacing: 0.5px;
+}
+
+.total-amount-bold {
+  font-size: 22px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.amount-words-bold {
+  position: relative;
+  z-index: 1;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 700;
+  color: #000000;
+  margin: 8px 0 20px 0;
+  letter-spacing: 0.5px;
+}
+
+.receipt-description-box {
+  position: relative;
+  z-index: 1;
+  margin: 15px 0 20px 0;
+  padding: 10px 12px;
+  background: transparent;
+  border-left: 3px solid #000000;
+}
+
+.description-label-receipt {
+  font-size: 11px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.description-text-receipt {
+  font-size: 12px;
+  color: #333333;
+  margin: 0;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.payment-checkboxes {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 50px;
+  justify-content: flex-start;
+  margin: 15px 0 20px 0;
+}
+
+.payment-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.payment-checkboxes input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: default;
+  border: 2px solid #000000;
+}
+
+.payment-checkboxes label.checked {
+  color: #000000;
+}
+
+.receipt-acknowledgment-line {
+  position: relative;
+  z-index: 1;
+  text-align: left;
+  margin: 20px 0 10px 0;
+  font-size: 11px;
+  color: #000000;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #000000;
+  font-style: italic;
+}
+
+.signature-area {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  margin-top: 30px;
+  padding-bottom: 0;
+}
+
+.signature-line-bottom {
+  width: 280px;
+  height: 1px;
+  background: #000000;
+  margin: 0 auto 6px auto;
+}
+
+.signature-text {
+  font-size: 11px;
+  font-weight: 400;
+  color: #000000;
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+@media print {
+  .receipt-print-area {
+    width: 4.125in;
+    height: auto;
+    padding: 8px;
+    margin: 0;
+    overflow: visible;
+    position: relative;
+  }
+  
+  .official-receipt-header,
+  .official-receipt-body {
+    page-break-inside: avoid;
+  }
+}

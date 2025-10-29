@@ -5,6 +5,7 @@ import DisbursementTrends from '../analytics/disbursementAnalytics';
 import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
 import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
 import IssueReceiptSkeleton from '../ui/issuerecieptLoading';
+import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
 import {
   useReceipts,
   useCollectionTransactions,
@@ -466,17 +467,43 @@ const IssueReceipt = () => {
     setShowReceiptModal(true);
   };
 
-  // Print only the receipt content
+  // Print only the receipt content using recieptPrint template
   const printReceipt = () => {
-    const printContent = document.getElementById('receipt-document');
-    const originalContent = document.body.innerHTML;
-    
-    if (printContent) {
-      document.body.innerHTML = printContent.outerHTML;
-      window.print();
-      document.body.innerHTML = originalContent;
-      window.location.reload(); // Reload to restore React functionality
+    const receiptElement = document.getElementById('receipt-document');
+    if (!receiptElement) {
+      console.error('Receipt print area not found.');
+      return;
     }
+
+    // Create a new window for printing - Envelope #10 size (4.125 x 9.5 inches)
+    const printWindow = window.open('', '_blank', 'width=400,height=912');
+    if (!printWindow) {
+      console.error('Unable to open print window.');
+      return;
+    }
+
+    // Get the print HTML template from the imported function
+    printWindow.document.write(getReceiptPrintHTML());
+
+    // Clone and write the receipt content
+    const clonedReceipt = receiptElement.cloneNode(true);
+    printWindow.document.write(clonedReceipt.outerHTML);
+
+    // Close the document
+    printWindow.document.write(`
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    // Wait for content to load then print
+    printWindow.onload = function() {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    };
   };
 
   // Handle edit receipt
@@ -1385,7 +1412,7 @@ const IssueReceipt = () => {
         </div>
       )}
 
-      {/* Official Receipt Modal */}
+      {/* Official Receipt Modal - Print Optimized Design */}
       {showReceiptModal && receiptResult && (
         <div className="modal-overlay" onClick={() => setShowReceiptModal(false)}>
           <div className="receipt-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1398,137 +1425,137 @@ const IssueReceipt = () => {
               </button>
             </div>
             
-            {/* Official Receipt Document */}
-            <div className="official-receipt" id="receipt-document">
-              {/* Receipt Header */}
-              <div className="receipt-header">
-                <div className="receipt-logo-section">
-                  <div className="logo-placeholder">
-                    <i className="fas fa-university"></i>
-                  </div>
-                  <div className="receipt-title-section">
-                    <h1 className="receipt-org-name">IGCFMS</h1>
-                    <h2 className="receipt-org-subtitle">Integrated Government Cash Flow Management System</h2>
-                    <p className="receipt-address">Government Financial Services Department</p>
-                    <p className="receipt-contact">Tel: (02) 8888-0000 | Email: igcfmsa@gmail.com</p>
-                  </div>
+            {/* Official Receipt Document - Print Optimized */}
+            <div className="receipt-print-area" id="receipt-document">
+              {/* Header */}
+              <div className="official-receipt-header">
+                <div className="receipt-top-bar">
+                  <span className="accountable-no">ACCOUNTABLE NO. {receiptResult.receiptNumber}</span>
+                  <span className="receipt-type">(ORIGINAL)</span>
                 </div>
                 
-                <div className="receipt-document-info">
-                  <h3 className="receipt-document-title">OFFICIAL RECEIPT</h3>
-                  <div className="receipt-number-box">
-                    <span className="receipt-number-label">Receipt No.</span>
-                    <span className="receipt-number-value">{receiptResult.receiptNumber}</span>
+                <div className="receipt-title-section">
+                  <div className="receipt-logos">
+                    <div className="logo-image left-logo">
+                      <img src="/igfms_logo.png" alt="IGCFMS Logo" />
+                    </div>
+                    <div className="receipt-title-content">
+                      <h1>OFFICIAL RECEIPT</h1>
+                      <p className="system-name">Integrated Government Cash Flow Management System</p>
+                      <p className="department-name">Government Financial Services Department</p>
+                      <p className="contact-info">Tel: (031) 8888-0000 | Email: igcfms@gmail.com</p>
+                    </div>
+                    <div className="logo-image right-logo">
+                      <img src="/ctu_logo.png" alt="CTU Logo" />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Receipt Body */}
-              <div className="receipt-body">
-                <div className="receipt-date-section">
-                  <div className="receipt-date">
-                    <span className="date-label">Date:</span>
-                    <span className="date-value">{new Date(receiptResult.issueDate).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}</span>
+              {/* Body */}
+              <div className="official-receipt-body">
+                <div className="receipt-center-logos">
+                  <div className="center-logo-container">
+                    <img src="/igfms_logo.png" alt="IGCFMS Logo" className="center-logo-image" />
                   </div>
                 </div>
 
-                <div className="receipt-payer-section">
-                  <div className="payer-info">
-                    <span className="payer-label">Received from:</span>
-                    <span className="payer-name">{receiptResult.payerName}</span>
-                  </div>
+                {/* Payer Information */}
+                <div className="receipt-payer-info" style={{ marginBottom: '20px', position: 'relative', zIndex: 1 }}>
+                  <p style={{ fontSize: '12px', marginBottom: '8px' }}>
+                    <strong>RECEIVED FROM:</strong> {receiptResult.payerName || 'N/A'}
+                  </p>
+                  <p style={{ fontSize: '11px', marginBottom: '5px' }}>
+                    <strong>DATE:</strong> {new Date(receiptResult.issueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
                 </div>
 
-                <div className="receipt-amount-section">
-                  <div className="amount-info">
-                    <span className="amount-label">The sum of:</span>
-                    <div className="amount-details">
-                      {(() => {
-                        const transaction = transactions.find(tx => tx.id.toString() === receiptResult.transactionId);
-                        const amount = transaction ? parseFloat(transaction.amount || 0) : 0;
-                        return (
-                          <>
-                            <div className="amount-words">
-                              <span className="amount-in-words">
-                                {numberToWords(amount)} Pesos Only
-                              </span>
-                            </div>
-                            <div className="amount-figures">
-                              <span className="currency">₱</span>
-                              <span className="amount-value">{amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </>
-                        );
-                      })()}
+                {/* Fund Account Information */}
+                {(() => {
+                  const transaction = transactions.find(tx => tx.id.toString() === receiptResult.transactionId);
+                  return transaction ? (
+                    <div className="receipt-fund-info">
+                      <p className="fund-label">FUND ACCOUNTS:</p>
+                      <div className="fund-items-grid">
+                        <div className="fund-item">
+                          <span className="fund-name">Description</span>
+                          <span className="fund-amount">₱{parseFloat(transaction.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="fund-item">
+                          <span className="fund-name">Category</span>
+                          <span className="fund-amount">{transaction.category || 'General'}</span>
+                        </div>
+                        <div className="fund-item">
+                          <span className="fund-name">Department</span>
+                          <span className="fund-amount">{transaction.department || 'Finance'}</span>
+                        </div>
+                        <div className="fund-item">
+                          <span className="fund-name">Reference</span>
+                          <span className="fund-amount">TXN-{receiptResult.transactionId}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  ) : null;
+                })()}
 
-                <div className="receipt-purpose-section">
-                  <div className="purpose-info">
-                    <span className="purpose-label">For:</span>
-                    <div className="purpose-details">
-                      {(() => {
-                        const transaction = transactions.find(tx => tx.id.toString() === receiptResult.transactionId);
-                        return (
-                          <>
-                            <div className="purpose-description">
-                              {transaction?.description || 'Government Collection'}
-                            </div>
-                            <div className="purpose-category">
-                              Category: {transaction?.category || 'General Revenue'}
-                            </div>
-                            <div className="purpose-department">
-                              Department: {transaction?.department || 'Finance'}
-                            </div>
-                          </>
-                        );
-                      })()}
+                {/* Empty space for watermark visibility */}
+                <div className="receipt-body-spacer"></div>
+
+                {/* Total Amount - Bottom Right */}
+                {(() => {
+                  const transaction = transactions.find(tx => tx.id.toString() === receiptResult.transactionId);
+                  const amount = transaction ? parseFloat(transaction.amount || 0) : 0;
+                  return (
+                    <>
+                      <div className="receipt-total-right">
+                        <span className="total-label-bold">TOTAL:</span>
+                        <span className="total-amount-bold">PHP{amount.toFixed(2)}</span>
+                      </div>
+
+                      {/* Amount in Words - Bold */}
+                      <div className="amount-words-bold">
+                        {numberToWords(amount)} PESOS ONLY
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* Description */}
+                {(() => {
+                  const transaction = transactions.find(tx => tx.id.toString() === receiptResult.transactionId);
+                  return transaction?.description ? (
+                    <div className="receipt-description-box">
+                      <p className="description-label-receipt">Description:</p>
+                      <p className="description-text-receipt">{transaction.description}</p>
                     </div>
-                  </div>
+                  ) : null;
+                })()}
+
+                {/* Payment Method Checkboxes */}
+                <div className="payment-checkboxes">
+                  <label className="checked">
+                    <input type="checkbox" checked readOnly />
+                    <span>CASH</span>
+                  </label>
+                  <label>
+                    <input type="checkbox" readOnly />
+                    <span>CHECK</span>
+                  </label>
+                  <label>
+                    <input type="checkbox" readOnly />
+                    <span>BANK</span>
+                  </label>
                 </div>
 
-                <div className="receipt-reference-section">
-                  <div className="reference-info">
-                    <span className="reference-label">Transaction Reference:</span>
-                    <span className="reference-value">TXN-{receiptResult.transactionId}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Receipt Footer */}
-              <div className="receipt-footer">
-                <div className="receipt-signatures">
-                  <div className="signature-section">
-                    <div className="signature-line"></div>
-                    <div className="signature-label">Received by</div>
-                    <div className="signature-title">Authorized Collecting Officer</div>
-                  </div>
-                  <div className="signature-section">
-                    <div className="signature-line"></div>
-                    <div className="signature-label">Verified by</div>
-                    <div className="signature-title">Finance Officer</div>
-                  </div>
+                {/* Acknowledgment with underline */}
+                <div className="receipt-acknowledgment-line">
+                  Received the amount stated above
                 </div>
 
-                <div className="receipt-footer-info">
-                  <div className="receipt-serial">
-                    <span>Receipt ID: #{receiptResult.id}</span>
-                  </div>
-                  <div className="receipt-timestamp">
-                    <span>Generated: {new Date().toLocaleString()}</span>
-                  </div>
-                  <div className="receipt-validity">
-                    <span>This receipt is computer-generated and valid without signature</span>
-                  </div>
-                </div>
-
-                <div className="receipt-watermark">
-                  <span>IGCFMS - OFFICIAL RECEIPT</span>
+                {/* Signature Line */}
+                <div className="signature-area">
+                  <div className="signature-line-bottom"></div>
+                  <p className="signature-text">Collecting Officer</p>
                 </div>
               </div>
             </div>

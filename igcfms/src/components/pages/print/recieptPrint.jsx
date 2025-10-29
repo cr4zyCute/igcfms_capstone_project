@@ -13,7 +13,7 @@ export const getReceiptPrintHTML = () => {
         }
         
         @page {
-          size: 4.125in 9.5in;
+          size: 4.125in 9.5in; /* Envelope #10 size */
           margin: 0;
         }
         
@@ -29,8 +29,7 @@ export const getReceiptPrintHTML = () => {
         
         .receipt-print-area {
           width: 4.125in;
-          height: auto;
-          min-height: 9.5in;
+          height: 7in; 
           margin: 0;
           padding: 8px;
           padding-top: 8px;
@@ -295,8 +294,7 @@ export const getReceiptPrintHTML = () => {
         
         .signature-line-bottom {
           width: 200px;
-          height: 1px;
-          background: #000;
+          border-bottom: 1px solid #000;
           margin: 0 auto 3px auto;
         }
         
@@ -307,7 +305,7 @@ export const getReceiptPrintHTML = () => {
         
         @media print {
           @page {
-            size: 4.125in 9.5in;
+            size: 4.125in 9.5in; /* Envelope #10 size */
             margin: 0;
           }
           
@@ -320,8 +318,7 @@ export const getReceiptPrintHTML = () => {
           
           .receipt-print-area {
             width: 4.125in;
-            height: auto;
-            min-height: 9.5in;
+            height: 7in; /* Receipt content is 7 inches on 9.5 inch paper */
             padding: 8px;
             padding-top: 8px;
             margin: 0;

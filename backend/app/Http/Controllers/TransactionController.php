@@ -65,34 +65,64 @@ class TransactionController extends Controller
             ], 401);
         }
 
-        // Auto-generate receipt number and reference number (optimized)
+        // Auto-generate receipt number and reference number with better concurrency handling
         $today = now()->format('Ymd');
         $transactionType = $validated['type'];
         
-        // Use single query to get both counts efficiently
-        $counts = DB::table('transactions')
-            ->selectRaw('
-                COUNT(CASE WHEN DATE(created_at) = CURDATE() AND type = ? THEN 1 END) as daily_count,
-                COUNT(CASE WHEN YEAR(created_at) = YEAR(NOW()) AND type = ? THEN 1 END) as yearly_count
-            ', [$transactionType, $transactionType])
-            ->first();
-        
-        $dailyCount = ($counts->daily_count ?? 0) + 1;
-        $yearlyCount = ($counts->yearly_count ?? 0) + 1;
-        
+        // Generate unique receipt number with retry logic for concurrent transactions
+        $maxRetries = 10;
         $receiptNo = '';
         $referenceNo = '';
         
-        if ($transactionType === 'Collection') {
-            // RCPT-20250919-0001
-            $receiptNo = 'RCPT-' . $today . '-' . str_pad($dailyCount, 4, '0', STR_PAD_LEFT);
-            // COL-2025-0001 (yearly sequential for collections)
-            $referenceNo = 'COL-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
-        } else {
-            // DIS-20250919-0001
-            $receiptNo = 'DIS-' . $today . '-' . str_pad($dailyCount, 4, '0', STR_PAD_LEFT);
-            // DIS-2025-0001 (yearly sequential for disbursements)
-            $referenceNo = 'DIS-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
+        for ($retry = 0; $retry < $maxRetries; $retry++) {
+            // Use single query to get both counts efficiently
+            $counts = DB::table('transactions')
+                ->selectRaw('
+                    COUNT(CASE WHEN DATE(created_at) = CURDATE() AND type = ? THEN 1 END) as daily_count,
+                    COUNT(CASE WHEN YEAR(created_at) = YEAR(NOW()) AND type = ? THEN 1 END) as yearly_count
+                ', [$transactionType, $transactionType])
+                ->first();
+            
+            // Add retry offset to handle concurrent transactions
+            $dailyCount = ($counts->daily_count ?? 0) + 1 + $retry;
+            $yearlyCount = ($counts->yearly_count ?? 0) + 1 + $retry;
+            
+            if ($transactionType === 'Collection') {
+                // RCPT-YYYYMMDD-####
+                $receiptNo = 'RCPT-' . $today . '-' . str_pad($dailyCount, 4, '0', STR_PAD_LEFT);
+                // COL-YYYY-#### (yearly sequential for collections)
+                $referenceNo = 'COL-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
+                
+                // Check if this receipt number already exists in receipts table
+                $existingReceipt = DB::table('receipts')
+                    ->where('receipt_number', $receiptNo)
+                    ->exists();
+                    
+                if (!$existingReceipt) {
+                    break; // Found a unique receipt number
+                }
+            } else {
+                // DIS-YYYYMMDD-####
+                $receiptNo = 'DIS-' . $today . '-' . str_pad($dailyCount, 4, '0', STR_PAD_LEFT);
+                // DIS-YYYY-#### (yearly sequential for disbursements)
+                $referenceNo = 'DIS-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
+                
+                // Check if this receipt number already exists in transactions table
+                $existingTransaction = DB::table('transactions')
+                    ->where('receipt_no', $receiptNo)
+                    ->exists();
+                    
+                if (!$existingTransaction) {
+                    break; // Found a unique receipt number
+                }
+            }
+            
+            // If we're on the last retry and still haven't found a unique number,
+            // add a random component to ensure uniqueness
+            if ($retry == $maxRetries - 1) {
+                $randomSuffix = strtoupper(substr(md5(uniqid()), 0, 4));
+                $receiptNo = $receiptNo . '-' . $randomSuffix;
+            }
         }
 
         // Ensure amount sign: Disbursement should be negative, Collection positive
