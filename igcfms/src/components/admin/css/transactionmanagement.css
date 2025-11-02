@@ -354,21 +354,44 @@
 }
 
 .transactions-table th:nth-child(1),
-.transactions-table td:nth-child(1) { width: 8%; }
+.transactions-table td:nth-child(1) {
+  width: 8%;
+}
+
 .transactions-table th:nth-child(2),
-.transactions-table td:nth-child(2) { width: 12%; }
+.transactions-table td:nth-child(2) {
+  width: 12%;
+}
+
 .transactions-table th:nth-child(3),
-.transactions-table td:nth-child(3) { width: 15%; }
+.transactions-table td:nth-child(3) {
+  width: 15%;
+}
+
 .transactions-table th:nth-child(4),
-.transactions-table td:nth-child(4) { width: 20%; }
+.transactions-table td:nth-child(4) {
+  width: 20%;
+}
+
 .transactions-table th:nth-child(5),
-.transactions-table td:nth-child(5) { width: 15%; }
+.transactions-table td:nth-child(5) {
+  width: 15%;
+}
+
 .transactions-table th:nth-child(6),
-.transactions-table td:nth-child(6) { width: 12%; }
+.transactions-table td:nth-child(6) {
+  width: 12%;
+}
+
 .transactions-table th:nth-child(7),
-.transactions-table td:nth-child(7) { width: 12%; }
+.transactions-table td:nth-child(7) {
+  width: 12%;
+}
+
 .transactions-table th:nth-child(8),
-.transactions-table td:nth-child(8) { width: 6%; }
+.transactions-table td:nth-child(8) {
+  width: 6%;
+}
 
 .transactions-table th {
   background: #f8f9fa;
@@ -586,8 +609,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-text {
@@ -1017,7 +1045,7 @@
 .tm-table-section {
   background: white;
   border-radius: 8px;
-  
+
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
@@ -1263,7 +1291,7 @@
   letter-spacing: 0.5px !important;
   border: none !important;
   white-space: nowrap !important;
-  background: #1f2937 !important;
+  background: #000000 !important;
 }
 
 .receipts-table th i {
@@ -1453,6 +1481,7 @@
     opacity: 0;
     backdrop-filter: blur(0px);
   }
+
   to {
     opacity: 1;
     backdrop-filter: blur(8px);
@@ -1470,8 +1499,10 @@
   border: 2px solid #000000;
   animation: tm-modal-slide-up 0.3s ease-out;
   /* Hide scrollbar but maintain scroll functionality */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -1484,6 +1515,7 @@
     opacity: 0;
     transform: translateY(20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1874,36 +1906,36 @@
   .transaction-management-page {
     padding: 15px;
   }
-  
+
   .tm-stats-grid {
     grid-template-columns: 1fr;
     gap: 15px;
   }
-  
+
   .filters-grid {
     grid-template-columns: 1fr;
     gap: 15px;
   }
-  
+
   .transactions-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
   }
-  
+
   .transactions-table-container {
     overflow-x: auto;
   }
-  
+
   .transactions-table {
     min-width: 800px;
   }
-  
+
   .transaction-details-grid {
     grid-template-columns: 1fr;
     gap: 15px;
   }
-  
+
   .modal-content {
     width: 95%;
     margin: 20px;

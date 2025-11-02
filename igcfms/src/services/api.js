@@ -8,35 +8,36 @@ const api = axios.create({
   },
 });
 
-    api.interceptors.request.use((config) => {
-      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-    api.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Optionally clear invalid tokens, but no redirect to avoid page refresh during login
-          // localStorage.removeItem('auth_token');
-          // localStorage.removeItem('token');
-        }
-        return Promise.reject(error);
-      }
-    );
-    
-  export const loginUser = async (email, password) => {
-    try {
-      const response = await api.post('/login', { email, password }); 
-      return response.data;
-    } catch (error) {
-      throw error;
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Optionally clear invalid tokens, but no redirect to avoid page refresh during login
+      // localStorage.removeItem('auth_token');
+      // localStorage.removeItem('token');
     }
-  };
-  export const getProfile = async () => {
+    return Promise.reject(error);
+  }
+);
+
+export const loginUser = async (email, password) => {
+  try {
+    const response = await api.post('/login', { email, password });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getProfile = async () => {
     try {
       const response = await api.get('/user/profile');
       return response.data;

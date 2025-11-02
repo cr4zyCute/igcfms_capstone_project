@@ -1829,7 +1829,7 @@
 }
 
 .ic-cheques-table thead tr {
-  background: #1f2937 !important;
+  background: #000000 !important;
 }
 
 .ic-cheques-table th {
@@ -1842,7 +1842,7 @@
   letter-spacing: 0.5px !important;
   border: none !important;
   white-space: nowrap !important;
-  background: #1f2937 !important;
+  background: #000000 !important;
 }
 
 /* Column width distribution */

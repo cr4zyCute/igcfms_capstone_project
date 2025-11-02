@@ -1,0 +1,220 @@
+   <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Cheque Print - ${chequeNumber}</title>
+      <meta charset="utf-8">
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        @page {
+          size: 5in 3in; /* Width x Height - Landscape */
+          margin: 0;
+        }
+        
+        html, body {
+          width: 5in;
+          height: 3in;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+        }
+        
+        body {
+          font-family: 'Arial', 'Courier New', monospace;
+          background: white;
+          color: #000;
+        }
+        
+        .cheque-print-container {
+          width: 5in;
+          height: 3in;
+          position: relative;
+          background: transparent;
+          overflow: hidden;
+        }
+        
+        /* Logo - Top Left */
+        .cheque-logo {
+          position: absolute;
+          top: 0.05in;
+          left: 0.05in;
+          width: 0.65in;
+          height: 0.65in;
+        }
+        
+        .cheque-logo img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+        
+        /* Logo Label */
+        .cheque-logo-label {
+          position: absolute;
+          top: 0.28in;
+          left: 0.05in;
+          font-size: 8pt;
+          font-weight: normal;
+          color: #000;
+        }
+        
+        /* Receipt Number - Top Right */
+        .cheque-number {
+          position: absolute;
+          top: 0.05in;
+          right: 0.05in;
+          font-size: 12pt;
+          font-weight: normal;
+          color: #000;
+        }
+        
+        /* Date Field - Right side, below number */
+        .cheque-date {
+          position: absolute;
+          top: 0.38in;
+          right: 0.7in;
+          font-size: 10pt;
+          color: #000;
+        }
+        
+        /* Pay to the order of - Left side */
+        .cheque-payee {
+          position: absolute;
+          top: 0.58in;
+          left: 0.7in;
+          font-size: 11pt;
+          font-weight: bold;
+          color: #000;
+          max-width: 2.5in;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-transform: uppercase;
+        }
+        
+        /* Amount Box - Right side */
+        .cheque-amount-box {
+          position: absolute;
+          top: 0.52in;
+          right: 0.08in;
+          font-size: 12pt;
+          font-weight: bold;
+          color: #000;
+          background: #fffacd;
+          padding: 2px 6px;
+          border: 1px solid #000;
+        }
+        
+        /* Amount in Words - Long line */
+        .cheque-amount-words {
+          position: absolute;
+          top: 0.88in;
+          left: 0.05in;
+          right: 0.7in;
+          font-size: 10pt;
+          color: #000;
+          text-transform: capitalize;
+        }
+        
+        /* Memo Field */
+        .cheque-memo {
+          position: absolute;
+          top: 1.35in;
+          left: 0.28in;
+          font-size: 9pt;
+          color: #000;
+          max-width: 2.3in;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        /* Pesos Label - Right side of amount words line */
+        .cheque-pesos-label {
+          position: absolute;
+          top: 0.88in;
+          right: 0.05in;
+          font-size: 11pt;
+          font-weight: bold;
+          color: #000;
+        }
+        
+        /* MICR Line - Bottom */
+        .cheque-micr {
+          position: absolute;
+          bottom: 0.08in;
+          left: 50%;
+          transform: translateX(-50%);
+          font-family: 'Courier New', monospace;
+          font-size: 9pt;
+          color: #333;
+          letter-spacing: 2px;
+        }
+        
+        @media print {
+          @page {
+            size: 5in 3in;
+            margin: 0;
+          }
+          
+          html, body {
+            width: 5in;
+            height: 3in;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+          }
+          
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .cheque-print-container {
+            width: 5in;
+            height: 3in;
+            page-break-after: avoid;
+            page-break-inside: avoid;
+            overflow: hidden;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="cheque-print-container">
+        <!-- Logo -->
+        <div class="cheque-logo">
+          <img src="/igfms_logo.png" alt="IGCFMS Logo">
+        </div>
+        <div class="cheque-logo-label">IGCFMS</div>
+        
+        <!-- Cheque Number -->
+        <div class="cheque-number">${chequeNumber}</div>
+        
+        <!-- Date -->
+        <div class="cheque-date">${date}</div>
+        
+        <!-- Payee Name -->
+        <div class="cheque-payee">${payeeName}</div>
+        
+        <!-- Amount (Numeric) -->
+        <div class="cheque-amount-box">₱ ${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        
+        <!-- Amount in Words -->
+        <div class="cheque-amount-words">${amountInWords}</div>
+        
+        <!-- Pesos Label -->
+        <div class="cheque-pesos-label">Pesos</div>
+        
+        <!-- Memo -->
+        <div class="cheque-memo">${memo}</div>
+        
+        <!-- MICR Line -->
+        <div class="cheque-micr">⑆001⑆ ${accountNumber} ⑆ ${chequeNumber}⑆</div>
+      </div>
+    </body>
+    </html>

@@ -32,8 +32,14 @@ class AuthController extends Controller
         // Create token
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // Track successful login
-        ActivityTracker::trackLogin($user, $request);
+        // Track successful login asynchronously to avoid blocking
+        // Consider using Laravel Jobs for this in production
+        try {
+            ActivityTracker::trackLogin($user, $request);
+        } catch (\Exception $e) {
+            // Log error but don't fail the login
+            \Log::error('Failed to track login activity: ' . $e->getMessage());
+        }
 
         return response()->json([
             'access_token' => $token,

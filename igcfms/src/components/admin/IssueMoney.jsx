@@ -13,6 +13,8 @@ import {
   useRecipientAccountsForDisbursement,
   useCreateDisbursement 
 } from '../../hooks/useDisbursements';
+import { printCompleteCheque } from '../pages/print/chequeSimplePrint';
+import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
 
 const IssueMoney = () => {
   // TanStack Query hooks
@@ -115,6 +117,33 @@ const IssueMoney = () => {
     return Math.round(parsed * 100) / 100;
   };
 
+  // Helper function to convert numbers to words
+  const numberToWords = (num) => {
+    const wholeNum = Math.floor(Math.abs(parseFloat(num) || 0));
+    
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    const convertBelowThousand = (n) => {
+      if (n === 0) return '';
+      if (n < 10) return ones[n];
+      if (n < 20) return teens[n - 10];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+      return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertBelowThousand(n % 100) : '');
+    };
+    
+    if (wholeNum === 0) return 'Zero';
+    if (wholeNum < 1000) return convertBelowThousand(wholeNum);
+    if (wholeNum < 1000000) {
+      const thousands = Math.floor(wholeNum / 1000);
+      const remainder = wholeNum % 1000;
+      return convertBelowThousand(thousands) + ' Thousand' + (remainder !== 0 ? ' ' + convertBelowThousand(remainder) : '');
+    }
+    
+    return wholeNum.toString();
+  };
+
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -214,10 +243,6 @@ const IssueMoney = () => {
     }
     if (!purpose.trim()) {
       showMessage("Please enter the purpose of payment.", 'error');
-      return false;
-    }
-    if (modeOfPayment === "Cheque" && !chequeNumber.trim()) {
-      showMessage("Please enter cheque number.", 'error');
       return false;
     }
 
@@ -958,6 +983,21 @@ const IssueMoney = () => {
         fundAccount: selectedFund?.name || 'Unknown Fund'
       });
 
+      // Auto-print cheque if payment mode is Cheque (before resetting form)
+      const shouldPrintCheque = formData.modeOfPayment === "Cheque";
+      if (shouldPrintCheque) {
+        setTimeout(() => {
+          printCompleteCheque({
+            date: new Date().toLocaleDateString(),
+            payeeName: payeeName,
+            amount: `₱${normalizedAmount.toLocaleString()}`,
+            amountInWords: numberToWords(normalizedAmount) + ' Pesos Only',
+            accountNumber: '123123123312',
+            routingNumber: formData.referenceNo
+          });
+        }, 500);
+      }
+
       // Reset form with new auto-generated reference number
       const newRefNo = generateReferenceNumber();
       setFormData({
@@ -1237,42 +1277,15 @@ const IssueMoney = () => {
       <div className="form-row">
         <div className="form-group">
           <label>Payment Mode *</label>
-          {formData.modeOfPayment === "Cheque" && (
-            <small className="cheque-hint">
-              Enter Cheque Number
-              <button
-                type="button"
-                className="cancel-cheque-btn"
-                onClick={() => {
-                  handleInputChange('modeOfPayment', 'Cash');
-                  handleInputChange('chequeNumber', '');
-                }}
-                title="Change payment method"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </small>
-          )}
-          {formData.modeOfPayment === "Cheque" ? (
-            <input
-              type="text"
-              placeholder="Enter cheque number"
-              value={formData.chequeNumber}
-              onChange={(e) => handleInputChange('chequeNumber', e.target.value)}
-              required
-              className="cheque-number-input"
-            />
-          ) : (
-            <select
-              value={formData.modeOfPayment}
-              onChange={(e) => handleInputChange('modeOfPayment', e.target.value)}
-              required
-            >
-              <option value="Cash">Cash</option>
-              <option value="Cheque">Cheque</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-            </select>
-          )}
+          <select
+            value={formData.modeOfPayment}
+            onChange={(e) => handleInputChange('modeOfPayment', e.target.value)}
+            required
+          >
+            <option value="Cash">Cash</option>
+            <option value="Cheque">Cheque</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </select>
         </div>
         <div className="form-group">
           <label>Description</label>
@@ -2149,12 +2162,42 @@ const IssueMoney = () => {
               >
                 <i className="fas fa-times"></i> Close
               </button>
+              {disbursementResult?.modeOfPayment === "Cheque" && (
+                <button
+                  type="button"
+                  className="print-btn"
+                  onClick={() => {
+                    printCompleteCheque({
+                      date: new Date().toLocaleDateString(),
+                      payeeName: disbursementResult.recipientName,
+                      amount: `₱${disbursementResult.amount.toLocaleString()}`,
+                      amountInWords: numberToWords(disbursementResult.amount) + ' Pesos Only',
+                      accountNumber: '123123123312',
+                      routingNumber: disbursementResult.referenceNo
+                    });
+                  }}
+                >
+                  <i className="fas fa-print"></i> Print Cheque
+                </button>
+              )}
               <button
                 type="button"
                 className="print-btn"
-                onClick={() => window.print()}
+                onClick={() => {
+                  const printWindow = window.open('', '_blank', 'width=800,height=600');
+                  if (printWindow) {
+                    printWindow.document.write(getReceiptPrintHTML());
+                    printWindow.document.close();
+                    printWindow.onload = () => {
+                      setTimeout(() => {
+                        printWindow.focus();
+                        printWindow.print();
+                      }, 500);
+                    };
+                  }
+                }}
               >
-                <i className="fas fa-print"></i> Print Receipt
+                <i className="fas fa-receipt"></i> Print Receipt
               </button>
             </div>
           </div>

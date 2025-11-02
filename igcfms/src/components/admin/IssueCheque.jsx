@@ -4,6 +4,7 @@ import { useDisbursements } from "../../hooks/useDisbursements";
 import { useFundAccounts } from "../../hooks/useFundAccounts";
 import IssueChequeSkeleton from "../ui/chequeSL";
 import { ErrorModal, SuccessModal } from "../common/Modals/IssueChequeModals";
+import { printCompleteCheque } from "../pages/print/chequeSimplePrint";
 import "./css/issuecheque.css";
 import "./css/cheque-styles.css";
 
@@ -409,11 +410,12 @@ const IssueCheque = () => {
   };
 
   const viewChequeDetails = (cheque) => {
+    console.log('Cheque data:', cheque); // Debug log
     setChequeResult({
       id: cheque.id,
       chequeNumber: cheque.cheque_number,
       payeeName: cheque.payee_name,
-      amount: cheque.amount,
+      amount: Math.abs(parseFloat(cheque.amount) || 0),
       bankName: cheque.bank_name,
       accountNumber: cheque.account_number,
       issueDate: cheque.issue_date || cheque.created_at,
@@ -422,25 +424,54 @@ const IssueCheque = () => {
     setShowSuccessModal(true);
   };
 
-  // Print only the cheque content
-  const printCheque = () => {
-    window.print();
+  // Print cheque using custom template
+  const handlePrintCheque = () => {
+    if (!chequeResult) return;
+    
+    const chequeData = {
+      chequeNumber: chequeResult.chequeNumber,
+      date: new Date(chequeResult.issueDate).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      payeeName: chequeResult.payeeName,
+      amount: chequeResult.amount || 0,
+      amountInWords: numberToWords(chequeResult.amount || 0) + ' Pesos Only',
+      memo: chequeResult.memo || '',
+      accountNumber: chequeResult.accountNumber || '',
+      routingNumber: 'IGCF-001-2024'
+    };
+    
+    printCompleteCheque(chequeData);
   };
 
   // Helper function to convert numbers to words (simplified)
   const numberToWords = (num) => {
+    // Convert to integer (whole pesos only)
+    const wholeNum = Math.floor(Math.abs(parseFloat(num) || 0));
+    
     const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
     const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
     const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
     
-    if (num === 0) return 'Zero';
-    if (num < 10) return ones[num];
-    if (num < 20) return teens[num - 10];
-    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 !== 0 ? ' ' + ones[num % 10] : '');
-    if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred' + (num % 100 !== 0 ? ' ' + numberToWords(num % 100) : '');
-    if (num < 1000000) return numberToWords(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 !== 0 ? ' ' + numberToWords(num % 1000) : '');
+    const convertBelowThousand = (n) => {
+      if (n === 0) return '';
+      if (n < 10) return ones[n];
+      if (n < 20) return teens[n - 10];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+      return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertBelowThousand(n % 100) : '');
+    };
     
-    return num.toString(); // Fallback for very large numbers
+    if (wholeNum === 0) return 'Zero';
+    if (wholeNum < 1000) return convertBelowThousand(wholeNum);
+    if (wholeNum < 1000000) {
+      const thousands = Math.floor(wholeNum / 1000);
+      const remainder = wholeNum % 1000;
+      return convertBelowThousand(thousands) + ' Thousand' + (remainder !== 0 ? ' ' + convertBelowThousand(remainder) : '');
+    }
+    
+    return wholeNum.toString(); // Fallback for very large numbers
   };
 
   // Generate next cheque number
@@ -1122,7 +1153,7 @@ const IssueCheque = () => {
               <button className="ic-modal-close" onClick={() => setShowSuccessModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
-              <button className="ic-print-btn" onClick={printCheque}>
+              <button className="ic-print-btn" onClick={handlePrintCheque}>
                 <i className="fas fa-print"></i> Print
               </button>
             </div>
@@ -1172,13 +1203,13 @@ const IssueCheque = () => {
                   <div className="amount-words-line">
                     <span className="amount-words-label">The sum of:</span>
                     <span className="amount-in-words">
-                      {numberToWords(parseFloat(chequeResult.amount))} Pesos Only
+                      {numberToWords(chequeResult.amount || 0)} Pesos Only
                     </span>
                   </div>
                   
                   <div className="amount-figures-section">
                     <span className="currency-symbol">₱</span>
-                    <span className="amount-figures">{parseFloat(chequeResult.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    <span className="amount-figures">{parseFloat(chequeResult.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
 

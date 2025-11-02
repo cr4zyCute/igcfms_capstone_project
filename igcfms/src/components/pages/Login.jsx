@@ -55,7 +55,7 @@ const Login = () => {
 
         login(userData, token);
 
-        alert("Login successful! Role: " + data.role);
+        // Navigate immediately without blocking alert
         navigate("/dashboard");
       } else {
         // Handle login failure - don't refresh page

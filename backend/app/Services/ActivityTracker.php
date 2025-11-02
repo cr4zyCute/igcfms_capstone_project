@@ -44,7 +44,7 @@ class ActivityTracker
             // Create notification for all admin users
             self::createAdminNotifications($activityLog);
 
-            // Send email notification to admin
+            // Send email notification to admin (queued for performance)
             self::sendEmailNotification($activityLog);
 
             return $activityLog;
@@ -98,7 +98,8 @@ class ActivityTracker
     private static function sendEmailNotification($activityLog)
     {
         try {
-            Mail::to('igcfmsa@gmail.com')->send(new ActivityNotificationMail($activityLog));
+            // Queue the email instead of sending synchronously to avoid blocking
+            Mail::to('igcfmsa@gmail.com')->queue(new ActivityNotificationMail($activityLog));
         } catch (\Exception $e) {
             Log::error('Failed to send activity email notification: ' . $e->getMessage());
         }

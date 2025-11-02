@@ -20,12 +20,6 @@ function App() {
   const [ReactQueryDevtoolsComponent, setReactQueryDevtoolsComponent] = useState(null);
 
   useEffect(() => {
-    api.get('/test')
-      .then(response => console.log("API is Connected", response.data))
-      .catch(error => console.log("API FAIL", error));
-  }, []);
-
-  useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       import('@tanstack/react-query-devtools')
         .then(({ ReactQueryDevtools }) => {

@@ -15,22 +15,31 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    // Check both possible token keys for compatibility
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     
     if (token && userData) {
-      setUser(JSON.parse(userData));
+      try {
+        setUser(JSON.parse(userData));
+      } catch (e) {
+        console.error('Failed to parse user data:', e);
+      }
     }
     setLoading(false);
   }, []);
 
   const login = (userData, token) => {
+    // Store token with both keys for compatibility
+    localStorage.setItem('auth_token', token);
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
   };
 
   const logout = () => {
+    // Remove both token keys
+    localStorage.removeItem('auth_token');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
