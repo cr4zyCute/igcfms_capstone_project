@@ -1811,17 +1811,25 @@
   z-index: 1100;
 }
 
+/* Confirmation modal should be on top of everything */
 .modal-overlay.confirmation-overlay {
-  z-index: 1500;
+  z-index: 2000 !important;
+  backdrop-filter: blur(4px);
 }
 
 .modal-overlay.confirmation-overlay .modal-content {
   position: relative;
-  z-index: 1501;
+  z-index: 2001;
 }
 
+/* Issue New Receipt modal base */
+.modal-overlay:has(.issue-receipt-modal) {
+  z-index: 1000;
+}
+
+/* When confirmation modal is shown, lower the Issue New Receipt modal */
 .issue-modal-underlay {
-  z-index: 900;
+  z-index: 999 !important;
   backdrop-filter: blur(2px);
 }
 
@@ -4759,6 +4767,109 @@ input[type="text"].edit-form-input:disabled {
   color: #000000;
   margin: 0;
   letter-spacing: 0.3px;
+}
+
+/* Transaction Dropdown Styles */
+.transaction-dropdown-box {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideDown 0.2s ease;
+}
+
+.transaction-dropdown-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.transaction-dropdown-box::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.transaction-dropdown-box::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.transaction-dropdown-box::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.transaction-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.transaction-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.transaction-dropdown-item:hover {
+  background: #f9fafb;
+}
+
+.transaction-dropdown-item.no-results {
+  color: #9ca3af;
+  cursor: default;
+  justify-content: center;
+}
+
+.transaction-dropdown-item.no-results:hover {
+  background: transparent;
+}
+
+.transaction-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.transaction-id {
+  font-weight: 600;
+  color: #000000;
+  font-size: 14px;
+}
+
+.transaction-description {
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.transaction-item-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.transaction-amount {
+  font-weight: 600;
+  color: #000000;
+  font-size: 14px;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media print {

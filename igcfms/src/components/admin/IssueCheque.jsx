@@ -81,7 +81,9 @@ const IssueCheque = () => {
     dateTo: "",
     searchTerm: "",
     bankName: "all",
-    showFilterDropdown: false
+    showFilterDropdown: false,
+    sortBy: "latest",
+    showSortDropdown: false
   });
 
   const [showIssueModal, setShowIssueModal] = useState(false);
@@ -127,7 +129,7 @@ const IssueCheque = () => {
         setShowExportDropdown(false);
       }
       if (!event.target.closest('.filter-dropdown-container')) {
-        setFilters(prev => ({ ...prev, showFilterDropdown: false }));
+        setFilters(prev => ({ ...prev, showFilterDropdown: false, showSortDropdown: false }));
       }
       if (!event.target.closest('.action-menu-container')) {
         setOpenActionMenu(null);
@@ -203,6 +205,24 @@ const IssueCheque = () => {
   const applyFilters = () => {
     let filtered = [...cheques];
 
+    // Apply sorting first
+    switch (filters.sortBy) {
+      case 'latest':
+        filtered.sort((a, b) => new Date(b.issue_date || b.created_at) - new Date(a.issue_date || a.created_at));
+        break;
+      case 'oldest':
+        filtered.sort((a, b) => new Date(a.issue_date || a.created_at) - new Date(b.issue_date || b.created_at));
+        break;
+      case 'highest':
+        filtered.sort((a, b) => Math.abs(parseFloat(b.amount || 0)) - Math.abs(parseFloat(a.amount || 0)));
+        break;
+      case 'lowest':
+        filtered.sort((a, b) => Math.abs(parseFloat(a.amount || 0)) - Math.abs(parseFloat(b.amount || 0)));
+        break;
+      default:
+        break;
+    }
+
     // Status filter (based on issue date - recent vs older)
     if (filters.status === "recent") {
       const weekAgo = new Date();
@@ -259,7 +279,10 @@ const IssueCheque = () => {
       dateFrom: "",
       dateTo: "",
       searchTerm: "",
-      bankName: "all"
+      bankName: "all",
+      sortBy: "latest",
+      showFilterDropdown: false,
+      showSortDropdown: false
     });
   };
 
@@ -797,6 +820,60 @@ const IssueCheque = () => {
                     <i className="fas fa-clock"></i>
                     <span>Recent (Last 7 days)</span>
                     {filters.status === 'recent' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="filter-dropdown-container">
+              <button
+                className="filter-dropdown-btn"
+                onClick={() => setFilters(prev => ({ ...prev, showSortDropdown: !prev.showSortDropdown }))}
+                title="Sort cheques"
+              >
+                <i className="fas fa-sort"></i>
+                <span className="filter-label">
+                  {filters.sortBy === 'latest' && 'Latest First'}
+                  {filters.sortBy === 'oldest' && 'Oldest First'}
+                  {filters.sortBy === 'highest' && 'Highest Amount'}
+                  {filters.sortBy === 'lowest' && 'Lowest Amount'}
+                </span>
+                <i className={`fas fa-chevron-${filters.showSortDropdown ? 'up' : 'down'} filter-arrow`}></i>
+              </button>
+              
+              {filters.showSortDropdown && (
+                <div className="filter-dropdown-menu">
+                  <button
+                    className={`filter-option ${filters.sortBy === 'latest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('sortBy', 'latest'); setFilters(prev => ({ ...prev, showSortDropdown: false })); }}
+                  >
+                    <i className="fas fa-arrow-down"></i>
+                    <span>Latest First</span>
+                    {filters.sortBy === 'latest' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.sortBy === 'oldest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('sortBy', 'oldest'); setFilters(prev => ({ ...prev, showSortDropdown: false })); }}
+                  >
+                    <i className="fas fa-arrow-up"></i>
+                    <span>Oldest First</span>
+                    {filters.sortBy === 'oldest' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.sortBy === 'highest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('sortBy', 'highest'); setFilters(prev => ({ ...prev, showSortDropdown: false })); }}
+                  >
+                    <i className="fas fa-sort-amount-down"></i>
+                    <span>Highest Amount</span>
+                    {filters.sortBy === 'highest' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.sortBy === 'lowest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('sortBy', 'lowest'); setFilters(prev => ({ ...prev, showSortDropdown: false })); }}
+                  >
+                    <i className="fas fa-sort-amount-up"></i>
+                    <span>Lowest Amount</span>
+                    {filters.sortBy === 'lowest' && <i className="fas fa-check filter-check"></i>}
                   </button>
                 </div>
               )}

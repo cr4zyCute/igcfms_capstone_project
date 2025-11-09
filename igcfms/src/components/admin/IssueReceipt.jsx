@@ -133,6 +133,11 @@ const IssueReceipt = () => {
     receiptNumber: "",
     issueDate: new Date().toISOString().split('T')[0],
   });
+  
+  // Transaction search states
+  const [transactionSearchInput, setTransactionSearchInput] = useState("");
+  const [showTransactionDropdown, setShowTransactionDropdown] = useState(false);
+  const transactionDropdownRef = useRef(null);
   // Filter states
   const [filters, setFilters] = useState({
     activeFilter: "all", // all, latest, oldest, highest, lowest
@@ -222,6 +227,9 @@ const IssueReceipt = () => {
     const handleClickOutside = (event) => {
       if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target)) {
         setShowExportDropdown(false);
+      }
+      if (transactionDropdownRef.current && !transactionDropdownRef.current.contains(event.target)) {
+        setShowTransactionDropdown(false);
       }
     };
 
@@ -338,6 +346,38 @@ const IssueReceipt = () => {
     }
   };
 
+  // Handle transaction selection with auto-fill
+  const handleTransactionSelect = (transactionId) => {
+    if (!transactionId) {
+      // Clear fields when no transaction is selected
+      setFormData(prev => ({
+        ...prev,
+        transactionId: '',
+        payerName: '',
+        receiptNumber: ''
+      }));
+      setTransactionSearchInput('');
+      return;
+    }
+
+    const selectedTransaction = transactions.find(tx => tx.id === parseInt(transactionId));
+    
+    if (selectedTransaction) {
+      // Auto-fill fields based on selected transaction
+      const generatedReceiptNumber = generateReceiptNumber();
+      
+      setFormData(prev => ({
+        ...prev,
+        transactionId: transactionId,
+        payerName: selectedTransaction.recipient || '',
+        receiptNumber: generatedReceiptNumber
+      }));
+      
+      setShowTransactionDropdown(false);
+      setTransactionSearchInput('');
+    }
+  };
+
   const openTransactionModal = () => {
     setTransactionSearch("");
     setShowTransactionModal(true);
@@ -411,8 +451,6 @@ const IssueReceipt = () => {
   };
 
   const confirmIssueReceipt = async () => {
-    setShowIssueModal(false);
-
     try {
       const payload = {
         transaction_id: parseInt(formData.transactionId, 10),
@@ -438,6 +476,8 @@ const IssueReceipt = () => {
         issueDate: new Date().toISOString().split('T')[0],
       });
 
+      // Close confirmation modal after successful creation
+      setShowIssueModal(false);
       setShowIssueFormModal(false);
       setShowReceiptModal(true);
       showMessage('Receipt issued successfully!', 'success');
@@ -451,6 +491,7 @@ const IssueReceipt = () => {
       } else {
         showMessage(err?.response?.data?.message || err.message || "Failed to issue receipt.", 'error');
       }
+      // Keep confirmation modal open on error so user can retry
     }
   };
 
@@ -950,6 +991,23 @@ const IssueReceipt = () => {
     setShowExportDropdown(false);
   };
 
+  // Filter transactions for dropdown based on search
+  const filteredTransactionsForDropdown = transactions.filter(tx => {
+    const searchLower = transactionSearchInput.toLowerCase();
+    return (
+      tx.id?.toString().includes(searchLower) ||
+      tx.recipient?.toLowerCase().includes(searchLower) ||
+      tx.description?.toLowerCase().includes(searchLower) ||
+      tx.amount?.toString().includes(searchLower)
+    );
+  });
+
+  // Get selected transaction for display
+  const selectedTransaction = transactions.find(tx => tx.id.toString() === formData.transactionId);
+  const transactionDisplayValue = selectedTransaction && !showTransactionDropdown
+    ? `#${selectedTransaction.id} - ₱${parseFloat(selectedTransaction.amount || 0).toLocaleString()} - ${selectedTransaction.description || 'Collection'} - ${selectedTransaction.recipient || 'N/A'}`
+    : transactionSearchInput;
+
   if (isInitialLoading) {
     return <IssueReceiptSkeleton />;
   }
@@ -1390,6 +1448,7 @@ const IssueReceipt = () => {
                 type="button"
                 className="cancel-btn"
                 onClick={() => setShowIssueModal(false)}
+                disabled={mutationLoading}
               >
                 Cancel
               </button>
@@ -1400,10 +1459,12 @@ const IssueReceipt = () => {
                 disabled={mutationLoading}
               >
                 {mutationLoading ? (
-                  <i className="fas fa-spinner fa-spin"></i>
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i> Processing...
+                  </>
                 ) : (
                   <>
-                    <i className="fas fa-check"></i> Issue Receipt
+                    <i className="fas fa-check"></i> Confirm Issue
                   </>
                 )}
               </button>
@@ -1697,38 +1758,73 @@ const IssueReceipt = () => {
               <div className="modal-body-form">
                 <div className="form-group">
                   <label>Select Collection Transaction *</label>
-                  <div className="transaction-selector">
-                    <button
-                      type="button"
-                      className="transaction-select-btn"
-                      onClick={openTransactionModal}
-                      style={{ width: '100%', height: '42px', padding: '12px 16px' }}
-                    >
-                      <span className="selected-transaction">
-                        {getSelectedTransactionDisplay()}
-                      </span>
-                      <i className="fas fa-chevron-down"></i>
-                    </button>
-                    {formData.transactionId && (
-                      <button
-                        type="button"
-                        className="clear-selection-btn"
-                        onClick={() => handleInputChange('transactionId', '')}
-                        title="Clear Selection"
-                        style={{ width: '100%', height: '42px' }}
-                      >
-                        <i className="fas fa-times"></i>
-                      </button>
+                  <div className="recipient-account-searchable-select" ref={transactionDropdownRef}>
+                    <div className="recipient-account-search-wrapper-main">
+                      <input
+                        type="text"
+                        className="recipient-account-search-input-main"
+                        placeholder="Search collection transactions..."
+                        value={transactionDisplayValue}
+                        onChange={(e) => {
+                          setTransactionSearchInput(e.target.value);
+                          setShowTransactionDropdown(true);
+                        }}
+                        onFocus={() => setShowTransactionDropdown(true)}
+                        style={{ width: '100%', height: '42px', padding: '12px 16px', boxSizing: 'border-box' }}
+                      />
+                      <i className="fas fa-search recipient-account-search-icon-main"></i>
+                      {formData.transactionId && (
+                        <button
+                          type="button"
+                          className="recipient-account-clear-btn-main"
+                          onClick={() => handleTransactionSelect('')}
+                          title="Clear selection"
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      )}
+                    </div>
+                    {showTransactionDropdown && (
+                      <div className="transaction-dropdown-box">
+                        {filteredTransactionsForDropdown.length > 0 ? (
+                          filteredTransactionsForDropdown.map((tx) => (
+                            <div
+                              key={tx.id}
+                              className="transaction-dropdown-item"
+                              onClick={() => handleTransactionSelect(tx.id.toString())}
+                            >
+                              <div className="transaction-item-left">
+                                <span className="transaction-id">#{tx.id}</span>
+                                <span className="transaction-description">{tx.description || tx.recipient || 'Collection'}</span>
+                              </div>
+                              <div className="transaction-item-right">
+                                <span className="transaction-amount">₱{parseFloat(tx.amount || 0).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="transaction-dropdown-item no-results">
+                            <span>No collection transactions found</span>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
+                  <small className="field-hint">
+                    <i className="fas fa-info-circle"></i>
+                    Selecting a transaction will auto-fill payer name and receipt number.
+                  </small>
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Payer Name *</label>
+                    <label>
+                      Payer Name *
+                      {formData.transactionId && <span className="auto-filled-badge">Auto-filled</span>}
+                    </label>
                     <input
                       type="text"
-                      placeholder="Enter payer name"
+                      placeholder={formData.transactionId ? "Auto-filled from transaction" : "Enter payer name"}
                       value={formData.payerName}
                       onChange={(e) => {
                         handleInputChange('payerName', e.target.value);
@@ -1736,7 +1832,16 @@ const IssueReceipt = () => {
                       }}
                       required
                       className={powerNameError ? 'error' : ''}
-                      style={{ width: '100%', height: '42px', padding: '12px 16px', boxSizing: 'border-box' }}
+                      style={{ 
+                        width: '100%', 
+                        height: '42px', 
+                        padding: '12px 16px', 
+                        boxSizing: 'border-box',
+                        ...(formData.transactionId && formData.payerName ? {
+                          backgroundColor: '#f0f9ff',
+                          borderColor: '#3b82f6'
+                        } : {})
+                      }}
                     />
                     {powerNameError && (
                       <div className="error-message">
@@ -1744,6 +1849,12 @@ const IssueReceipt = () => {
                         {powerNameError}
                       </div>
                     )}
+                    <small className="field-hint">
+                      <i className="fas fa-info-circle"></i>
+                      {formData.transactionId
+                        ? "Auto-filled from the selected transaction. You can modify if needed."
+                        : "Enter the payer name if no transaction is selected."}
+                    </small>
                   </div>
                   <div className="form-group">
                     <label>Receipt Number</label>
@@ -1775,17 +1886,9 @@ const IssueReceipt = () => {
                 <button
                   type="submit"
                   className="submit-btn issue-receipt-btn"
-                  disabled={mutationLoading || powerNameError}
+                  disabled={powerNameError}
                 >
-                  {mutationLoading ? (
-                    <>
-                      <i className="fas fa-spinner fa-spin"></i> Processing...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-receipt"></i> Issue Receipt
-                    </>
-                  )}
+                  <i className="fas fa-receipt"></i> Issue Receipt
                 </button>
               </div>
             </form>

@@ -71,8 +71,7 @@ const IssueMoney = () => {
     fundAccountId: "",
     modeOfPayment: "Cash",
     chequeNumber: "",
-    description: "",
-    purpose: ""
+    description: ""
   });
 
   // Generate reference number function (moved up for initialization)
@@ -221,7 +220,7 @@ const IssueMoney = () => {
   };
 
   const validateForm = async () => {
-    const { amount, recipientAccountId, payeeName, referenceNo, fundAccountId, modeOfPayment, chequeNumber, purpose } = formData;
+    const { amount, recipientAccountId, payeeName, referenceNo, fundAccountId, modeOfPayment, chequeNumber } = formData;
 
     const requestedAmount = normalizeAmount(amount);
 
@@ -239,10 +238,6 @@ const IssueMoney = () => {
     }
     if (!fundAccountId) {
       showMessage("Please select a fund account.", 'error');
-      return false;
-    }
-    if (!purpose.trim()) {
-      showMessage("Please enter the purpose of payment.", 'error');
       return false;
     }
 
@@ -832,7 +827,7 @@ const IssueMoney = () => {
 
       // Determine the payee name (manual input takes priority over selected recipient)
       const payeeName = formData.payeeName.trim() || selectedRecipient?.name || 'Unknown Recipient';
-      const transactionDescription = formData.description.trim() || `${formData.purpose} - Disbursement to ${payeeName}`;
+      const transactionDescription = formData.description.trim() || `Disbursement to ${payeeName}`;
 
       const normalizedAmount = normalizeAmount(formData.amount);
       if (normalizedAmount <= 0) {
@@ -854,7 +849,6 @@ const IssueMoney = () => {
         fund_account_id: parseInt(formData.fundAccountId),
         mode_of_payment: formData.modeOfPayment,
         cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
-        purpose: formData.purpose.trim(),
         issued_by: parseInt(userId),
         receipt_no: formData.referenceNo.trim(), // Use reference number as receipt number
         reference_no: formData.referenceNo.trim(), // Same as reference number for consistency
@@ -863,7 +857,6 @@ const IssueMoney = () => {
           fund_account: selectedFund?.name || `Fund #${formData.fundAccountId}`,
           recipient_account: selectedRecipient?.name || `Recipient #${formData.recipientAccountId}`,
           amount: normalizedAmount,
-          purpose: formData.purpose.trim(),
           payment_method: formData.modeOfPayment,
           reference: formData.referenceNo.trim(),
           timestamp: new Date().toISOString(),
@@ -885,7 +878,6 @@ const IssueMoney = () => {
         payee_name: payeeName,
         recipient_account_id: formData.recipientAccountId ? parseInt(formData.recipientAccountId) : null,
         method: formData.modeOfPayment,
-        purpose: formData.purpose.trim(),
         cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
         fund_account_id: parseInt(formData.fundAccountId),
         issued_by: parseInt(userId),
@@ -920,8 +912,7 @@ const IssueMoney = () => {
           recipient: selectedRecipient?.name || 'Unknown Recipient',
           fund_account_name: selectedFund?.name || `Fund Account #${formData.fundAccountId}`,
           transaction_id: transactionId,
-          payee_name: selectedRecipient?.name || 'Unknown Recipient',
-          purpose: formData.purpose.trim()
+          payee_name: selectedRecipient?.name || 'Unknown Recipient'
         });
         
         console.log('Balance service update completed:', balanceUpdateResult);
@@ -977,7 +968,6 @@ const IssueMoney = () => {
         recipientName: payeeName,
         recipientAccount: selectedRecipient?.fund_code || 'N/A',
         referenceNo: formData.referenceNo,
-        purpose: formData.purpose,
         modeOfPayment: formData.modeOfPayment,
         chequeNumber: formData.chequeNumber,
         fundAccount: selectedFund?.name || 'Unknown Fund'
@@ -1009,7 +999,6 @@ const IssueMoney = () => {
         description: "",
         modeOfPayment: "Cash",
         chequeNumber: "",
-        purpose: "",
       });
 
       setShowFormModal(false);
@@ -1252,30 +1241,6 @@ const IssueMoney = () => {
           </small>
         </div>
         <div className="form-group">
-          <label>Purpose of Payment *</label>
-          <select
-            value={formData.purpose}
-            onChange={(e) => handleInputChange('purpose', e.target.value)}
-            required
-          >
-            <option value="">-- Select Purpose --</option>
-            <option value="Salary">Salary Payment</option>
-            <option value="Reimbursement">Reimbursement</option>
-            <option value="Supplier Payment">Supplier Payment</option>
-            <option value="Contractor Payment">Contractor Payment</option>
-            <option value="Utility Bills">Utility Bills</option>
-            <option value="Office Supplies">Office Supplies</option>
-            <option value="Professional Services">Professional Services</option>
-            <option value="Travel Expenses">Travel Expenses</option>
-            <option value="Equipment Purchase">Equipment Purchase</option>
-            <option value="Maintenance">Maintenance & Repairs</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="form-row">
-        <div className="form-group">
           <label>Payment Mode *</label>
           <select
             value={formData.modeOfPayment}
@@ -1287,6 +1252,9 @@ const IssueMoney = () => {
             <option value="Bank Transfer">Bank Transfer</option>
           </select>
         </div>
+      </div>
+
+      <div className="form-row">
         <div className="form-group">
           <label>Description</label>
           <textarea
@@ -2047,10 +2015,6 @@ const IssueMoney = () => {
                   <span>₱{Math.abs(parseFloat(formData.amount || 0)).toLocaleString()}</span>
                 </div>
                 <div className="detail-item">
-                  <label>Purpose:</label>
-                  <span>{formData.purpose}</span>
-                </div>
-                <div className="detail-item">
                   <label>Reference Number:</label>
                   <span>{formData.referenceNo}</span>
                 </div>
@@ -2132,10 +2096,6 @@ const IssueMoney = () => {
                   <div className="detail-item">
                     <label>Fund Account:</label>
                     <span>{disbursementResult.fundAccount}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Purpose:</label>
-                    <span>{disbursementResult.purpose}</span>
                   </div>
                   <div className="detail-item">
                     <label>Reference:</label>

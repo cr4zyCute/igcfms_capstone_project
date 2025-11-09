@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
+import Chart from 'chart.js/auto';
+import './css/cashier.css';
+import './css/cashierhome.css';
 
 const CashierHome = () => {
   const [loading, setLoading] = useState(true);
@@ -21,7 +24,14 @@ const CashierHome = () => {
   const [filterType, setFilterType] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [chartPeriod, setChartPeriod] = useState('week'); // week, month, year
   const itemsPerPage = 10;
+  
+  // Chart refs
+  const collectionChartRef = useRef(null);
+  const disbursementChartRef = useRef(null);
+  const collectionChartInstance = useRef(null);
+  const disbursementChartInstance = useRef(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -140,6 +150,193 @@ const CashierHome = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Initialize Charts
+  useEffect(() => {
+    if (transactions.length === 0) return;
+
+    // Collection Trend Chart
+    if (collectionChartRef.current) {
+      if (collectionChartInstance.current) {
+        collectionChartInstance.current.destroy();
+      }
+
+      const ctx = collectionChartRef.current.getContext('2d');
+      const chartData = getChartData('Collection');
+      
+      collectionChartInstance.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: chartData.labels,
+          datasets: [{
+            label: 'Collections',
+            data: chartData.data,
+            borderColor: '#000000',
+            backgroundColor: 'rgba(0, 0, 0, 0.1)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 5,
+            pointBackgroundColor: '#000000',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#000000',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              borderColor: '#ffffff',
+              borderWidth: 1,
+              padding: 12,
+              displayColors: false,
+              callbacks: {
+                label: (context) => `₱${context.parsed.y.toLocaleString()}`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: (value) => `₱${value.toLocaleString()}`,
+                color: '#666666',
+                font: { weight: 'bold' }
+              },
+              grid: { color: '#e5e5e5' }
+            },
+            x: {
+              ticks: { color: '#666666', font: { weight: 'bold' } },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    // Disbursement Trend Chart
+    if (disbursementChartRef.current) {
+      if (disbursementChartInstance.current) {
+        disbursementChartInstance.current.destroy();
+      }
+
+      const ctx = disbursementChartRef.current.getContext('2d');
+      const chartData = getChartData('Disbursement');
+      
+      disbursementChartInstance.current = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: chartData.labels,
+          datasets: [{
+            label: 'Disbursements',
+            data: chartData.data,
+            backgroundColor: '#000000',
+            borderColor: '#000000',
+            borderWidth: 2,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#000000',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              borderColor: '#ffffff',
+              borderWidth: 1,
+              padding: 12,
+              displayColors: false,
+              callbacks: {
+                label: (context) => `₱${context.parsed.y.toLocaleString()}`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: (value) => `₱${value.toLocaleString()}`,
+                color: '#666666',
+                font: { weight: 'bold' }
+              },
+              grid: { color: '#e5e5e5' }
+            },
+            x: {
+              ticks: { color: '#666666', font: { weight: 'bold' } },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    return () => {
+      if (collectionChartInstance.current) collectionChartInstance.current.destroy();
+      if (disbursementChartInstance.current) disbursementChartInstance.current.destroy();
+    };
+  }, [transactions, chartPeriod]);
+
+  // Get chart data based on period
+  const getChartData = (type) => {
+    const now = new Date();
+    const data = {};
+    
+    if (chartPeriod === 'week') {
+      // Last 7 days
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        data[key] = 0;
+      }
+    } else if (chartPeriod === 'month') {
+      // Last 30 days
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        data[key] = 0;
+      }
+    } else {
+      // Last 12 months
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now);
+        date.setMonth(date.getMonth() - i);
+        const key = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        data[key] = 0;
+      }
+    }
+
+    transactions
+      .filter(tx => tx.type === type)
+      .forEach(tx => {
+        const txDate = new Date(tx.created_at);
+        let key;
+        
+        if (chartPeriod === 'year') {
+          key = txDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        } else {
+          key = txDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+        
+        if (data.hasOwnProperty(key)) {
+          data[key] += parseFloat(tx.amount || 0);
+        }
+      });
+
+    return {
+      labels: Object.keys(data),
+      data: Object.values(data)
+    };
+  };
 
   // Filter and search transactions
   const filteredTransactions = useMemo(() => {
@@ -296,42 +493,42 @@ const CashierHome = () => {
       {/* Primary KPIs */}
       <div className="grid gap-5 mb-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-lg border-2 border-black bg-white p-5 flex items-center gap-4 hover:bg-black hover:text-white transition-all duration-300 group">
-          <div className="h-12 w-12 rounded-lg bg-black text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all duration-300">
-            <i className="fas fa-arrow-up" />
+          <div className="h-14 w-14 rounded-lg bg-black text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all duration-300 text-xl">
+            <i className="fas fa-arrow-trend-up" />
           </div>
           <div>
-            <div className="text-sm text-gray-700 group-hover:text-gray-300">Total Collections</div>
+            <div className="text-sm text-gray-700 group-hover:text-gray-300 font-semibold">Total Collections</div>
             <div className="text-2xl font-bold text-black group-hover:text-white">
               ₱{kpis.totalCollections.toLocaleString()}
             </div>
           </div>
         </div>
         <div className="rounded-lg border-2 border-black bg-white p-5 flex items-center gap-4 hover:bg-black hover:text-white transition-all duration-300 group">
-          <div className="h-12 w-12 rounded-lg bg-black text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all duration-300">
-            <i className="fas fa-arrow-down" />
+          <div className="h-14 w-14 rounded-lg bg-black text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all duration-300 text-xl">
+            <i className="fas fa-arrow-trend-down" />
           </div>
           <div>
-            <div className="text-sm text-gray-700 group-hover:text-gray-300">Total Disbursements</div>
+            <div className="text-sm text-gray-700 group-hover:text-gray-300 font-semibold">Total Disbursements</div>
             <div className="text-2xl font-bold text-black group-hover:text-white">
               ₱{kpis.totalDisbursements.toLocaleString()}
             </div>
           </div>
         </div>
         <div className="rounded-lg border-2 border-black bg-white p-5 flex items-center gap-4 hover:bg-black hover:text-white transition-all duration-300 group">
-          <div className="h-12 w-12 rounded-lg bg-black text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all duration-300">
-            <i className="fas fa-university" />
+          <div className="h-14 w-14 rounded-lg bg-black text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all duration-300 text-xl">
+            <i className="fas fa-building-columns" />
           </div>
           <div>
-            <div className="text-sm text-gray-700 group-hover:text-gray-300">Active Fund Accounts</div>
+            <div className="text-sm text-gray-700 group-hover:text-gray-300 font-semibold">Active Fund Accounts</div>
             <div className="text-2xl font-bold text-black group-hover:text-white">{kpis.activeFunds}</div>
           </div>
         </div>
         <div className="rounded-lg border-2 border-black bg-white p-5 flex items-center gap-4 hover:bg-black hover:text-white transition-all duration-300 group">
-          <div className="h-12 w-12 rounded-lg bg-black text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all duration-300">
-            <i className="fas fa-calendar-day" />
+          <div className="h-14 w-14 rounded-lg bg-black text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all duration-300 text-xl">
+            <i className="fas fa-receipt" />
           </div>
           <div>
-            <div className="text-sm text-gray-700 group-hover:text-gray-300">Today's Transactions</div>
+            <div className="text-sm text-gray-700 group-hover:text-gray-300 font-semibold">Today's Transactions</div>
             <div className="text-2xl font-bold text-black group-hover:text-white">
               {kpis.todayTransactions}
             </div>
@@ -366,45 +563,45 @@ const CashierHome = () => {
 
       {/* Secondary KPIs */}
       <div className="grid gap-5 mb-8 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border-2 border-gray-400 bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
-          <div className="h-12 w-12 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300">
-            <i className="fas fa-calendar-alt" />
+        <div className="rounded-lg border-2 border-black bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
+          <div className="h-14 w-14 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300 text-lg">
+            <i className="fas fa-calendar-check" />
           </div>
           <div>
-            <div className="text-sm text-gray-600">Monthly Collections</div>
+            <div className="text-sm text-gray-600 font-semibold">Monthly Collections</div>
             <div className="text-2xl font-bold text-black">
               ₱{kpis.monthlyCollections.toLocaleString()}
             </div>
           </div>
         </div>
-        <div className="rounded-lg border-2 border-gray-400 bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
-          <div className="h-12 w-12 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300">
-            <i className="fas fa-calendar-week" />
+        <div className="rounded-lg border-2 border-black bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
+          <div className="h-14 w-14 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300 text-lg">
+            <i className="fas fa-calendar-days" />
           </div>
           <div>
-            <div className="text-sm text-gray-600">Weekly Disbursements</div>
+            <div className="text-sm text-gray-600 font-semibold">Weekly Disbursements</div>
             <div className="text-2xl font-bold text-black">
               ₱{kpis.weeklyDisbursements.toLocaleString()}
             </div>
           </div>
         </div>
-        <div className="rounded-lg border-2 border-gray-400 bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
-          <div className="h-12 w-12 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300">
-            <i className="fas fa-money-bill-wave" />
+        <div className="rounded-lg border-2 border-black bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
+          <div className="h-14 w-14 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300 text-lg">
+            <i className="fas fa-wallet" />
           </div>
           <div>
-            <div className="text-sm text-gray-600">Cash Balance</div>
+            <div className="text-sm text-gray-600 font-semibold">Cash Balance</div>
             <div className="text-2xl font-bold text-black">
               ₱{kpis.cashBalance.toLocaleString()}
             </div>
           </div>
         </div>
-        <div className="rounded-lg border-2 border-gray-400 bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
-          <div className="h-12 w-12 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300">
-            <i className="fas fa-exclamation-circle" />
+        <div className="rounded-lg border-2 border-black bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
+          <div className="h-14 w-14 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300 text-lg">
+            <i className="fas fa-clock-rotate-left" />
           </div>
           <div>
-            <div className="text-sm text-gray-600">Pending Overrides</div>
+            <div className="text-sm text-gray-600 font-semibold">Pending Overrides</div>
             <div className="text-2xl font-bold text-black">
               {kpis.pendingOverrides}
             </div>
@@ -412,13 +609,56 @@ const CashierHome = () => {
         </div>
       </div>
 
+      {/* Charts Section */}
+      <div className="grid gap-6 mb-8 grid-cols-1 lg:grid-cols-2">
+        {/* Collection Trend Chart */}
+        <div className="bg-white border-2 border-black rounded-lg overflow-hidden shadow-lg">
+          <div className="px-5 py-4 border-b-2 border-black bg-black text-white flex items-center justify-between">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <i className="fas fa-chart-line" /> Collection Trends
+            </h3>
+            <select
+              value={chartPeriod}
+              onChange={(e) => setChartPeriod(e.target.value)}
+              className="px-3 py-1 text-sm rounded-md border-2 border-white bg-black text-white font-semibold hover:bg-white hover:text-black transition-all duration-300"
+            >
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+              <option value="year">Last 12 Months</option>
+            </select>
+          </div>
+          <div className="p-5">
+            <div style={{ height: '300px', position: 'relative' }}>
+              <canvas ref={collectionChartRef}></canvas>
+            </div>
+          </div>
+        </div>
+
+        {/* Disbursement Trend Chart */}
+        <div className="bg-white border-2 border-black rounded-lg overflow-hidden shadow-lg">
+          <div className="px-5 py-4 border-b-2 border-black bg-black text-white flex items-center justify-between">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <i className="fas fa-chart-bar" /> Disbursement Trends
+            </h3>
+            <div className="text-sm font-semibold">
+              {chartPeriod === 'week' ? 'Last 7 Days' : chartPeriod === 'month' ? 'Last 30 Days' : 'Last 12 Months'}
+            </div>
+          </div>
+          <div className="p-5">
+            <div style={{ height: '300px', position: 'relative' }}>
+              <canvas ref={disbursementChartRef}></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Recent Transactions */}
       <div className="bg-white border-2 border-black rounded-lg overflow-hidden mb-8 shadow-lg">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-5 py-4 border-b-2 border-black bg-black text-white">
+        <div className="flex items-center justify-between px-5 py-4 border-b-2 border-black bg-black text-white">
           <h3 className="font-bold text-lg flex items-center gap-2">
             <i className="fas fa-history" /> Recent Transactions ({filteredTransactions.length})
           </h3>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
             {/* Search */}
             <div className="relative">
               <input
@@ -446,14 +686,6 @@ const CashierHome = () => {
               <option value="Collection">Collections</option>
               <option value="Disbursement">Disbursements</option>
             </select>
-            {/* Refresh */}
-            <button
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-md border-2 border-white hover:bg-white hover:text-black text-white font-semibold transition-all duration-300 disabled:opacity-50"
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              <i className={`fas fa-sync-alt ${refreshing ? 'animate-spin' : ''}`} /> Refresh
-            </button>
           </div>
         </div>
         <div className="overflow-x-auto">
