@@ -19,36 +19,34 @@ use App\Http\Controllers\RecipientAccountController;
 use App\Http\Controllers\SystemSettingsController;
 
 // Authentication routes
-Route::post('/login', [AuthController::class, 'login']);
-Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
-
-Route::get('/test', function () {
-    return response()->json(['message' => 'API working!']);
-});
-
-Route::get('/health', function () {
-    return response()->json(['status' => 'healthy']);
-});
-Route::post('/register', [AuthController::class, 'register'])->withoutMiddleware('auth:sanctum');
-Route::prefix('admin')->group(function () {
-    Route::get('/approve/{id}', [AdminController::class, 'approve']);
-    Route::get('/reject/{id}', [AdminController::class, 'reject']);
-});
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
+        Route::get('/test', function () {
+            return response()->json(['message' => 'API working!']);
+    });
+        Route::get('/health', function () {
+            return response()->json(['status' => 'healthy']);
+    });
+    Route::post('/register', [AuthController::class, 'register'])->withoutMiddleware('auth:sanctum');
+    Route::prefix('admin')->group(function () {
+        Route::get('/approve/{id}', [AdminController::class, 'approve']);
+        Route::get('/reject/{id}', [AdminController::class, 'reject']);
+    });
 //user routes 
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/users', [UserController::class, 'index']);
-    Route::post('/users', [UserController::class, 'store']);
-    Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus']);
-    
-    // User profile routes
-    Route::get('/user/profile', [UserController::class, 'getProfile']);
-    Route::put('/user/profile', [UserController::class, 'updateProfile']);
-    
-    // System settings routes
-    Route::get('/system/settings', [SystemSettingsController::class, 'index']);
-    Route::put('/system/settings', [SystemSettingsController::class, 'update']);
-    Route::get('/system/settings/{key}', [SystemSettingsController::class, 'getSetting']);
-    Route::put('/system/settings/{key}', [SystemSettingsController::class, 'updateSetting']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']);
+        Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus']);
+
+        // User profile routes
+        Route::get('/user/profile', [UserController::class, 'getProfile']);
+        Route::put('/user/profile', [UserController::class, 'updateProfile']);
+
+        // System settings routes
+        Route::get('/system/settings', [SystemSettingsController::class, 'index']);
+        Route::put('/system/settings', [SystemSettingsController::class, 'update']);
+        Route::get('/system/settings/{key}', [SystemSettingsController::class, 'getSetting']);
+        Route::put('/system/settings/{key}', [SystemSettingsController::class, 'updateSetting']);
 });
 //Fund Accouts routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -71,7 +69,11 @@ Route::middleware('auth:sanctum')->group(function () {
     //disbursements/cheques
     Route::get('/disbursements', [DisbursementController::class, 'index']);
     Route::post('/disbursements', [DisbursementController::class, 'store']);
+    Route::put('/disbursements/{id}', [DisbursementController::class, 'update']);
+    Route::patch('/disbursements/{id}', [DisbursementController::class, 'update']);
     Route::get('/cheques', [DisbursementController::class, 'cheques']);
+    Route::patch('/cheques/{id}', [DisbursementController::class, 'update']);
+    Route::put('/cheques/{id}', [DisbursementController::class, 'update']);
     Route::get('/disbursements/{id}', [DisbursementController::class, 'show']);
     //audit logs
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
@@ -119,7 +121,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/fund-accounts', [FundAccountController::class, 'store']);
     Route::put('/fund-accounts/{id}', [FundAccountController::class, 'update']);
     Route::delete('/fund-accounts/{id}', [FundAccountController::class, 'destroy']);
-    
+
     // Debug route to view all accounts including soft-deleted ones
     Route::get('/fund-accounts-debug/all-with-deleted', [FundAccountController::class, 'getAllWithDeleted']);
 });

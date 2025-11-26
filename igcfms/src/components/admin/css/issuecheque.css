@@ -2466,11 +2466,101 @@
 
 .disbursement-amount {
   font-weight: 600;
-  color: #000000;
-  white-space: nowrap;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.status-cell .cell-content {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+}
+
+.status-issued {
+  background: #2563eb;
+}
+
+.status-cleared {
+  background: #10b981;
+}
+
+.status-cancelled {
+  background: #ef4444;
+}
+
+.status-text {
+  text-transform: capitalize;
+}
+
+.reconcile-indicator {
+  display: flex;
+  align-items: center;
+}
+
+.status-cell .reconcile-indicator {
+  width: 100%;
+}
+
+.reconcile-badge i {
+  font-size: 12px;
+}
+
+.reconcile-badge.reconciled {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.reconcile-badge.pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.action-dropdown-divider {
+  height: 1px;
+  width: 100%;
+  background: #e5e7eb;
+  margin: 6px 0;
+}
+
+.ic-global-loader {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  padding: 10px 16px;
+  background: rgba(17, 24, 39, 0.9);
+  color: #f9fafb;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 2000;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25);
+}
+
+.ic-global-loader i {
   font-size: 14px;
 }
 
-.disbursement-option.selected .disbursement-amount {
-  color: #ffffff;
+.ic-global-loader span {
+  font-size: 13px;
+  font-weight: 500;
 }

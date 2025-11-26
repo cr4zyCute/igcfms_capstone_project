@@ -1,2 +1,7 @@
-import IssueCheque from '../admin/IssueCheque';
-export default IssueCheque;
+import IssueCheque from "../admin/IssueCheque";
+
+const DisbursingOfficerIssueCheque = () => (
+  <IssueCheque showKpiSections={false} />
+);
+
+export default DisbursingOfficerIssueCheque;

@@ -6,6 +6,7 @@ import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
 import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
 import IssueReceiptSkeleton from '../ui/issuerecieptLoading';
 import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
+import { useAuth } from "../../contexts/AuthContext";
 import {
   useReceipts,
   useCollectionTransactions,
@@ -103,6 +104,8 @@ const formatCurrency = (value) => {
   });
 };
 const IssueReceipt = () => {
+  const { user } = useAuth();
+  const isAdmin = (user?.role || '').toString().toLowerCase() === 'admin';
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [filteredReceipts, setFilteredReceipts] = useState([]);
@@ -516,8 +519,8 @@ const IssueReceipt = () => {
       return;
     }
 
-    // Create a new window for printing - Envelope #10 size (4.125 x 9.5 inches)
-    const printWindow = window.open('', '_blank', 'width=400,height=912');
+    // Create a new window for printing - Receipt size (4 x 8.6 inches)
+    const printWindow = window.open('', '_blank', 'width=384,height=825');
     if (!printWindow) {
       console.error('Unable to open print window.');
       return;
@@ -1009,7 +1012,7 @@ const IssueReceipt = () => {
     : transactionSearchInput;
 
   if (isInitialLoading) {
-    return <IssueReceiptSkeleton />;
+    return <IssueReceiptSkeleton showAnalytics={isAdmin} />;
   }
 
   return (
@@ -1020,27 +1023,18 @@ const IssueReceipt = () => {
             <i className="fas fa-receipt"></i> Issue Receipt
           </h1>
           <div className="header-actions">
-            <button 
-              className="btn-issue-new-receipt"
+            <button
+              className="header-settings-btn"
               onClick={() => setShowIssueFormModal(true)}
             >
-              <i className="fas fa-plus-circle"></i>
-              Issue New Receipt
+              <i className="fas fa-cog"></i>
             </button>
-          </div>
-        </div>
-        <div className="header-stats">
-          <div className="stat-item">
-            <span className="stat-value">₱{analyticsData.totalAmount.toLocaleString()}</span>
-            <span className="stat-label">Total Amount</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-value">{receipts.length}</span>
-            <span className="stat-label">Total Receipts</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-value">₱{analyticsData.averageAmount.toLocaleString()}</span>
-            <span className="stat-label">Average Amount</span>
+            <button
+              className="header-primary-btn"
+              onClick={() => setShowIssueFormModal(true)}
+            >
+              <i className="fas fa-plus-circle"></i> Issue New Receipt
+            </button>
           </div>
         </div>
       </div>
@@ -1048,7 +1042,7 @@ const IssueReceipt = () => {
       {error && (
         <div className="error-banner">
           <i className="fas fa-exclamation-triangle"></i>
-          {error} 
+          {error}
         </div>
       )}
 
@@ -1060,193 +1054,196 @@ const IssueReceipt = () => {
       )}
 
       {/* Analytics Dashboard - Enhanced 3-Box Layout */}
-      <div className="analytics-dashboard-section">
-        {/* 3-Box Grid Layout */}
-        <div className="three-box-grid">
-          {/* Left Column: Stats Cards + Box 1 */}
-          <div className="left-column">
-            {/* Top Stats Cards */}
-            <div className="left-stats-cards">
-              <div className="minimal-stat-card">
-                {analyticsData.isLoading ? (
-                  <div className="loading-indicator">
-                    <i className="fas fa-spinner fa-spin"></i>
-                    <span>Loading...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="minimal-stat-value">₱{analyticsData.totalAmount.toLocaleString()}</div>
-                    <div className="minimal-stat-label">{receipts.length} receipts issued</div>
-                    <div className="minimal-stat-change">
-                      <i className="fas fa-arrow-up"></i>
-                      100.0%
+      {isAdmin && (
+        <div className="analytics-dashboard-section">
+          {/* 3-Box Grid Layout */}
+          <div className="three-box-grid">
+            {/* Left Column: Stats Cards + Box 1 */}
+            <div className="left-column">
+              {/* Top Stats Cards */}
+              <div className="left-stats-cards">
+                <div className="minimal-stat-card">
+                  {analyticsData.isLoading ? (
+                    <div className="loading-indicator">
+                      <i className="fas fa-spinner fa-spin"></i>
+                      <span>Loading...</span>
                     </div>
-                  </>
-                )}
-              </div>
-              
-              <div className="minimal-stat-card">
-                {analyticsData.isLoading ? (
-                  <div className="loading-indicator">
-                    <i className="fas fa-spinner fa-spin"></i>
-                    <span>Loading...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="minimal-stat-value">₱{analyticsData.averageAmount.toLocaleString()}</div>
-                    <div className="minimal-stat-label">Average per receipt</div>
-                    <div className="minimal-stat-updated">
-                      <i className="fas fa-clock"></i>
-                      Updated {new Date(analyticsData.lastUpdated).toLocaleTimeString()}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Box 1: Disbursement Trends Component */}
-            <DisbursementTrends 
-              receipts={receipts}
-              transactions={transactions}
-              disbursementPeriod={disbursementPeriod}
-              onPeriodChange={setDisbursementPeriod}
-            />
-          </div>
-
-          {/* Right Column: Box 2 and Box 3 */}
-          <div className="right-column">
-            {/* Box 2: Payer Distribution Analytics Component */}
-            <PayerDistributionAnalytics 
-              analyticsData={analyticsData}
-            />
-
-            {/* Box 3: Receipt Count Analytics Component */}
-            <ReceiptCountAnalytics 
-              receipts={receipts}
-              analyticsData={analyticsData}
-            />
-          </div>
-        </div>
-      </div>
-
-
-      {/* Receipts Section Header */}
-      <div className="section-header">
-        <div className="section-title-group">
-          <h3>
-            <i className="fas fa-receipt"></i>
-            Issued Receipts
-            <span className="section-count">({filteredReceipts.length})</span>
-          </h3>
-        </div>
-        <div className="header-controls">
-          <div className="search-filter-container">
-            <div className="account-search-container">
-              <input
-                type="text"
-                placeholder="Search receipts..."
-                value={filters.searchTerm}
-                onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-                className="account-search-input"
-              />
-              <i className="fas fa-search account-search-icon"></i>
-            </div>
-            
-            <div className="filter-dropdown-container">
-              <button
-                className="filter-dropdown-btn"
-                onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
-                title="Filter receipts"
-              >
-                <i className="fas fa-filter"></i>
-                <span className="filter-label">
-                  {filters.activeFilter === 'all' ? 'All Receipts' :
-                   filters.activeFilter === 'latest' ? 'Latest First' : 
-                   filters.activeFilter === 'oldest' ? 'Oldest First' : 
-                   filters.activeFilter === 'highest' ? 'Highest Amount' : 
-                   'Lowest Amount'}
-                </span>
-                <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
-              </button>
-              
-              {filters.showFilterDropdown && (
-                <div className="filter-dropdown-menu">
-                  <button
-                    className={`filter-option ${filters.activeFilter === 'all' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('activeFilter', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-list"></i>
-                    <span>All Receipts</span>
-                    {filters.activeFilter === 'all' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.activeFilter === 'latest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('activeFilter', 'latest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-arrow-down"></i>
-                    <span>Latest First</span>
-                    {filters.activeFilter === 'latest' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.activeFilter === 'oldest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('activeFilter', 'oldest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-arrow-up"></i>
-                    <span>Oldest First</span>
-                    {filters.activeFilter === 'oldest' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.activeFilter === 'highest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('activeFilter', 'highest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-sort-amount-down"></i>
-                    <span>Highest Amount</span>
-                    {filters.activeFilter === 'highest' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.activeFilter === 'lowest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('activeFilter', 'lowest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-sort-amount-up"></i>
-                    <span>Lowest Amount</span>
-                    {filters.activeFilter === 'lowest' && <i className="fas fa-check filter-check"></i>}
-                  </button>
+                  ) : (
+                    <>
+                      <div className="minimal-stat-value">₱{analyticsData.totalAmount.toLocaleString()}</div>
+                      <div className="minimal-stat-label">{receipts.length} receipts issued</div>
+                      <div className="minimal-stat-change">
+                        <i className="fas fa-arrow-up"></i>
+                        100.0%
+                      </div>
+                    </>
+                  )}
                 </div>
-              )}
+                
+                <div className="minimal-stat-card">
+                  {analyticsData.isLoading ? (
+                    <div className="loading-indicator">
+                      <i className="fas fa-spinner fa-spin"></i>
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="minimal-stat-value">₱{analyticsData.averageAmount.toLocaleString()}</div>
+                      <div className="minimal-stat-label">Average per receipt</div>
+                      <div className="minimal-stat-updated">
+                        <i className="fas fa-clock"></i>
+                        Updated {new Date(analyticsData.lastUpdated).toLocaleTimeString()}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Box 1: Disbursement Trends Component */}
+              <DisbursementTrends 
+                receipts={receipts}
+                transactions={transactions}
+                disbursementPeriod={disbursementPeriod}
+                onPeriodChange={setDisbursementPeriod}
+              />
+            </div>
+
+            {/* Right Column: Box 2 and Box 3 */}
+            <div className="right-column">
+              {/* Box 2: Payer Distribution Analytics Component */}
+              <PayerDistributionAnalytics 
+                analyticsData={analyticsData}
+              />
+
+              {/* Box 3: Receipt Count Analytics Component */}
+              <ReceiptCountAnalytics 
+                receipts={receipts}
+                analyticsData={analyticsData}
+              />
             </div>
           </div>
-          
-          <div className="action-buttons" ref={exportDropdownRef}>
-            <button
-              className="btn-icon export-btn"
-              title="Export Receipts"
-              type="button"
-              onClick={() => setShowExportDropdown(prev => !prev)}
-            >
-              <i className="fas fa-download"></i>
-              
-            </button>
-            {showExportDropdown && (
-              <div className="export-dropdown-menu">
-                <button type="button" className="export-option" onClick={handleExportPdf}>
-                  <i className="fas fa-file-pdf"></i>
-                  <span>Download PDF</span>
-                </button>
-                <button type="button" className="export-option" onClick={handleExportExcel}>
-                  <i className="fas fa-file-excel"></i>
-                  <span>Download Excel</span>
-                </button>
-              </div>
-            )}
-          </div>
         </div>
-      </div>
+      )}
 
-      {/* Receipts Table */}
-      <div className="receipts-table-section">
-        <div className="receipts-table-container">
-          <table className="receipts-table">
-            <thead>
+
+      <div className={`receipts-section ${isAdmin ? 'admin-view' : ''}`}>
+          {/* Receipts Section Header */}
+          <div className="section-header">
+            <div className="section-title-group">
+              <h3>
+                <i className="fas fa-receipt"></i>
+                Issued Receipts
+                <span className="section-count">({filteredReceipts.length})</span>
+              </h3>
+            </div>
+            <div className="header-controls">
+              <div className="search-filter-container">
+                <div className="account-search-container">
+                  <input
+                    type="text"
+                    placeholder="Search receipts..."
+                    value={filters.searchTerm}
+                    onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                    className="account-search-input"
+                  />
+                  <i className="fas fa-search account-search-icon"></i>
+                </div>
+
+                <div className="filter-dropdown-container">
+                  <button
+                    className="filter-dropdown-btn"
+                    onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
+                    title="Filter receipts"
+                  >
+                    <i className="fas fa-filter"></i>
+                    <span className="filter-label">
+                      {filters.activeFilter === 'all' ? 'All Receipts' :
+                       filters.activeFilter === 'latest' ? 'Latest First' :
+                       filters.activeFilter === 'oldest' ? 'Oldest First' :
+                       filters.activeFilter === 'highest' ? 'Highest Amount' :
+                       'Lowest Amount'}
+                    </span>
+                    <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
+                  </button>
+
+                  {filters.showFilterDropdown && (
+                    <div className="filter-dropdown-menu">
+                      <button
+                        className={`filter-option ${filters.activeFilter === 'all' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-list"></i>
+                        <span>All Receipts</span>
+                        {filters.activeFilter === 'all' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                      <button
+                        className={`filter-option ${filters.activeFilter === 'latest' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'latest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-down"></i>
+                        <span>Latest First</span>
+                        {filters.activeFilter === 'latest' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                      <button
+                        className={`filter-option ${filters.activeFilter === 'oldest' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'oldest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-up"></i>
+                        <span>Oldest First</span>
+                        {filters.activeFilter === 'oldest' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                      <button
+                        className={`filter-option ${filters.activeFilter === 'highest' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'highest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-sort-amount-down"></i>
+                        <span>Highest Amount</span>
+                        {filters.activeFilter === 'highest' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                      <button
+                        className={`filter-option ${filters.activeFilter === 'lowest' ? 'active' : ''}`}
+                        onClick={() => { handleFilterChange('activeFilter', 'lowest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-sort-amount-up"></i>
+                        <span>Lowest Amount</span>
+                        {filters.activeFilter === 'lowest' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="action-buttons" ref={exportDropdownRef}>
+                <button
+                  className="btn-icon export-btn"
+                  title="Export Receipts"
+                  type="button"
+                  onClick={() => setShowExportDropdown(prev => !prev)}
+                >
+                  <i className="fas fa-download"></i>
+
+                </button>
+                {showExportDropdown && (
+                  <div className="export-dropdown-menu">
+                    <button type="button" className="export-option" onClick={handleExportPdf}>
+                      <i className="fas fa-file-pdf"></i>
+                      <span>Download PDF</span>
+                    </button>
+                    <button type="button" className="export-option" onClick={handleExportExcel}>
+                      <i className="fas fa-file-excel"></i>
+                      <span>Download Excel</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Receipts Table */}
+          <div className="receipts-table-section">
+            <div className="receipts-table-container">
+              <table className="receipts-table">
+                <thead>
               <tr>
                 <th><i className="fas fa-hashtag"></i> RECEIPT ID</th>
                 <th><i className="fas fa-receipt"></i> RECEIPT NUMBER</th>
@@ -1409,6 +1406,8 @@ const IssueReceipt = () => {
           </div>
         )}
       </div>
+    </div>
+  );
 
       {/* Confirmation Modal */}
       {showIssueModal && (
@@ -1491,34 +1490,22 @@ const IssueReceipt = () => {
               {/* Header */}
               <div className="official-receipt-header">
                 <div className="receipt-top-bar">
-                  <span className="accountable-no">ACCOUNTABLE NO. {receiptResult.receiptNumber}</span>
-                  <span className="receipt-type">(ORIGINAL)</span>
+                  
                 </div>
                 
                 <div className="receipt-title-section">
                   <div className="receipt-logos">
-                    <div className="logo-image left-logo">
-                      <img src="/igfms_logo.png" alt="IGCFMS Logo" />
-                    </div>
-                    <div className="receipt-title-content">
-                      <h1>OFFICIAL RECEIPT</h1>
-                      <p className="system-name">Integrated Government Cash Flow Management System</p>
-                      <p className="department-name">Government Financial Services Department</p>
-                      <p className="contact-info">Tel: (031) 8888-0000 | Email: igcfms@gmail.com</p>
-                    </div>
-                    <div className="logo-image right-logo">
-                      <img src="/ctu_logo.png" alt="CTU Logo" />
-                    </div>
+                    <div className="logo-image left-logo" aria-hidden="true"></div>
+                    <div className="receipt-title-content" aria-hidden="true"></div>
+                    <div className="logo-image right-logo" aria-hidden="true"></div>
                   </div>
                 </div>
               </div>
 
               {/* Body */}
               <div className="official-receipt-body">
-                <div className="receipt-center-logos">
-                  <div className="center-logo-container">
-                    <img src="/igfms_logo.png" alt="IGCFMS Logo" className="center-logo-image" />
-                  </div>
+                <div className="receipt-center-logos" aria-hidden="true">
+                  <div className="center-logo-container"></div>
                 </div>
 
                 {/* Payer Information */}
@@ -1534,29 +1521,27 @@ const IssueReceipt = () => {
                 {/* Fund Account Information */}
                 {(() => {
                   const transaction = transactions.find(tx => tx.id.toString() === receiptResult.transactionId);
-                  return transaction ? (
+                  const allocationItems = transaction?.fund_allocations || transaction?.fundAccounts || transaction?.allocations;
+                  if (!allocationItems || allocationItems.length === 0) return null;
+
+                  return (
                     <div className="receipt-fund-info">
-                      <p className="fund-label">FUND ACCOUNTS:</p>
-                      <div className="fund-items-grid">
-                        <div className="fund-item">
-                          <span className="fund-name">Description</span>
-                          <span className="fund-amount">₱{parseFloat(transaction.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                        <div className="fund-item">
-                          <span className="fund-name">Category</span>
-                          <span className="fund-amount">{transaction.category || 'General'}</span>
-                        </div>
-                        <div className="fund-item">
-                          <span className="fund-name">Department</span>
-                          <span className="fund-amount">{transaction.department || 'Finance'}</span>
-                        </div>
-                        <div className="fund-item">
-                          <span className="fund-name">Reference</span>
-                          <span className="fund-amount">TXN-{receiptResult.transactionId}</span>
-                        </div>
+                      <p className="fund-label">FUND ACCOUNTS USED:</p>
+                      <div className="fund-items-grid single-column">
+                        {allocationItems.map((item, idx) => (
+                          <div key={idx} className="fund-item-row">
+                            <span className="fund-name">{item.name || item.fundAccountName || `Fund ${idx + 1}`}</span>
+                            <span className="fund-amount">
+                              ₱{parseFloat(item.amount || item.allocatedAmount || 0).toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ) : null;
+                  );
                 })()}
 
                 {/* Empty space for watermark visibility */}
@@ -1592,32 +1577,14 @@ const IssueReceipt = () => {
                   ) : null;
                 })()}
 
-                {/* Payment Method Checkboxes */}
-                <div className="payment-checkboxes">
-                  <label className="checked">
-                    <input type="checkbox" checked readOnly />
-                    <span>CASH</span>
-                  </label>
-                  <label>
-                    <input type="checkbox" readOnly />
-                    <span>CHECK</span>
-                  </label>
-                  <label>
-                    <input type="checkbox" readOnly />
-                    <span>BANK</span>
-                  </label>
-                </div>
-
-                {/* Acknowledgment with underline */}
-                <div className="receipt-acknowledgment-line">
-                  Received the amount stated above
-                </div>
-
-                {/* Signature Line */}
-                <div className="signature-area">
-                  <div className="signature-line-bottom"></div>
-                  <p className="signature-text">Collecting Officer</p>
-                </div>
+                {(user?.name || user?.role) && (
+                  <div className="receipt-issued-by">
+                    <p className="issued-by-name">
+                      {user?.name || 'N/A'}
+                      {user?.role ? ` • ${user.role}` : ''}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             

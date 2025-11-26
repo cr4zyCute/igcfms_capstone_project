@@ -6,8 +6,11 @@ import notificationService from '../../services/notificationService';
 import balanceService from '../../services/balanceService';
 import { broadcastFundTransaction } from '../../services/fundTransactionChannel';
 import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
+import { printCompleteCheque } from '../pages/print/chequeSimplePrint';
+import { useAuth } from "../../contexts/AuthContext";
 
 const ReceiveMoney = () => {
+  const { user } = useAuth();
   const [fundAccounts, setFundAccounts] = useState([]);
   const [recipientAccounts, setRecipientAccounts] = useState([]);
   const [payerName, setPayerName] = useState("");
@@ -42,7 +45,7 @@ const ReceiveMoney = () => {
         return ones[Math.floor(n / 100)] + ' HUNDRED' + (n % 100 !== 0 ? ' ' + convertHundreds(n % 100) : '');
       }
     };
-    
+
     const convertThousands = (n) => {
       if (n < 1000) return convertHundreds(n);
       if (n < 1000000) {
@@ -110,8 +113,8 @@ const ReceiveMoney = () => {
       return;
     }
 
-    // Create a new window for printing - Envelope #10 size (4.125 x 9.5 inches)
-    const printWindow = window.open('', '_blank', 'width=400,height=912');
+    // Create a new window for printing - Receipt size (4 x 8.6 inches)
+    const printWindow = window.open('', '_blank', 'width=384,height=825');
     if (!printWindow) {
       console.error('Unable to open print window.');
       return;
@@ -166,6 +169,51 @@ const ReceiveMoney = () => {
   const totalAmount = selectedFundAccounts.reduce((sum, acc) => {
     return sum + (parseFloat(acc.allocatedAmount) || 0);
   }, 0);
+
+  const receiptTotal = createdTransactions.length > 0
+    ? createdTransactions.reduce((sum, transaction) => {
+        const value = transaction?.allocatedAmount ?? transaction?.amount;
+        return sum + (parseFloat(value) || 0);
+      }, 0)
+    : totalAmount;
+
+  const handleSettingsClick = () => {
+    // Placeholder for future receipt settings controls
+  };
+
+  const handlePrintCheque = () => {
+    const chequeAmount = parseFloat(receiptTotal) || 0;
+    if (chequeAmount <= 0) {
+      console.error('No amount available for cheque printing.');
+      return;
+    }
+
+    const chequePayee = payerName
+      || createdTransactions[0]?.payer_name
+      || createdTransactions[0]?.recipient
+      || 'N/A';
+
+    const chequeReference = referenceNo
+      || createdTransactions[0]?.reference
+      || createdTransactions[0]?.receipt_no
+      || createdTransactions[0]?.transaction_id
+      || '';
+
+    printCompleteCheque({
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+      payeeName: chequePayee,
+      amount: `₱${chequeAmount.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+      amountInWords: `${numberToWords(Math.round(chequeAmount))} PESOS ONLY`,
+      routingNumber: chequeReference || 'N/A',
+    });
+  };
 
   // Watch for any input changes to trigger auto-generation
   useEffect(() => {
@@ -395,6 +443,16 @@ const ReceiveMoney = () => {
   return (
     <div className="receive-money-container">
       <div className="receive-money-form">
+        <div className="rm-settings-float">
+          <button
+            type="button"
+            className="rm-settings-btn"
+            title="Receipt settings"
+            onClick={handleSettingsClick}
+          >
+            <i className="fas fa-cog"></i>
+          </button>
+        </div>
 
         {/* Success/Error Messages */}
         {successMessage && (
@@ -718,91 +776,101 @@ const ReceiveMoney = () => {
 
       {/* Receipt Modal */}
       {showReceiptModal && (
-        <div className="modal-overlay" onClick={() => {
-          setShowReceiptModal(false);
-          resetForm();
-        }}>
-          <div className="modal official-receipt-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setShowReceiptModal(false);
+            resetForm();
+          }}
+        >
+          <div className="receipt-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="receipt-actions-bar">
+              <button className="modal-close" onClick={() => {
+                setShowReceiptModal(false);
+                resetForm();
+              }}>
+                <i className="fas fa-times"></i>
+              </button>
+              {createdTransactions.length > 0 && (
+                <button className="print-btn" onClick={handlePrintCheque}>
+                  <i className="fas fa-money-check-alt"></i> Print Cheque
+                </button>
+              )}
+              <button className="print-btn" onClick={handlePrintReceipt}>
+                <i className="fas fa-print"></i> Print
+              </button>
+            </div>
+
             <div className="receipt-print-area" id="officialReceiptPrint">
-              {/* Receipt Header with Logos */}
               <div className="official-receipt-header">
-                <div className="receipt-top-bar">
-                  <span className="accountable-no">ACCOUNTABLE NO. {createdTransactions[0]?.receipt_no || 'N/A'}</span>
-                  <span className="receipt-type">(ORIGINAL)</span>
-                </div>
-                
                 <div className="receipt-title-section">
                   <div className="receipt-logos">
-                    <div className="logo-image left-logo">
-                      <img src="/igfms_logo.png" alt="IGCFMS Logo" />
-                    </div>
-                    <div className="receipt-title-content">
-                      <h1>OFFICIAL RECEIPT</h1>
-                      <p className="system-name">Integrated Government Cash Flow Management System</p>
-                      <p className="department-name">Government Financial Services Department</p>
-                      <p className="contact-info">Tel: (031) 8888-0000 | Email: igcfms@gmail.com</p>
-                    </div>
-                    <div className="logo-image right-logo">
-                      <img src="/ctu_logo.png" alt="CTU Logo" />
-                    </div>
+                    <div className="logo-image left-logo" aria-hidden="true"></div>
+                    <div className="receipt-title-content" aria-hidden="true"></div>
+                    <div className="logo-image right-logo" aria-hidden="true"></div>
                   </div>
                 </div>
-
-                {/* <div className="receipt-number-section">
-                  <span className="receipt-label">RECEIPT NO.</span>
-                  <span className="receipt-number">{createdTransactions[0]?.receipt_no || 'N/A'}</span>
-                </div> */}
               </div>
 
-              {/* Receipt Body */}
               <div className="official-receipt-body">
-                {/* Centered Logos as Watermark */}
-                <div className="receipt-center-logos">
-                  <div className="center-logo-container">
-                    <img src="/igfms_logo.png" alt="IGCFMS Logo" className="center-logo-image" />
-                  </div>
+                <div className="receipt-center-logos" aria-hidden="true">
+                  <div className="center-logo-container"></div>
                 </div>
 
-                {/* Payer Information */}
-                <div className="receipt-payer-info" style={{ marginBottom: '20px', position: 'relative', zIndex: 1 }}>
-                  <p style={{ fontSize: '12px', marginBottom: '8px' }}>
+                <div className="receipt-payer-info">
+                  <p>
                     <strong>RECEIVED FROM:</strong> {payerName || 'N/A'}
                   </p>
-                  <p style={{ fontSize: '11px', marginBottom: '5px' }}>
+                  <p>
                     <strong>DATE:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
                 </div>
 
-                {/* Fund Account Information */}
-                {createdTransactions.length > 0 && (
-                  <div className="receipt-fund-info">
-                    <p className="fund-label">FUND ACCOUNTS:</p>
-                    <div className="fund-items-grid">
-                      {createdTransactions.map((transaction, index) => (
-                        <div key={index} className="fund-item">
-                          <span className="fund-name">{transaction.fundAccountName}</span>
-                          <span className="fund-amount">₱{parseFloat(transaction.allocatedAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {(() => {
+                  const fundItems = (createdTransactions.length > 0
+                    ? createdTransactions.map((transaction) => ({
+                        name: transaction.fundAccountName,
+                        amount: transaction.allocatedAmount,
+                      }))
+                    : selectedFundAccounts.map((account) => ({
+                        name: account.name,
+                        amount: account.allocatedAmount,
+                      }))
+                  ).filter((item) => item && item.name);
 
-                {/* Empty space for watermark visibility */}
+                  if (fundItems.length === 0) return null;
+
+                  return (
+                    <div className="receipt-fund-info">
+                      <p className="fund-label">FUND ACCOUNTS USED:</p>
+                      <div className="fund-items-grid single-column">
+                        {fundItems.map((item, idx) => (
+                          <div key={`${item.name}-${idx}`} className="fund-item-row">
+                            <span className="fund-name">{item.name}</span>
+                            <span className="fund-amount">
+                              ₱{parseFloat(item.amount || 0).toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="receipt-body-spacer"></div>
 
-                {/* Total Amount - Bottom Right */}
                 <div className="receipt-total-right">
                   <span className="total-label-bold">TOTAL:</span>
                   <span className="total-amount-bold">PHP{totalAmount.toFixed(2)}</span>
                 </div>
 
-                {/* Amount in Words - Bold */}
                 <div className="amount-words-bold">
                   {numberToWords(totalAmount)} PESOS ONLY
                 </div>
 
-                {/* Description */}
                 {receiptDescription && (
                   <div className="receipt-description-box">
                     <p className="description-label-receipt">Description:</p>
@@ -810,56 +878,15 @@ const ReceiveMoney = () => {
                   </div>
                 )}
 
-                {/* Payment Method Checkboxes */}
-                <div className="payment-checkboxes">
-                  <label className={modeOfPayment === 'Cash' ? 'checked' : ''}>
-                    <input type="checkbox" checked={modeOfPayment === 'Cash'} readOnly />
-                    <span>CASH</span>
-                  </label>
-                  <label className={modeOfPayment === 'Cheque' ? 'checked' : ''}>
-                    <input type="checkbox" checked={modeOfPayment === 'Cheque'} readOnly />
-                    <span>CHECK</span>
-                  </label>
-                  <label className={modeOfPayment === 'Bank Transfer' ? 'checked' : ''}>
-                    <input type="checkbox" checked={modeOfPayment === 'Bank Transfer'} readOnly />
-                    <span>BANK</span>
-                  </label>
-                </div>
-
-                {/* Acknowledgment with underline */}
-                <div className="receipt-acknowledgment-line">
-                  Received the amount stated above
-                </div>
-
-                {/* Signature Line */}
-                <div className="signature-area">
-                  <div className="signature-line-bottom"></div>
-                  <p className="signature-text">Collecting Officer</p>
-                </div>
+                {(user?.name || user?.role) && (
+                  <div className="receipt-issued-by">
+                    <p className="issued-by-name">
+                      {user?.name || 'N/A'}
+                      {user?.role ? ` • ${user.role}` : ''}
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
-
-            {/* Modal Footer with Actions */}
-            <div className="receipt-modal-footer">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handlePrintReceipt}
-              >
-                <i className="fas fa-print"></i>
-                Print Receipt
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => {
-                  setShowReceiptModal(false);
-                  resetForm();
-                }}
-              >
-                <i className="fas fa-check"></i>
-                Done
-              </button>
             </div>
           </div>
         </div>

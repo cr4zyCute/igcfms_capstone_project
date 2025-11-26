@@ -130,7 +130,7 @@ const renderAnalyticsCard3 = () => (
   </div>
 );
 
-const IssueChequeSkeleton = () => {
+const IssueChequeSkeleton = ({ showKpiSections = true }) => {
   const tableHeadCells = ['Cheque ID', 'Cheque Number', 'Disbursement', 'Payee Name', 'Bank', 'Amount', 'Issue Date', 'Actions'];
   const tableRowCount = 8;
 
@@ -148,69 +148,73 @@ const IssueChequeSkeleton = () => {
         </div>
       </div>
 
-      {/* Dashboard Grid */}
-      <div className="ic-dashboard-grid">
-        {/* Left Column */}
-        <div className="ic-left-column">
-          {/* Combined Card with Graph */}
-          <div className="ic-summary-card ic-combined-card skeleton-card" style={{ border: '2px solid #000000', borderRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="ic-card-title" style={{ marginBottom: '8px' }}>
-              <SkeletonLine width="60px" height={14} />
-            </div>
-            <div className="ic-card-value" style={{ marginBottom: '6px' }}>
-              <SkeletonLine width="140px" height={28} />
-            </div>
-            <div className="ic-card-subtitle" style={{ marginBottom: '12px' }}>
-              <SkeletonLine width="110px" height={12} />
-            </div>
-            <div className="ic-cheque-mini-graph" style={{ width: '100%', height: '50px' }}>
-              <SkeletonLine height="100%" />
-            </div>
-          </div>
-          
-          {/* Average Cheque Card */}
-          {renderSummaryCard()}
-        </div>
-
-        {/* Right Column */}
-        <div className="ic-right-column skeleton-card" style={{ border: '2px solid #000000', borderRadius: '8px', height: '100%', background: '#ffffff' }}>
-          <div style={{ padding: '20px', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {/* Title */}
-            <SkeletonLine width="50%" height={20} style={{ marginBottom: '20px' }} />
-            
-            {/* Content with stats and chart */}
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flex: 1 }}>
-              {/* Left side - Stats */}
-              <div style={{ minWidth: '120px' }}>
-                <div style={{ marginBottom: '24px' }}>
-                  <SkeletonLine width="80px" height={14} style={{ marginBottom: '8px' }} />
-                  <SkeletonLine width="60px" height={32} />
+      {showKpiSections && (
+        <>
+          {/* Dashboard Grid */}
+          <div className="ic-dashboard-grid">
+            {/* Left Column */}
+            <div className="ic-left-column">
+              {/* Combined Card with Graph */}
+              <div className="ic-summary-card ic-combined-card skeleton-card" style={{ border: '2px solid #000000', borderRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div className="ic-card-title" style={{ marginBottom: '8px' }}>
+                  <SkeletonLine width="60px" height={14} />
                 </div>
-                <div style={{ marginBottom: '24px' }}>
-                  <SkeletonLine width="80px" height={14} style={{ marginBottom: '8px' }} />
-                  <SkeletonLine width="40px" height={32} />
+                <div className="ic-card-value" style={{ marginBottom: '6px' }}>
+                  <SkeletonLine width="140px" height={28} />
                 </div>
-                <div>
-                  <SkeletonLine width="80px" height={14} style={{ marginBottom: '8px' }} />
-                  <SkeletonLine width="40px" height={32} />
+                <div className="ic-card-subtitle" style={{ marginBottom: '12px' }}>
+                  <SkeletonLine width="110px" height={12} />
+                </div>
+                <div className="ic-cheque-mini-graph" style={{ width: '100%', height: '50px' }}>
+                  <SkeletonLine height="100%" />
                 </div>
               </div>
               
-              {/* Right side - Chart */}
-              <div style={{ flex: 1, height: '100%' }}>
-                <SkeletonLine height="100%" />
+              {/* Average Cheque Card */}
+              {renderSummaryCard()}
+            </div>
+
+            {/* Right Column */}
+            <div className="ic-right-column skeleton-card" style={{ border: '2px solid #000000', borderRadius: '8px', height: '100%', background: '#ffffff' }}>
+              <div style={{ padding: '20px', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                {/* Title */}
+                <SkeletonLine width="50%" height={20} style={{ marginBottom: '20px' }} />
+                
+                {/* Content with stats and chart */}
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flex: 1 }}>
+                  {/* Left side - Stats */}
+                  <div style={{ minWidth: '120px' }}>
+                    <div style={{ marginBottom: '24px' }}>
+                      <SkeletonLine width="80px" height={14} style={{ marginBottom: '8px' }} />
+                      <SkeletonLine width="60px" height={32} />
+                    </div>
+                    <div style={{ marginBottom: '24px' }}>
+                      <SkeletonLine width="80px" height={14} style={{ marginBottom: '8px' }} />
+                      <SkeletonLine width="40px" height={32} />
+                    </div>
+                    <div>
+                      <SkeletonLine width="80px" height={14} style={{ marginBottom: '8px' }} />
+                      <SkeletonLine width="40px" height={32} />
+                    </div>
+                  </div>
+                  
+                  {/* Right side - Chart */}
+                  <div style={{ flex: 1, height: '100%' }}>
+                    <SkeletonLine height="100%" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Analytics Row */}
-      <div className="ic-analytics-row">
-        {renderAnalyticsCard1()}
-        {renderAnalyticsCard2()}
-        {renderAnalyticsCard3()}
-      </div>
+          {/* Analytics Row */}
+          <div className="ic-analytics-row">
+            {renderAnalyticsCard1()}
+            {renderAnalyticsCard2()}
+            {renderAnalyticsCard3()}
+          </div>
+        </>
+      )}
 
       {/* Table Header */}
       <div className="ic-table-header">

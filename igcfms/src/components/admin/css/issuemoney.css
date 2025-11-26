@@ -1817,6 +1817,163 @@
   text-align: left;
 }
 
+.cheque-preview-panel {
+  margin-top: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 20px;
+  background: #fbfcfd;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.cheque-preview-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.cheque-preview-header h5 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.cheque-preview-header p {
+  margin: 2px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.cheque-preview-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cheque-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 8px 14px;
+}
+
+.cheque-preview-btn i {
+  font-size: 12px;
+}
+
+.cheque-preview-btn.ghost {
+  border: 1px solid #d1d5db;
+  background: transparent;
+  color: #374151;
+}
+
+.cheque-preview-btn.ghost:hover {
+  background: #f3f4f6;
+}
+
+.cheque-preview-btn.secondary {
+  border: 1px solid #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+}
+
+.cheque-preview-btn.secondary:hover {
+  background: rgba(37, 99, 235, 0.15);
+}
+
+.cheque-preview-btn.outline {
+  border: 1px solid #111827;
+  background: #111827;
+  color: #ffffff;
+}
+
+.cheque-preview-btn.outline:hover {
+  background: transparent;
+  color: #111827;
+}
+
+.cheque-preview-canvas {
+  position: relative;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  width: 6.25in;
+  min-width: 6.25in;
+  height: 2.25in;
+  min-height: 2.25in;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.cheque-preview-guides {
+  position: absolute;
+  inset: 18px;
+  border: 2px dashed rgba(15, 23, 42, 0.35);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.cheque-preview-guides::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  border-top: 1px dashed rgba(15, 23, 42, 0.35);
+}
+
+.cheque-preview-guides::after {
+  content: '';
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 50%;
+  border-left: 1px dashed rgba(15, 23, 42, 0.35);
+}
+
+.cheque-preview-field {
+  position: absolute;
+  cursor: grab;
+  user-select: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 0;
+  min-width: unset;
+}
+
+.cheque-preview-field:active {
+  cursor: grabbing;
+}
+
+.cheque-preview-field .field-value {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+.cheque-preview-field.cheque-field-payeeName .field-value {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cheque-preview-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
 /* Loading State */
 .issue-money-loading {
   display: flex;

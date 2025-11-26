@@ -1,15 +1,36 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import "./css/collectordashboard.css";
 import axios from "axios";
 import Chart from 'chart.js/auto';
 import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
 import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
+import { useAuth } from '../../contexts/AuthContext';
 
 const CollectorHome = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const categoryChartRef = useRef(null);
   const categoryChartInstance = useRef(null);
+  const { user } = useAuth();
+  const accountIds = useMemo(() => {
+    if (!user) return [];
+
+    const rawIds = [];
+
+    if (Array.isArray(user.assigned_accounts)) {
+      user.assigned_accounts.forEach(acc => {
+        if (acc?.fund_account_id) rawIds.push(acc.fund_account_id);
+        else if (acc?.id) rawIds.push(acc.id);
+      });
+    }
+
+    if (user.fund_account_id) rawIds.push(user.fund_account_id);
+    if (user.fundAccountId) rawIds.push(user.fundAccountId);
+
+    return rawIds
+      .map(id => parseInt(id, 10))
+      .filter(Number.isFinite);
+  }, [user]);
   const [collectionStats, setCollectionStats] = useState({
     todayCollections: 0,
     weeklyCollections: 0,
@@ -52,7 +73,7 @@ const CollectorHome = () => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [accountIds]);
 
   useEffect(() => {
     const fetchCollectorData = async () => {
@@ -81,8 +102,18 @@ const CollectorHome = () => {
         const allTransactions = transactionsRes.data || [];
         const allReceipts = receiptsRes.data || [];
 
-        // Filter only collection transactions
-        const collections = allTransactions.filter(tx => tx.type === 'Collection');
+        const filterByAccount = (tx = {}) => {
+          if (!Array.isArray(accountIds) || accountIds.length === 0) {
+            return true;
+          }
+          const txAccountId = parseInt(tx.fund_account_id ?? tx.account_id ?? tx.fundAccountId, 10);
+          return Number.isFinite(txAccountId) && accountIds.includes(txAccountId);
+        };
+
+        // Filter only collection transactions for assigned accounts
+        const collections = allTransactions
+          .filter(tx => tx.type === 'Collection')
+          .filter(filterByAccount);
 
         // Calculate date ranges
         const today = new Date().toDateString();
@@ -108,8 +139,20 @@ const CollectorHome = () => {
         const averageCollection = collections.length > 0 ? totalCollections / collections.length : 0;
 
         // Receipt statistics
-        const pendingReceipts = allReceipts.filter(receipt => receipt.status === 'pending').length;
-        const processedReceipts = allReceipts.filter(receipt => receipt.status === 'processed').length;
+        const relevantReceipts = allReceipts.filter(receipt => {
+          if (!Array.isArray(accountIds) || accountIds.length === 0) {
+            return true;
+          }
+          const receiptAccountId = parseInt(receipt.fund_account_id ?? receipt.account_id, 10);
+          if (Number.isFinite(receiptAccountId)) {
+            return accountIds.includes(receiptAccountId);
+          }
+          const relatedTransaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
+          return relatedTransaction ? filterByAccount(relatedTransaction) : false;
+        });
+
+        const pendingReceipts = relevantReceipts.filter(receipt => receipt.status === 'pending').length;
+        const processedReceipts = relevantReceipts.filter(receipt => receipt.status === 'processed').length;
 
         // Find top collection category
         const categoryTotals = {};
@@ -226,11 +269,11 @@ const CollectorHome = () => {
         setRecentCollections(recentData);
 
         // Recent receipts
-        const recentReceiptData = allReceipts
+        const recentReceiptData = relevantReceipts
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
           .slice(0, 10)
           .map(receipt => {
-            const relatedTransaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
+            const relatedTransaction = allTransactions.find(tx => tx.id === receipt.transaction_id && filterByAccount(tx));
             const amountValue = parseFloat(receipt.amount ?? relatedTransaction?.amount ?? 0);
             return {
               ...receipt,
@@ -240,22 +283,22 @@ const CollectorHome = () => {
         setReceipts(recentReceiptData);
 
         // Calculate receipt statistics
-        const totalReceiptsIssued = allReceipts.length;
+        const totalReceiptsIssued = relevantReceipts.length;
         
         // Calculate total receipt amount by matching with transactions
-        const totalReceiptAmount = allReceipts.reduce((sum, receipt) => {
-          const transaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
+        const totalReceiptAmount = relevantReceipts.reduce((sum, receipt) => {
+          const transaction = allTransactions.find(tx => tx.id === receipt.transaction_id && filterByAccount(tx));
           return sum + parseFloat(transaction?.amount || 0);
         }, 0);
 
         const averageReceiptAmount = totalReceiptsIssued > 0 ? totalReceiptAmount / totalReceiptsIssued : 0;
 
         // Today's receipts
-        const todayReceipts = allReceipts
+        const todayReceipts = relevantReceipts
           .filter(receipt => new Date(receipt.created_at).toDateString() === today).length;
 
         // Weekly receipts
-        const weeklyReceipts = allReceipts
+        const weeklyReceipts = relevantReceipts
           .filter(receipt => new Date(receipt.created_at) >= weekStart).length;
 
         setReceiptStats({
@@ -270,9 +313,9 @@ const CollectorHome = () => {
         const payerCounts = {};
         const payerAmounts = {};
         
-        allReceipts.forEach(receipt => {
+        relevantReceipts.forEach(receipt => {
           const payerName = receipt.payer_name || 'Unknown';
-          const transaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
+          const transaction = allTransactions.find(tx => tx.id === receipt.transaction_id && filterByAccount(tx));
           const amount = parseFloat(receipt.amount ?? transaction?.amount ?? 0);
           
           payerCounts[payerName] = (payerCounts[payerName] || 0) + 1;

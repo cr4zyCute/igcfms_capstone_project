@@ -20,7 +20,7 @@ const renderAnalyticsBox = () => (
   </div>
 );
 
-const IssueReceiptSkeleton = () => {
+const IssueReceiptSkeleton = ({ showAnalytics = true } = {}) => {
   const tableHeadCells = ['#', 'Receipt No.', 'Transaction', 'Payer', 'Amount', 'Issue Date', 'Actions'];
   const tableRowCount = 8;
 
@@ -45,29 +45,31 @@ const IssueReceiptSkeleton = () => {
         </div>
       </div>
 
-      <div className="analytics-dashboard-section">
-        <div className="three-box-grid">
-          <div className="left-column">
-            <div className="left-stats-cards">
-              {renderStatCard()}
-              {renderStatCard()}
-            </div>
-            <div className="dashboard-box box-1 skeleton-card">
-              <div className="dashboard-box-header" style={{ marginBottom: '16px' }}>
-                <SkeletonLine width="45%" height={20} />
+      {showAnalytics && (
+        <div className="analytics-dashboard-section">
+          <div className="three-box-grid">
+            <div className="left-column">
+              <div className="left-stats-cards">
+                {renderStatCard()}
+                {renderStatCard()}
               </div>
-              <div className="chart-container-full" style={{ height: '420px' }}>
-                <SkeletonLine height="100%" />
+              <div className="dashboard-box box-1 skeleton-card">
+                <div className="dashboard-box-header" style={{ marginBottom: '16px' }}>
+                  <SkeletonLine width="45%" height={20} />
+                </div>
+                <div className="chart-container-full" style={{ height: '420px' }}>
+                  <SkeletonLine height="100%" />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="right-column">
-            {renderAnalyticsBox()}
-            {renderAnalyticsBox()}
+            <div className="right-column">
+              {renderAnalyticsBox()}
+              {renderAnalyticsBox()}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="section-header">
         <div className="section-title-group">

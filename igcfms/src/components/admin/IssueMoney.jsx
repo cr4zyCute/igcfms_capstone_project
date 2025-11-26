@@ -16,6 +16,28 @@ import {
 import { printCompleteCheque } from '../pages/print/chequeSimplePrint';
 import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
 
+const CHEQUE_FIELD_LABELS = {
+  dateIssued: "Date Issued",
+  payeeName: "Payee Name",
+  amountNumber: "Amount (Numeric)",
+  amountWords: "Amount in Words"
+};
+
+const DEFAULT_CHEQUE_FIELD_POSITIONS = {
+  dateIssued: { x: 420, y: 20 },
+  payeeName: { x: 60, y: 60 },
+  amountNumber: { x: 420, y: 100 },
+  amountWords: { x: 60, y: 130 }
+};
+
+const CHEQUE_DATE_FORMATS = [
+  { id: 'long', name: 'Month Day, Year', formatter: new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) },
+  { id: 'numeric', name: 'MM/DD/YYYY', formatter: new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) },
+  { id: 'iso', name: 'YYYY-MM-DD', formatter: new Intl.DateTimeFormat('en-CA') }
+];
+
+const cloneDefaultChequeLayout = () => JSON.parse(JSON.stringify(DEFAULT_CHEQUE_FIELD_POSITIONS));
+
 const IssueMoney = () => {
   // TanStack Query hooks
   const queryClient = useQueryClient();
@@ -105,6 +127,10 @@ const IssueMoney = () => {
   const [showFundAccountDropdown, setShowFundAccountDropdown] = useState(false);
   const recipientAccountDropdownRef = useRef(null);
   const fundAccountDropdownRef = useRef(null);
+  const chequePreviewRef = useRef(null);
+  const [chequePreviewPositions, setChequePreviewPositions] = useState(cloneDefaultChequeLayout());
+  const [dragState, setDragState] = useState(null);
+  const [chequeDateFormatIndex, setChequeDateFormatIndex] = useState(0);
 
   const API_BASE = API_BASE_URL;
   const token = localStorage.getItem("token");
@@ -360,6 +386,53 @@ const IssueMoney = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    if (showSuccessModal && disbursementResult?.modeOfPayment === "Cheque") {
+      setChequePreviewPositions(cloneDefaultChequeLayout());
+    } else if (!showSuccessModal) {
+      setDragState(null);
+      setChequeDateFormatIndex(0);
+    }
+  }, [showSuccessModal, disbursementResult?.modeOfPayment]);
+
+  useEffect(() => {
+    if (!dragState?.field) {
+      return undefined;
+    }
+
+    const handlePointerMove = (event) => {
+      event.preventDefault();
+      if (!chequePreviewRef.current) return;
+      const rect = chequePreviewRef.current.getBoundingClientRect();
+      const rawX = event.clientX - rect.left - (dragState.offsetX || 0);
+      const rawY = event.clientY - rect.top - (dragState.offsetY || 0);
+      const maxX = rect.width - 60;
+      const maxY = rect.height - 30;
+      const clampedX = Math.min(Math.max(rawX, 0), maxX);
+      const clampedY = Math.min(Math.max(rawY, 0), maxY);
+
+      setChequePreviewPositions(prev => ({
+        ...prev,
+        [dragState.field]: {
+          x: Math.round(clampedX),
+          y: Math.round(clampedY)
+        }
+      }));
+    };
+
+    const handlePointerUp = () => {
+      setDragState(null);
+    };
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [dragState]);
 
   // Mouse drag scrolling for mini graph
   useEffect(() => {
@@ -634,6 +707,127 @@ const IssueMoney = () => {
       created_at: disbursement.created_at || disbursement.updated_at
     }))
   ), [filteredDisbursements]);
+
+  const selectedChequeDateFormatter = useMemo(() => (
+    CHEQUE_DATE_FORMATS[chequeDateFormatIndex]?.formatter || new Intl.DateTimeFormat('en-US')
+  ), [chequeDateFormatIndex]);
+
+  const currentChequeDateFormatName = useMemo(() => (
+    CHEQUE_DATE_FORMATS[chequeDateFormatIndex]?.name || 'Custom'
+  ), [chequeDateFormatIndex]);
+
+  const chequeFieldValues = useMemo(() => {
+    if (!disbursementResult) {
+      return {};
+    }
+
+    const amountNumeric = parseFloat(disbursementResult.amount || 0) || 0;
+    const formattedAmount = `₱${amountNumeric.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+
+    const issuedDate = disbursementResult.issuedAt
+      ? new Date(disbursementResult.issuedAt)
+      : new Date();
+
+    return {
+      dateIssued: selectedChequeDateFormatter.format(issuedDate),
+      payeeName: disbursementResult.recipientName || '—',
+      amountNumber: formattedAmount,
+      amountWords: `${numberToWords(amountNumeric)} Pesos Only`
+    };
+  }, [disbursementResult, selectedChequeDateFormatter]);
+
+  const handleCycleChequeDateFormat = () => {
+    setChequeDateFormatIndex(prev => (prev + 1) % CHEQUE_DATE_FORMATS.length);
+  };
+
+  const handleStartDrag = (fieldKey, event) => {
+    if (!chequePreviewRef.current) return;
+    event.preventDefault();
+    const containerRect = chequePreviewRef.current.getBoundingClientRect();
+    const currentPosition = chequePreviewPositions[fieldKey] || { x: 0, y: 0 };
+    const offsetX = event.clientX - (containerRect.left + currentPosition.x);
+    const offsetY = event.clientY - (containerRect.top + currentPosition.y);
+
+    if (event.currentTarget?.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
+    setDragState({ field: fieldKey, offsetX, offsetY });
+  };
+
+  const handleResetChequeLayout = () => {
+    setChequePreviewPositions(cloneDefaultChequeLayout());
+  };
+
+  const sanitizeForHtml = (value) => (value || '').toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const handlePrintChequeLayout = () => {
+    if (typeof window === 'undefined') return;
+    const printWindow = window.open('', '_blank', 'width=900,height=600');
+    if (!printWindow) return;
+
+    const positionedFields = Object.keys(CHEQUE_FIELD_LABELS).map((key) => {
+      const position = chequePreviewPositions[key] || { x: 0, y: 0 };
+      const value = sanitizeForHtml(chequeFieldValues[key] || '');
+      return `<div class="print-field print-field-${key}" style="left:${position.x}px;top:${position.y}px;">${value}</div>`;
+    }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Cheque Layout</title>
+          <style>
+            * { box-sizing: border-box; }
+            @page { size: 6.25in 2.25in; margin: 0; }
+            html, body {
+              width: 6.25in;
+              height: 2.25in;
+              margin: 0;
+              padding: 0;
+            }
+            body {
+              font-family: 'Inter', 'Segoe UI', sans-serif;
+              background: #ffffff;
+              margin: 0;
+              padding: 0;
+            }
+            .cheque-doc {
+              width: 6.25in;
+              height: 2.25in;
+              position: relative;
+            }
+            .print-field {
+              position: absolute;
+              font-size: 14px;
+              color: #111827;
+              font-weight: 600;
+            }
+            .print-field-payeeName {
+              white-space: nowrap;
+            }
+            @media print {
+              body { margin: 0; }
+              .cheque-doc { box-shadow: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="cheque-doc">
+            ${positionedFields}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
 
   const disbursementSummary = useMemo(() => {
     const totalCount = filteredDisbursements.length;
@@ -970,7 +1164,8 @@ const IssueMoney = () => {
         referenceNo: formData.referenceNo,
         modeOfPayment: formData.modeOfPayment,
         chequeNumber: formData.chequeNumber,
-        fundAccount: selectedFund?.name || 'Unknown Fund'
+        fundAccount: selectedFund?.name || 'Unknown Fund',
+        issuedAt: new Date().toISOString()
       });
 
       // Auto-print cheque if payment mode is Cheque (before resetting form)
@@ -2112,6 +2307,59 @@ const IssueMoney = () => {
                     </div>
                   )}
                 </div>
+
+                {disbursementResult.modeOfPayment === "Cheque" && (
+                  <div className="cheque-preview-panel">
+                    <div className="cheque-preview-header">
+                      <div className="cheque-preview-header-actions">
+                        <button
+                          type="button"
+                          className="cheque-preview-btn secondary"
+                          onClick={handleCycleChequeDateFormat}
+                        >
+                          <i className="fas fa-calendar-alt"></i>
+                          Change Date Format
+                          <span className="cheque-preview-format-label">{currentChequeDateFormatName}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="cheque-preview-btn ghost"
+                          onClick={handleResetChequeLayout}
+                        >
+                          <i className="fas fa-undo"></i>
+                          Reset Layout
+                        </button>
+                        <button
+                          type="button"
+                          className="cheque-preview-btn outline"
+                          onClick={handlePrintChequeLayout}
+                        >
+                          <i className="fas fa-print"></i>
+                          Print Layout
+                        </button>
+                      </div>
+                    </div>
+                    <div className="cheque-preview-canvas" ref={chequePreviewRef}>
+                      <div className="cheque-preview-guides" aria-hidden="true" />
+                      {Object.keys(CHEQUE_FIELD_LABELS).map((key) => {
+                        const position = chequePreviewPositions[key] || { x: 0, y: 0 };
+                        return (
+                          <div
+                            key={key}
+                            className={`cheque-preview-field cheque-field-${key}`}
+                            style={{ left: position.x, top: position.y }}
+                            onPointerDown={(event) => handleStartDrag(key, event)}
+                          >
+                            <span className="field-value">{chequeFieldValues[key]}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="cheque-preview-hint">
+                      Tip: use the "Print Layout" button to print exactly what you see here.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             <div className="modal-actions">
@@ -2126,16 +2374,7 @@ const IssueMoney = () => {
                 <button
                   type="button"
                   className="print-btn"
-                  onClick={() => {
-                    printCompleteCheque({
-                      date: new Date().toLocaleDateString(),
-                      payeeName: disbursementResult.recipientName,
-                      amount: `₱${disbursementResult.amount.toLocaleString()}`,
-                      amountInWords: numberToWords(disbursementResult.amount) + ' Pesos Only',
-                      accountNumber: '123123123312',
-                      routingNumber: disbursementResult.referenceNo
-                    });
-                  }}
+                  onClick={handlePrintChequeLayout}
                 >
                   <i className="fas fa-print"></i> Print Cheque
                 </button>

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import API_BASE_URL from "../../config/api";
 import "./css/viewtransactions.css";
 
-const ViewTransactions = ({ filterByAccountIds = null }) => {
+const ViewTransactions = ({ filterByAccountIds = null, filterByCreatorId = null }) => {
   const [transactions, setTransactions] = useState([]);
   const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +41,45 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
     applyFilters();
   }, [transactions, filters]);
 
+  const normalizedAccountIds = useMemo(() => {
+    if (!filterByAccountIds) return null;
+    const ids = Array.isArray(filterByAccountIds) ? filterByAccountIds : [filterByAccountIds];
+    const parsed = ids
+      .map(id => parseInt(id, 10))
+      .filter(Number.isFinite);
+    return parsed.length > 0 ? parsed : null;
+  }, [filterByAccountIds]);
+
+  const normalizedCreatorId = useMemo(() => {
+    if (filterByCreatorId === null || filterByCreatorId === undefined) return null;
+    const parsed = parseInt(filterByCreatorId, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [filterByCreatorId]);
+
+  const matchesAssignedAccounts = (transaction) => {
+    if (!normalizedAccountIds) return true;
+    const txAccountId = parseInt(
+      transaction.fund_account_id ??
+      transaction.account_id ??
+      transaction.fundAccountId ??
+      transaction.accountId,
+      10
+    );
+    return Number.isFinite(txAccountId) && normalizedAccountIds.includes(txAccountId);
+  };
+
+  const matchesCreator = (transaction) => {
+    if (normalizedCreatorId === null) return true;
+    const creatorId = parseInt(
+      transaction.created_by ??
+      transaction.creator_id ??
+      transaction.user_id ??
+      transaction.createdBy,
+      10
+    );
+    return Number.isFinite(creatorId) && creatorId === normalizedCreatorId;
+  };
+
   const fetchTransactions = async () => {
     try {
       setLoading(true);
@@ -58,16 +97,24 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
       };
 
       let params = {};
-      if (filterByAccountIds && Array.isArray(filterByAccountIds)) {
-        params.accountIds = filterByAccountIds.join(",");
+      if (normalizedAccountIds) {
+        params.accountIds = normalizedAccountIds.join(",");
+      }
+      if (normalizedCreatorId !== null) {
+        params.createdBy = normalizedCreatorId;
       }
 
       const response = await axios.get(`${API_BASE}/transactions`, { 
         headers,
         params 
       });
-      
-      setTransactions(response.data || []);
+
+      const fetchedTransactions = response.data || [];
+      const scopedTransactions = fetchedTransactions.filter(tx =>
+        matchesAssignedAccounts(tx) && matchesCreator(tx)
+      );
+
+      setTransactions(scopedTransactions);
 
     } catch (err) {
       console.error("Error fetching transactions:", err);
@@ -78,7 +125,7 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
   };
 
   const applyFilters = () => {
-    let filtered = [...transactions];
+    let filtered = transactions.filter(tx => matchesAssignedAccounts(tx) && matchesCreator(tx));
 
     // Type filter
     if (filters.type !== "all") {
@@ -183,7 +230,11 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
     pagination.currentPage * pagination.itemsPerPage
   );
 
-  const totalPages = Math.ceil(pagination.totalItems / pagination.itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(pagination.totalItems / pagination.itemsPerPage) || 1);
+  const displayStart = pagination.totalItems === 0
+    ? 0
+    : ((pagination.currentPage - 1) * pagination.itemsPerPage) + 1;
+  const displayEnd = Math.min(pagination.totalItems, pagination.currentPage * pagination.itemsPerPage);
 
   const departments = [
     "Finance", "Administration", "Operations", "HR", "IT", "Legal",
@@ -213,20 +264,6 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
         <h2 className="vt-title">
           <i className="fas fa-list"></i> View All Transactions
         </h2>
-        <div className="header-actions">
-          <button 
-            className="export-btn"
-            onClick={() => setShowExportModal(true)}
-          >
-            <i className="fas fa-download"></i> Export Data
-          </button>
-          <button 
-            className="refresh-btn"
-            onClick={fetchTransactions}
-          >
-            <i className="fas fa-sync-alt"></i> Refresh
-          </button>
-        </div>
       </div>
 
       {error && (
@@ -236,114 +273,36 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
         </div>
       )}
 
-      {/* Advanced Filters */}
-      <div className="vt-filters-section">
-        <div className="filters-header">
-          <h3><i className="fas fa-filter"></i> Advanced Filters</h3>
-          <button className="clear-filters-btn" onClick={clearFilters}>
-            <i className="fas fa-times"></i> Clear All
-          </button>
+      <div className="section-header transactions-section-header">
+        <div className="section-title-group">
+          <h3>
+            <i className="fas fa-exchange-alt"></i>
+            Transactions
+            <span className="section-count">({filteredTransactions.length})</span>
+          </h3>
         </div>
-        
-        <div className="filters-grid">
-          <div className="filter-group">
-            <label>Transaction Type</label>
-            <select 
-              value={filters.type} 
-              onChange={(e) => handleFilterChange('type', e.target.value)}
+        <div className="header-controls">
+          <div className="search-filter-container">
+            <div className="account-search-container">
+              <input
+                type="text"
+                placeholder="Search transactions..."
+                value={filters.searchTerm}
+                onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                className="account-search-input"
+              />
+              <i className="fas fa-search account-search-icon"></i>
+            </div>
+          </div>
+          <div className="action-buttons">
+            <button 
+              type="button"
+              className="btn-icon export-btn"
+              onClick={() => setShowExportModal(true)}
+              title="Export transactions"
             >
-              <option value="all">All Types</option>
-              <option value="Collection">Collections</option>
-              <option value="Disbursement">Disbursements</option>
-              <option value="Override">Overrides</option>
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Department</label>
-            <select 
-              value={filters.department} 
-              onChange={(e) => handleFilterChange('department', e.target.value)}
-            >
-              <option value="all">All Departments</option>
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Category</label>
-            <select 
-              value={filters.category} 
-              onChange={(e) => handleFilterChange('category', e.target.value)}
-            >
-              <option value="all">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Payment Mode</label>
-            <select 
-              value={filters.paymentMode} 
-              onChange={(e) => handleFilterChange('paymentMode', e.target.value)}
-            >
-              <option value="all">All Modes</option>
-              <option value="Cash">Cash</option>
-              <option value="Cheque">Cheque</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Date From</label>
-            <input 
-              type="date" 
-              value={filters.dateFrom}
-              onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Date To</label>
-            <input 
-              type="date" 
-              value={filters.dateTo}
-              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Min Amount</label>
-            <input 
-              type="number" 
-              placeholder="0.00"
-              value={filters.amountMin}
-              onChange={(e) => handleFilterChange('amountMin', e.target.value)}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Max Amount</label>
-            <input 
-              type="number" 
-              placeholder="999999.00"
-              value={filters.amountMax}
-              onChange={(e) => handleFilterChange('amountMax', e.target.value)}
-            />
-          </div>
-
-          <div className="filter-group full-width">
-            <label>Search</label>
-            <input 
-              type="text" 
-              placeholder="Search by description, recipient, reference..."
-              value={filters.searchTerm}
-              onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-            />
+              <i className="fas fa-download"></i>
+            </button>
           </div>
         </div>
       </div>
@@ -352,7 +311,7 @@ const ViewTransactions = ({ filterByAccountIds = null }) => {
       <div className="results-summary">
         <div className="results-info">
           <span className="results-count">
-            Showing {paginatedTransactions.length} of {filteredTransactions.length} transactions
+            Showing {pagination.totalItems === 0 ? 0 : `${displayStart}-${displayEnd}`} of {pagination.totalItems} transactions
           </span>
           {filteredTransactions.length !== transactions.length && (
             <span className="filter-note">

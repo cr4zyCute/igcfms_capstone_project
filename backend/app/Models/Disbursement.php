@@ -22,12 +22,17 @@ class Disbursement extends Model
         'fund_account_id',
         'issued_by',
         'issued_at',
+        'status',
+        'reconciled',
+        'reconciled_at',
     ];
 
     protected $casts = [
         'issued_at' => 'datetime',
         'issue_date' => 'date',
         'amount' => 'decimal:2',
+        'reconciled' => 'boolean',
+        'reconciled_at' => 'datetime',
     ];
 
     // Enable timestamps since we'll add them in migration

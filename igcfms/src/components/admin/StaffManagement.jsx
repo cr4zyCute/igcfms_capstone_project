@@ -1,50 +1,13 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import "./css/staffmanagement.css";
+import Chart from "chart.js/auto";
+
+import { getUsers, createUser, updateUser, toggleUserStatus as toggleUserStatusApi, deleteUser as deleteUserApi } from "../../services/api";
 
 const StaffManagement = () => {
-  const [staffMembers, setStaffMembers] = useState([
-    {
-      id: 1,
-      name: "Nikki Sixx Acosta",
-      role: "Cashier",
-      email: "nikki@example.com",
-      status: "active",
-      phone: "+1234567890",
-      department: "Finance",
-      joinDate: "2024-01-15",
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      role: "Collecting Officer",
-      email: "jane@example.com",
-      status: "active",
-      phone: "+1234567891",
-      department: "Revenue",
-      joinDate: "2024-02-20",
-    },
-    {
-      id: 3,
-      name: "Robert Johnson",
-      role: "Disbursing Officer",
-      email: "robert@example.com",
-      status: "inactive",
-      phone: "+1234567892",
-      department: "Finance",
-      joinDate: "2024-01-10",
-    },
-    {
-      id: 4,
-      name: "Sarah Wilson",
-      role: "Admin",
-      email: "sarah@example.com",
-      status: "active",
-      phone: "+1234567893",
-      department: "Administration",
-      joinDate: "2023-12-01",
-    },
-  ]);
+  const [staffMembers, setStaffMembers] = useState([]);
+  const chartRefs = useRef({ pie: null, newUsers: null, activeTrend: null });
 
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
@@ -72,6 +35,81 @@ const StaffManagement = () => {
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [openActionMenuId, setOpenActionMenuId] = useState(null);
+
+  // Data loading
+  const mapUserToStaff = (u, idx) => {
+    const statusFromBool = (val) => (val ? "active" : "inactive");
+    let status = "active";
+    if (typeof u?.status === "string") status = u.status.toLowerCase();
+    else if (typeof u?.is_active !== "undefined") status = statusFromBool(u.is_active);
+    else if (typeof u?.active !== "undefined") status = statusFromBool(u.active);
+
+    const nameFromParts = `${u?.first_name ?? ""} ${u?.last_name ?? ""}`.trim();
+
+    return {
+      id: u?.id ?? u?.user_id ?? idx + 1,
+      name: u?.name || nameFromParts || (u?.email ? u.email.split("@")[0] : "Unknown"),
+      role: u?.role || u?.user_role || "Staff",
+      email: u?.email || "",
+      status,
+      phone: u?.phone || u?.contact_number || "",
+      department: u?.department || u?.department_name || "",
+      joinDate: u?.joinDate || u?.created_at || u?.join_date || new Date().toISOString(),
+    };
+  };
+
+  const getInitials = (value = "") => {
+    const initials = value
+      .split(" ")
+      .filter(Boolean)
+      .map((segment) => segment[0]?.toUpperCase())
+      .slice(0, 2)
+      .join("");
+    return initials || "ST";
+  };
+
+  const handleActionMenuToggle = (event, staffId) => {
+    event.stopPropagation();
+    setOpenActionMenuId((prev) => (prev === staffId ? null : staffId));
+  };
+
+  const loadStaff = async () => {
+    setLoading(true);
+    try {
+      const users = await getUsers();
+      const list = Array.isArray(users) ? users : users?.data || [];
+      setStaffMembers(list.map(mapUserToStaff));
+    } catch (e) {
+      console.error("Failed to load staff", e);
+      // Non-blocking notification; UI remains usable
+      setShowNotificationModal(true);
+      setNotification({ type: "error", title: "Load Failed", message: "Unable to fetch staff list." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStaff();
+  }, []);
+
+  useEffect(() => {
+    if (openActionMenuId === null) return;
+
+    const handleClickOutside = () => setOpenActionMenuId(null);
+    const handleKeydown = (event) => {
+      if (event.key === "Escape") setOpenActionMenuId(null);
+    };
+
+    document.addEventListener("click", handleClickOutside);
+    document.addEventListener("keydown", handleKeydown);
+
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+      document.removeEventListener("keydown", handleKeydown);
+    };
+  }, [openActionMenuId]);
 
   // Utility Functions
   const showNotification = (type, title, message) => {
@@ -105,75 +143,97 @@ const StaffManagement = () => {
   };
 
   // CRUD Operations
-  const handleAddStaff = (e) => {
+  const handleAddStaff = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     setLoading(true);
-    
-    setTimeout(() => {
-      const newStaff = {
-        id: Math.max(...staffMembers.map(s => s.id)) + 1,
-        ...formData,
-        status: "active",
-        joinDate: new Date().toISOString().split('T')[0],
+    try {
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        password: formData.password,
+        phone: formData.phone,
+        department: formData.department,
       };
-
-      setStaffMembers([...staffMembers, newStaff]);
+      await createUser(payload);
+      await loadStaff();
       setShowAddModal(false);
       resetForm();
-      setLoading(false);
       showNotification("success", "Staff Added", `${formData.name} has been successfully added to the system.`);
-    }, 1000);
+    } catch (err) {
+      console.error("Add staff error", err);
+      showNotification("error", "Add Failed", "Unable to add staff. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditStaff = (e) => {
+  const handleEditStaff = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     setLoading(true);
-    
-    setTimeout(() => {
-      setStaffMembers(staffMembers.map(staff => 
-        staff.id === editingStaff.id 
-          ? { ...staff, ...formData }
-          : staff
-      ));
-      
+    try {
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        phone: formData.phone,
+        department: formData.department,
+      };
+      if (formData.password && formData.password.trim()) {
+        payload.password = formData.password;
+      }
+      await updateUser(editingStaff.id, payload);
+      await loadStaff();
       setShowEditModal(false);
       setEditingStaff(null);
       resetForm();
-      setLoading(false);
       showNotification("success", "Staff Updated", `${formData.name}'s information has been successfully updated.`);
-    }, 1000);
+    } catch (err) {
+      console.error("Edit staff error", err);
+      showNotification("error", "Update Failed", "Unable to update staff. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteStaff = () => {
+  const handleDeleteStaff = async () => {
     setLoading(true);
-    
-    setTimeout(() => {
-      setStaffMembers(staffMembers.filter(staff => staff.id !== deletingStaff.id));
+    const name = deletingStaff?.name || "Staff";
+    try {
+      await deleteUserApi(deletingStaff.id);
+      await loadStaff();
       setShowDeleteModal(false);
       setDeletingStaff(null);
+      showNotification("success", "Staff Deleted", `${name} has been removed from the system.`);
+    } catch (err) {
+      console.error("Delete staff error", err);
+      showNotification("error", "Delete Failed", `Unable to delete ${name}. Please try again.`);
+    } finally {
       setLoading(false);
-      showNotification("success", "Staff Deleted", `${deletingStaff.name} has been removed from the system.`);
-    }, 1000);
+    }
   };
 
-  const toggleStaffStatus = (staff) => {
+  const toggleStaffStatus = async (staff) => {
     const newStatus = staff.status === "active" ? "inactive" : "active";
-    
-    setStaffMembers(staffMembers.map(s => 
-      s.id === staff.id 
-        ? { ...s, status: newStatus }
-        : s
-    ));
-    
-    showNotification(
-      "success", 
-      "Status Updated", 
-      `${staff.name} has been ${newStatus === "active" ? "activated" : "deactivated"}.`
-    );
+    setLoading(true);
+    try {
+      await toggleUserStatusApi(staff.id);
+      await loadStaff();
+      showNotification(
+        "success",
+        "Status Updated",
+        `${staff.name} has been ${newStatus === "active" ? "activated" : "deactivated"}.`
+      );
+    } catch (err) {
+      console.error("Toggle status error", err);
+      showNotification("error", "Update Failed", `Unable to update status for ${staff.name}.`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Modal Handlers
@@ -208,21 +268,340 @@ const StaffManagement = () => {
     admins: staffMembers.filter(s => s.role === "Admin").length,
   };
 
+  // KPI Data (structured JSON) for charts and summaries
+  const kpiData = useMemo(() => {
+    const total = staffMembers.length;
+    const active = staffMembers.filter(s => s.status === 'active').length;
+    const inactive = staffMembers.filter(s => s.status === 'inactive').length;
+    const suspended = staffMembers.filter(s => s.status === 'suspended').length;
+
+    const toDate = (val) => {
+      const d = new Date(val);
+      return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    };
+    const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
+    const endOfMonth = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+    const addMonths = (d, m) => new Date(d.getFullYear(), d.getMonth() + m, 1);
+    const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const monthLabel = (d) => d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+
+    const joinDates = staffMembers
+      .map(s => ({ date: toDate(s.joinDate), status: s.status }))
+      .filter(x => !!x.date);
+
+    const now = new Date();
+    const end = startOfMonth(now);
+    const start = addMonths(end, -11); // last 12 months
+    const months = [];
+    for (let d = new Date(start); d <= end; d = addMonths(d, 1)) {
+      months.push(new Date(d));
+    }
+
+    // New users per month
+    const newUsersSeries = months.map(m => {
+      const key = monthKey(m);
+      return joinDates.filter(j => monthKey(startOfMonth(j.date)) === key).length;
+    });
+
+    // Active users trend (count of users with status 'active' and joined on or before month end)
+    const activeUsersSeries = months.map(m => {
+      const eom = endOfMonth(m);
+      return joinDates.filter(j => j.status === 'active' && j.date <= eom).length;
+    });
+
+    const labels = months.map(monthLabel);
+
+    return {
+      totals: { users: total },
+      statusDistribution: [
+        { status: 'Active', count: active, percentage: total ? Math.round((active / total) * 100) : 0, color: '#111111' },
+        { status: 'Inactive', count: inactive, percentage: total ? Math.round((inactive / total) * 100) : 0, color: '#bdbdbd' },
+        { status: 'Suspended', count: suspended, percentage: total ? Math.round((suspended / total) * 100) : 0, color: '#6d6d6d' },
+      ],
+      newUsersOverTime: {
+        granularity: 'monthly',
+        labels,
+        series: newUsersSeries,
+        points: labels.map((l, i) => ({ date: l, count: newUsersSeries[i] })),
+      },
+      activeUsersTrend: {
+        granularity: 'monthly',
+        labels,
+        series: activeUsersSeries,
+        points: labels.map((l, i) => ({ date: l, count: activeUsersSeries[i] })),
+      },
+    };
+  }, [staffMembers]);
+
+  // Render KPI Charts with Chart.js
+  useEffect(() => {
+    const getCtx = (id) => {
+      const canvas = document.getElementById(id);
+      return canvas ? canvas.getContext('2d') : null;
+    };
+
+    // Pie: User Status Distribution
+    const pieCtx = getCtx('um-status-pie-canvas');
+    if (pieCtx) {
+      if (chartRefs.current.pie) chartRefs.current.pie.destroy();
+      const labels = kpiData.statusDistribution.map((s) => s.status);
+      const data = kpiData.statusDistribution.map((s) => s.count);
+      const colors = kpiData.statusDistribution.map((s) => s.color);
+      chartRefs.current.pie = new Chart(pieCtx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [
+            {
+              data,
+              backgroundColor: colors,
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '60%',
+          plugins: {
+            legend: { display: false },
+          },
+        },
+      });
+    }
+
+    // Line: New Users Over Time
+    const newUsersCtx = getCtx('um-new-users-canvas');
+    if (newUsersCtx) {
+      if (chartRefs.current.newUsers) chartRefs.current.newUsers.destroy();
+      const gradientFill = newUsersCtx.createLinearGradient(
+        0,
+        0,
+        0,
+        newUsersCtx.canvas?.clientHeight || 220
+      );
+      gradientFill.addColorStop(0, 'rgba(17, 17, 17, 0.42)');
+      gradientFill.addColorStop(1, 'rgba(17, 17, 17, 0.08)');
+
+      const borderGradient = newUsersCtx.createLinearGradient(
+        0,
+        0,
+        newUsersCtx.canvas?.clientWidth || 320,
+        0
+      );
+      borderGradient.addColorStop(0, '#0f0f0f');
+      borderGradient.addColorStop(1, '#3a3a3a');
+
+      chartRefs.current.newUsers = new Chart(newUsersCtx, {
+        type: 'line',
+        data: {
+          labels: kpiData.newUsersOverTime.labels,
+          datasets: [
+            {
+              label: 'New Users',
+              data: kpiData.newUsersOverTime.series,
+              borderColor: borderGradient,
+              backgroundColor: gradientFill,
+              borderWidth: 3,
+              fill: 'start',
+              tension: 0,
+              pointRadius: 0,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#111111',
+              pointBorderColor: '#f5f5f5',
+              pointBorderWidth: 2,
+              pointHitRadius: 12,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: {
+            padding: { top: 16, bottom: 10, left: 10, right: 16 },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#111111',
+              titleColor: '#f5f5f5',
+              bodyColor: '#d9d9d9',
+              borderColor: '#333333',
+              borderWidth: 1,
+              padding: 10,
+              cornerRadius: 8,
+              displayColors: false,
+              callbacks: {
+                title: (context) => context[0].label,
+                label: (context) => `New users: ${context.parsed.y}`,
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(0, 0, 0, 0.08)', drawBorder: false },
+              ticks: {
+                color: '#1a1a1a',
+                font: { size: 11, weight: '600' },
+                maxRotation: 0,
+                minRotation: 0,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+                color: '#1a1a1a',
+                font: { size: 11, weight: '600' },
+                padding: 8,
+              },
+              grid: { color: 'rgba(0, 0, 0, 0.08)', drawBorder: false },
+            },
+          },
+          elements: {
+            line: {
+              borderJoinStyle: 'round',
+            },
+          },
+          interaction: {
+            intersect: false,
+            mode: 'index',
+          },
+        },
+      });
+    }
+
+    // Line: Active Users Trend
+    const activeTrendCtx = getCtx('um-active-trend-canvas');
+    if (activeTrendCtx) {
+      if (chartRefs.current.activeTrend) chartRefs.current.activeTrend.destroy();
+      const gradientFill = activeTrendCtx.createLinearGradient(
+        0,
+        0,
+        0,
+        activeTrendCtx.canvas?.clientHeight || 240
+      );
+      gradientFill.addColorStop(0, 'rgba(34, 34, 34, 0.38)');
+      gradientFill.addColorStop(1, 'rgba(34, 34, 34, 0.08)');
+
+      const borderGradient = activeTrendCtx.createLinearGradient(
+        0,
+        0,
+        activeTrendCtx.canvas?.clientWidth || 360,
+        0
+      );
+      borderGradient.addColorStop(0, '#1a1a1a');
+      borderGradient.addColorStop(1, '#4a4a4a');
+
+      chartRefs.current.activeTrend = new Chart(activeTrendCtx, {
+        type: 'line',
+        data: {
+          labels: kpiData.activeUsersTrend.labels,
+          datasets: [
+            {
+              label: 'Active Users',
+              data: kpiData.activeUsersTrend.series,
+              borderColor: borderGradient,
+              backgroundColor: gradientFill,
+              borderWidth: 3,
+              fill: 'start',
+              tension: 0,
+              pointRadius: 0,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#222222',
+              pointBorderColor: '#f5f5f5',
+              pointBorderWidth: 2,
+              pointHitRadius: 12,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: {
+            padding: { top: 18, bottom: 12, left: 10, right: 20 },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1a1a1a',
+              titleColor: '#f5f5f5',
+              bodyColor: '#d9d9d9',
+              borderColor: '#4d4d4d',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: false,
+              callbacks: {
+                title: (context) => context[0].label,
+                label: (context) => `Active users: ${context.parsed.y}`,
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(0, 0, 0, 0.08)', drawBorder: false },
+              ticks: {
+                color: '#1a1a1a',
+                font: { size: 11, weight: '600' },
+                maxRotation: 0,
+                minRotation: 0,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+                color: '#1a1a1a',
+                font: { size: 11, weight: '600' },
+                padding: 8,
+              },
+              grid: { color: 'rgba(0, 0, 0, 0.08)', drawBorder: false },
+            },
+          },
+          elements: {
+            line: {
+              borderJoinStyle: 'round',
+            },
+          },
+          interaction: {
+            intersect: false,
+            mode: 'index',
+          },
+        },
+      });
+    }
+
+    return () => {
+      ['pie', 'newUsers', 'activeTrend'].forEach((k) => {
+        if (chartRefs.current[k]) {
+          chartRefs.current[k].destroy();
+          chartRefs.current[k] = null;
+        }
+      });
+    };
+  }, [kpiData]);
+
   return (
     <div className="staff-management-page">
-      {/* Header Section */}
-      <div className="staff-header">
-        <div>
-          <h2 className="staff-title">
-            <i className="fas fa-users"></i> Staff Management
-          </h2>
-          <p className="staff-subtitle">
-            Manage system users, roles, and permissions
-          </p>
+      {/* Header Section (styled like IssueCheque, with unique classes) */}
+      <div className="sm-header">
+        <div className="sm-header-content">
+          <div className="sm-header-text">
+            <h1 className="sm-title">
+              <span className="sm-title-icon"><i className="fas fa-users"></i></span>
+              Staff Management
+              <span className="sm-total-badge"><i className="fas fa-list-ol"></i> {stats.total} total</span>
+            </h1>
+            <p className="sm-subtitle">Manage system users, roles, and permissions</p>
+          </div>
+          <div className="sm-header-actions">
+            <button className="sm-btn-add-staff" onClick={openAddModal}>
+              <i className="fas fa-user-plus"></i>
+              Add New Staff
+            </button>
+          </div>
         </div>
-        <button className="add-staff-btn" onClick={openAddModal}>
-          <i className="fas fa-plus"></i> Add New Staff
-        </button>
       </div>
 
       {/* Stats Cards */}
@@ -257,6 +636,63 @@ const StaffManagement = () => {
         </div>
       </div>
 
+      {/* User Management KPI Dashboard (Top row: KPI | Pie | New Users, Bottom: Active Trend) */}
+      <div className="um-dashboard">
+        <div className="um-top-grid">
+          {/* Pie Chart - Status Distribution */}
+          <div className="um-card">
+            <div className="um-card-header">
+              <h3><i className="fas fa-chart-pie"></i> User Status Distribution</h3>
+              <span className="um-subtext">Percentages and counts</span>
+            </div>
+            <div className="um-card-body">
+              <div className="um-chart-placeholder" id="um-status-pie" aria-label="User Status Pie Chart">
+                <canvas id="um-status-pie-canvas"></canvas>
+              </div>
+              <ul className="um-legend">
+                {kpiData.statusDistribution.map((s, idx) => (
+                  <li key={idx}>
+                    <span className="um-legend-dot" style={{ background: s.color }}></span>
+                    <span className="um-legend-label">{s.status}</span>
+                    <span className="um-legend-value">{s.count}</span>
+                    <span className="um-legend-pct">{s.percentage}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* New Users Over Time - Line/Bar */}
+          <div className="um-card">
+            <div className="um-card-header">
+              <h3><i className="fas fa-chart-line"></i> New Users Over Time</h3>
+              <span className="um-subtext">{kpiData.newUsersOverTime.granularity === 'monthly' ? 'Monthly' : 'Daily'} registrations</span>
+            </div>
+            <div className="um-card-body">
+              <div className="um-chart-placeholder" id="um-new-users" aria-label="New Users Chart">
+                <canvas id="um-new-users-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom - Active Users Trend */}
+        <div className="um-bottom-box um-card">
+          <div className="um-card-header">
+            <h3><i className="fas fa-wave-square"></i> Active Users Trend</h3>
+            <span className="um-subtext">Monthly active users (approx.)</span>
+          </div>
+          <div className="um-card-body">
+            <div className="um-chart-placeholder um-large" id="um-active-trend" aria-label="Active Users Trend Chart">
+              <canvas id="um-active-trend-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+
+        {/* Structured data for charts (hidden, ready for consumption) */}
+        <pre className="um-data-json" aria-hidden="true" style={{ display: 'none' }}>{JSON.stringify(kpiData)}</pre>
+      </div>
+
       {/* Staff Table */}
       <div className="staff-table-container">
         <div className="staff-table-header">
@@ -270,9 +706,7 @@ const StaffManagement = () => {
               <th><i className="fas fa-hashtag"></i> ID</th>
               <th><i className="fas fa-user"></i> Name</th>
               <th><i className="fas fa-envelope"></i> Email</th>
-              <th><i className="fas fa-phone"></i> Phone</th>
               <th><i className="fas fa-briefcase"></i> Role</th>
-              <th><i className="fas fa-building"></i> Department</th>
               <th><i className="fas fa-toggle-on"></i> Status</th>
               <th><i className="fas fa-calendar"></i> Join Date</th>
               <th><i className="fas fa-cogs"></i> Actions</th>
@@ -282,61 +716,74 @@ const StaffManagement = () => {
             {staffMembers.map((staff) => (
               <tr key={staff.id}>
                 <td>#{staff.id}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      background: '#007bff',
-                      color: 'white',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '14px',
-                      fontWeight: 'bold'
-                    }}>
-                      {staff.name.split(' ').map(n => n[0]).join('')}
+                <td className="staff-name-cell">
+                  <div className="staff-name-wrapper">
+                    <span className="staff-avatar">{getInitials(staff.name)}</span>
+                    <div className="staff-name-content">
+                      <strong className="staff-name">{staff.name}</strong>
+                      <span className="staff-meta">{staff.department || "Not set"}</span>
                     </div>
-                    <strong>{staff.name}</strong>
                   </div>
                 </td>
-                <td>{staff.email}</td>
-                <td>{staff.phone}</td>
+                <td className="staff-email-cell">{staff.email || "-"}</td>
                 <td>
-                  <span className={`role-badge ${staff.role.toLowerCase().replace(' ', '_')}`}>
+                  <span className={`role-badge ${staff.role.toLowerCase().replace(" ", "_")}`}>
                     {staff.role}
                   </span>
                 </td>
-                <td>{staff.department}</td>
                 <td>
                   <span className={`status-badge ${staff.status}`}>
                     {staff.status}
                   </span>
                 </td>
                 <td>{new Date(staff.joinDate).toLocaleDateString()}</td>
-                <td>
-                  <div className="action-buttons">
+                <td className="action-cell">
+                  <button
+                    className={`action-menu-trigger ${openActionMenuId === staff.id ? "is-open" : ""}`}
+                    onClick={(event) => handleActionMenuToggle(event, staff.id)}
+                    title="More actions"
+                  >
+                    <span className="sr-only">Open actions menu</span>
+                    <i className="fas fa-ellipsis-v"></i>
+                  </button>
+                  <div
+                    className={`action-menu ${openActionMenuId === staff.id ? "open" : ""}`}
+                    onClick={(event) => event.stopPropagation()}
+                    role="menu"
+                    aria-hidden={openActionMenuId === staff.id ? "false" : "true"}
+                  >
                     <button
-                      className="action-btn edit-btn"
-                      onClick={() => openEditModal(staff)}
-                      title="Edit Staff"
+                      type="button"
+                      className="action-menu-item"
+                      onClick={() => {
+                        setOpenActionMenuId(null);
+                        openEditModal(staff);
+                      }}
                     >
                       <i className="fas fa-edit"></i>
+                      Edit details
                     </button>
                     <button
-                      className={`action-btn toggle-btn ${staff.status === "inactive" ? "activate" : ""}`}
-                      onClick={() => toggleStaffStatus(staff)}
-                      title={staff.status === "active" ? "Deactivate" : "Activate"}
+                      type="button"
+                      className="action-menu-item"
+                      onClick={() => {
+                        setOpenActionMenuId(null);
+                        toggleStaffStatus(staff);
+                      }}
                     >
                       <i className={`fas fa-${staff.status === "active" ? "user-times" : "user-check"}`}></i>
+                      {staff.status === "active" ? "Deactivate" : "Activate"}
                     </button>
                     <button
-                      className="action-btn delete-btn"
-                      onClick={() => openDeleteModal(staff)}
-                      title="Delete Staff"
+                      type="button"
+                      className="action-menu-item danger"
+                      onClick={() => {
+                        setOpenActionMenuId(null);
+                        openDeleteModal(staff);
+                      }}
                     >
                       <i className="fas fa-trash"></i>
+                      Delete user
                     </button>
                   </div>
                 </td>

@@ -83,6 +83,15 @@ export const getProfile = async () => {
     }
   };
 
+  export const deleteUser = async (id) => {
+    try {
+      const response = await api.delete(`/users/${id}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   // Fund Accounts API
   export const getFundAccounts = async () => {
     const response = await api.get('/fund-accounts'); 
@@ -242,12 +251,21 @@ export const getProfile = async () => {
 
   export const createCheque = async (chequeData) => {
     try {
-      const response = await api.post('/disbursements', chequeData);
-      return response.data;
+        const response = await api.post('/disbursements', chequeData);
+        return response.data;
     } catch (error) {
-      throw error;
+        throw error;
     }
-  };
+};
+
+export const updateCheque = async (id, chequeData) => {
+    try {
+        const response = await api.patch(`/cheques/${id}`, chequeData);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
 
   export const getDisbursementTransactions = async (params = {}) => {
     try {

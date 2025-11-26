@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
-import { useCheques, useCreateCheque } from "../../hooks/useCheques";
+import { useCheques, useCreateCheque, useUpdateCheque } from "../../hooks/useCheques";
 import { useDisbursements } from "../../hooks/useDisbursements";
 import { useFundAccounts } from "../../hooks/useFundAccounts";
 import IssueChequeSkeleton from "../ui/chequeSL";
@@ -22,16 +22,33 @@ const ChequeProcessingAccuracyRate = lazy(() => import("../analytics/chequeAnaly
 const ChequeReconciliationRate = lazy(() => import("../analytics/chequeAnalysis/ChequeReconciliationRate"));
 const OutstandingChequesRatio = lazy(() => import("../analytics/chequeAnalysis/OutstandingChequesRatio"));
 
-// Loading skeleton for analytics
-const AnalyticsSkeleton = () => (
-  <div style={{ height: '200px', background: '#f5f5f5', borderRadius: '8px', animation: 'pulse 1.5s infinite' }}></div>
+// Lightweight loader for analytics (no skeleton visuals)
+const AnalyticsLoader = () => (
+  <div
+    className="ic-analytics-loading"
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.5rem',
+      minHeight: '200px',
+      borderRadius: '8px',
+      background: '#f9f9f9',
+      color: '#555',
+      fontWeight: 500,
+    }}
+  >
+    <i className="fas fa-spinner fa-spin" aria-hidden="true"></i>
+    <span>Loading analytics...</span>
+  </div>
 );
 
-const IssueCheque = () => {
+const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [filteredCheques, setFilteredCheques] = useState([]);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [updatingChequeId, setUpdatingChequeId] = useState(null);
 
   // TanStack Query hooks
   const {
@@ -55,10 +72,12 @@ const IssueCheque = () => {
   const fundAccounts = fundAccountsData?.data || [];
 
   const createChequeMutation = useCreateCheque();
+  const updateChequeMutation = useUpdateCheque();
 
   // Combined loading state
   const isInitialLoading = chequesLoading || disbursementsLoading || fundAccountsLoading;
   const mutationLoading = createChequeMutation.isPending;
+  const updateLoading = updateChequeMutation.isPending;
   
   // Form states
   const [formData, setFormData] = useState({
@@ -106,12 +125,14 @@ const IssueCheque = () => {
 
   // Defer analytics loading for faster initial render
   useEffect(() => {
+    if (!showKpiSections) return;
+
     const timer = setTimeout(() => {
       setShowAnalytics(true);
     }, 100); // Load analytics after 100ms
     
     return () => clearTimeout(timer);
-  }, []);
+  }, [showKpiSections]);
 
   // Debounced filter application
   useEffect(() => {
@@ -147,6 +168,55 @@ const IssueCheque = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  const handleToggleReconciled = async (cheque) => {
+    if (!cheque?.id) return;
+    setUpdatingChequeId(cheque.id);
+    try {
+      const newValue = !cheque.reconciled;
+      await updateChequeMutation.mutateAsync({
+        id: cheque.id,
+        data: {
+          reconciled: newValue,
+          status: newValue && (!cheque.status || cheque.status === 'Issued') ? 'Cleared' : cheque.status,
+        },
+      });
+      setSuccessMessage(newValue ? 'Cheque marked as reconciled.' : 'Cheque marked as unmatched.');
+      setErrorMessage('');
+    } catch (error) {
+      console.error('Failed to update reconciliation:', error);
+      setErrorMessage(error.response?.data?.message || 'Failed to update cheque reconciliation.');
+      setSuccessMessage('');
+    } finally {
+      setUpdatingChequeId(null);
+      setOpenActionMenu(null);
+    }
+  };
+
+  const handleToggleClearedStatus = async (cheque) => {
+    if (!cheque?.id) return;
+    setUpdatingChequeId(cheque.id);
+    try {
+      const nextStatus = cheque.status === 'Cleared' ? 'Issued' : 'Cleared';
+      const reconciled = nextStatus === 'Cleared' ? cheque.reconciled : false;
+      await updateChequeMutation.mutateAsync({
+        id: cheque.id,
+        data: {
+          status: nextStatus,
+          reconciled,
+        },
+      });
+      setSuccessMessage(`Cheque marked as ${nextStatus}.`);
+      setErrorMessage('');
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      setErrorMessage(error.response?.data?.message || 'Failed to update cheque status.');
+      setSuccessMessage('');
+    } finally {
+      setUpdatingChequeId(null);
+      setOpenActionMenu(null);
+    }
+  };
 
   // Mouse drag scrolling for mini graph
   useEffect(() => {
@@ -598,11 +668,37 @@ const IssueCheque = () => {
   }, [cheques]);
 
   if (isInitialLoading) {
-    return <IssueChequeSkeleton />;
+    if (useSkeletonLoader) {
+      return <IssueChequeSkeleton showKpiSections={showKpiSections} />;
+    }
+
+    return (
+      <div
+        className="ic-basic-loader"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "0.5rem",
+          padding: "2rem",
+          fontSize: "1rem",
+          color: "#333",
+        }}
+      >
+        <i className="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Loading cheque data...</span>
+      </div>
+    );
   }
 
   return (
     <div className="issue-cheque-page">
+      {updateLoading && (
+        <div className="ic-global-loader">
+          <i className="fas fa-spinner fa-spin"></i>
+          <span>Updating cheque status...</span>
+        </div>
+      )}
       <div className="ic-header">
         <div className="ic-header-content">
           <h1 className="ic-title">
@@ -636,132 +732,134 @@ const IssueCheque = () => {
       />
 
       {/* Dashboard Layout */}
-      <div className="ic-dashboard-grid">
-        {/* Left Column - Summary Cards */}
-        <div className="ic-left-column">
-          <div className="ic-summary-card ic-combined-card">
-            <div className="ic-card-title">Total</div>
-            <div className="ic-card-value">₱{totalChequeAmount.toLocaleString()}</div>
-            <div className="ic-card-subtitle">{cheques.length} Issued Cheque</div>
-            
-            {/* Small Line Graph - Optimized with memoized data */}
-            <div className="ic-cheque-mini-graph" ref={miniGraphRef}>
-              {!miniGraphData ? (
-                <div className="no-graph-data">No data available</div>
-              ) : (
-                <svg viewBox={`0 0 ${miniGraphData.width} ${miniGraphData.height}`} className="mini-graph-svg" preserveAspectRatio="xMidYMid meet">
-                  {/* Area fill */}
-                  <polygon
-                    points={`${miniGraphData.padding},${miniGraphData.height} ${miniGraphData.points.map(p => `${p.x},${p.y}`).join(' ')} ${miniGraphData.width - miniGraphData.padding},${miniGraphData.height}`}
-                    fill="rgba(0, 0, 0, 0.1)"
-                  />
-                  {/* Line */}
-                  <polyline
-                    points={miniGraphData.points.map(p => `${p.x},${p.y}`).join(' ')}
-                    fill="none"
-                    stroke="#000000"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  {/* Data points with hover */}
-                  {miniGraphData.points.map((point, index) => (
-                    <g key={index}>
-                      <circle
-                        cx={point.x}
-                        cy={point.y}
-                        r="8"
-                        fill="transparent"
-                        style={{ cursor: 'pointer' }}
-                        onMouseEnter={() => setHoveredPoint({ index, value: point.value, date: point.date, x: point.x, y: point.y })}
-                        onMouseLeave={() => setHoveredPoint(null)}
-                      />
-                      <circle
-                        cx={point.x}
-                        cy={point.y}
-                        r="2"
-                        fill="#000000"
-                        style={{ pointerEvents: 'none' }}
-                      />
-                    </g>
-                  ))}
-                  
-                  {/* Tooltip */}
-                  {hoveredPoint && (() => {
-                    const isTopHalf = hoveredPoint.y < miniGraphData.height / 2;
-                    const tooltipY = isTopHalf ? hoveredPoint.y + 8 : hoveredPoint.y - 22;
-                    const textY = isTopHalf ? hoveredPoint.y + 20 : hoveredPoint.y - 10;
-                    
-                    return (
-                      <g style={{ pointerEvents: 'none' }}>
-                        <rect
-                          x={hoveredPoint.x - 25}
-                          y={tooltipY}
-                          width="50"
-                          height="18"
-                          fill="#000000"
-                          rx="3"
-                          opacity="0.95"
+      {showKpiSections && (
+        <div className="ic-dashboard-grid">
+          {/* Left Column - Summary Cards */}
+          <div className="ic-left-column">
+            <div className="ic-summary-card ic-combined-card">
+              <div className="ic-card-title">Total</div>
+              <div className="ic-card-value">₱{totalChequeAmount.toLocaleString()}</div>
+              <div className="ic-card-subtitle">{cheques.length} Issued Cheque</div>
+              
+              {/* Small Line Graph - Optimized with memoized data */}
+              <div className="ic-cheque-mini-graph" ref={miniGraphRef}>
+                {!miniGraphData ? (
+                  <div className="no-graph-data">No data available</div>
+                ) : (
+                  <svg viewBox={`0 0 ${miniGraphData.width} ${miniGraphData.height}`} className="mini-graph-svg" preserveAspectRatio="xMidYMid meet">
+                    {/* Area fill */}
+                    <polygon
+                      points={`${miniGraphData.padding},${miniGraphData.height} ${miniGraphData.points.map(p => `${p.x},${p.y}`).join(' ')} ${miniGraphData.width - miniGraphData.padding},${miniGraphData.height}`}
+                      fill="rgba(0, 0, 0, 0.1)"
+                    />
+                    {/* Line */}
+                    <polyline
+                      points={miniGraphData.points.map(p => `${p.x},${p.y}`).join(' ')}
+                      fill="none"
+                      stroke="#000000"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {/* Data points with hover */}
+                    {miniGraphData.points.map((point, index) => (
+                      <g key={index}>
+                        <circle
+                          cx={point.x}
+                          cy={point.y}
+                          r="8"
+                          fill="transparent"
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredPoint({ index, value: point.value, date: point.date, x: point.x, y: point.y })}
+                          onMouseLeave={() => setHoveredPoint(null)}
                         />
-                        <text
-                          x={hoveredPoint.x}
-                          y={textY}
-                          textAnchor="middle"
-                          fill="#ffffff"
-                          fontSize="7"
-                          fontWeight="700"
-                        >
-                          ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        </text>
+                        <circle
+                          cx={point.x}
+                          cy={point.y}
+                          r="2"
+                          fill="#000000"
+                          style={{ pointerEvents: 'none' }}
+                        />
                       </g>
-                    );
-                  })()}
-                </svg>
-              )}
+                    ))}
+                    
+                    {/* Tooltip */}
+                    {hoveredPoint && (() => {
+                      const isTopHalf = hoveredPoint.y < miniGraphData.height / 2;
+                      const tooltipY = isTopHalf ? hoveredPoint.y + 8 : hoveredPoint.y - 22;
+                      const textY = isTopHalf ? hoveredPoint.y + 20 : hoveredPoint.y - 10;
+                      
+                      return (
+                        <g style={{ pointerEvents: 'none' }}>
+                          <rect
+                            x={hoveredPoint.x - 25}
+                            y={tooltipY}
+                            width="50"
+                            height="18"
+                            fill="#000000"
+                            rx="3"
+                            opacity="0.95"
+                          />
+                          <text
+                            x={hoveredPoint.x}
+                            y={textY}
+                            textAnchor="middle"
+                            fill="#ffffff"
+                            fontSize="7"
+                            fontWeight="700"
+                          >
+                            ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </text>
+                        </g>
+                      );
+                    })()}
+                  </svg>
+                )}
+              </div>
+            </div>
+            
+            <div className="ic-summary-card">
+              <div className="ic-card-title">Average Cheque</div>
+              <div className="ic-card-value">
+                ₱{averageChequeAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </div>
+              <div className="ic-card-subtitle">Per Transaction</div>
             </div>
           </div>
-          
-          <div className="ic-summary-card">
-            <div className="ic-card-title">Average Cheque</div>
-            <div className="ic-card-value">
-              ₱{averageChequeAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </div>
-            <div className="ic-card-subtitle">Per Transaction</div>
-          </div>
-        </div>
 
-        {/* Right Column - Main Chart - Lazy loaded */}
-        <div className="ic-right-column">
-          {showAnalytics ? (
-            <Suspense fallback={<AnalyticsSkeleton />}>
-              <AverageClearanceTime cheques={cheques} />
-            </Suspense>
-          ) : (
-            <AnalyticsSkeleton />
-          )}
+          {/* Right Column - Main Chart - Lazy loaded */}
+          <div className="ic-right-column">
+            {showAnalytics ? (
+              <Suspense fallback={<AnalyticsLoader />}>
+                <AverageClearanceTime cheques={cheques} />
+              </Suspense>
+            ) : (
+              <AnalyticsLoader />
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Bottom Row - Analytics Cards - Lazy loaded */}
-      {showAnalytics && (
+      {showKpiSections && showAnalytics && (
         <div className="ic-analytics-row">
           <div className="ic-analytics-wrapper">
             <div className="ic-analytics-title">Cheque Processing Accuracy Rate</div>
-            <Suspense fallback={<AnalyticsSkeleton />}>
+            <Suspense fallback={<AnalyticsLoader />}>
               <ChequeProcessingAccuracyRate cheques={cheques} />
             </Suspense>
           </div>
 
           <div className="ic-analytics-wrapper">
             <div className="ic-analytics-title">Cheque Reconciliation Rate</div>
-            <Suspense fallback={<AnalyticsSkeleton />}>
+            <Suspense fallback={<AnalyticsLoader />}>
               <ChequeReconciliationRate cheques={cheques} />
             </Suspense>
           </div>
 
           <div className="ic-analytics-wrapper">
             <div className="ic-analytics-title">Outstanding Cheques Ratio</div>
-            <Suspense fallback={<AnalyticsSkeleton />}>
+            <Suspense fallback={<AnalyticsLoader />}>
               <OutstandingChequesRatio cheques={cheques} />
             </Suspense>
           </div>
@@ -918,6 +1016,7 @@ const IssueCheque = () => {
                 <th><i className="fas fa-university"></i> BANK</th>
                 <th><i className="fas fa-money-bill"></i> AMOUNT</th>
                 <th><i className="fas fa-calendar"></i> ISSUE DATE</th>
+                <th><i className="fas fa-info-circle"></i> STATUS</th>
                 <th><i className="fas fa-cog"></i> ACTIONS</th>
               </tr>
             </thead>
@@ -933,11 +1032,6 @@ const IssueCheque = () => {
                       }
                     }}
                   >
-                    <td>
-                      <div className="cell-content">
-                        <span className="cheque-id">#{cheque.id}</span>
-                      </div>
-                    </td>
                     <td>
                       <div className="cell-content">
                         <span className="cheque-number">{cheque.cheque_number}</span>
@@ -972,6 +1066,20 @@ const IssueCheque = () => {
                         <span className="issue-date">
                           {new Date(cheque.issue_date || cheque.created_at).toLocaleDateString()}
                         </span>
+                      </div>
+                    </td>
+                    <td className="status-cell">
+                      <div className="cell-content">
+                        <div className="status-chip">
+                          <span className={`status-dot status-${(cheque.status || 'Issued').toLowerCase()}`}></span>
+                          <span className="status-text">{cheque.status || 'Issued'}</span>
+                        </div>
+                        <div className="reconcile-indicator">
+                          <span className={`reconcile-badge ${cheque.reconciled ? 'reconciled' : 'pending'}`}>
+                            <i className={`fas ${cheque.reconciled ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+                            {cheque.reconciled ? 'Reconciled' : 'Unmatched'}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="action-cell">
@@ -1031,6 +1139,47 @@ const IssueCheque = () => {
                                 >
                                   <i className="fas fa-print"></i>
                                   <span>Print Cheque</span>
+                                </button>
+                                <div className="action-dropdown-divider"></div>
+                                <button
+                                  className="action-dropdown-item"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleReconciled(cheque);
+                                  }}
+                                  disabled={updateLoading && updatingChequeId === cheque.id}
+                                >
+                                  {updateLoading && updatingChequeId === cheque.id ? (
+                                    <>
+                                      <i className="fas fa-spinner fa-spin"></i>
+                                      <span>Updating...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className={`fas ${cheque.reconciled ? 'fa-undo' : 'fa-check'}`}></i>
+                                      <span>{cheque.reconciled ? 'Mark Unreconciled' : 'Mark Reconciled'}</span>
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  className="action-dropdown-item"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleClearedStatus(cheque);
+                                  }}
+                                  disabled={updateLoading && updatingChequeId === cheque.id}
+                                >
+                                  {updateLoading && updatingChequeId === cheque.id ? (
+                                    <>
+                                      <i className="fas fa-spinner fa-spin"></i>
+                                      <span>Updating...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="fas fa-exchange-alt"></i>
+                                      <span>{cheque.status === 'Cleared' ? 'Mark Issued' : 'Mark Cleared'}</span>
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             )}

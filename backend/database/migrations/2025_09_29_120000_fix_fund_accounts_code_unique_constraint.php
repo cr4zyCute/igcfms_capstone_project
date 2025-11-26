@@ -15,14 +15,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Drop the existing unique constraint on code
-        Schema::table('fund_accounts', function (Blueprint $table) {
-            $table->dropUnique(['code']);
-        });
+        // Drop the existing unique constraint on code if it exists
+        if ($this->indexExists('fund_accounts', 'fund_accounts_code_unique')) {
+            Schema::table('fund_accounts', function (Blueprint $table) {
+                $table->dropUnique('fund_accounts_code_unique');
+            });
+        }
 
-        // Create a partial unique index that only applies to non-deleted records
-        // This allows the same code to exist in soft-deleted records
-        DB::statement('CREATE UNIQUE INDEX fund_accounts_code_unique_not_deleted ON fund_accounts (code) WHERE deleted_at IS NULL');
+        // Create a composite unique index that allows duplicates on soft-deleted rows
+        if (! $this->indexExists('fund_accounts', 'fund_accounts_code_deleted_at_unique')) {
+            Schema::table('fund_accounts', function (Blueprint $table) {
+                $table->unique(['code', 'deleted_at'], 'fund_accounts_code_deleted_at_unique');
+            });
+        }
     }
 
     /**
@@ -30,12 +35,27 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Drop the partial unique index
-        DB::statement('DROP INDEX IF EXISTS fund_accounts_code_unique_not_deleted');
-        
+        // Drop the composite unique index
+        if ($this->indexExists('fund_accounts', 'fund_accounts_code_deleted_at_unique')) {
+            Schema::table('fund_accounts', function (Blueprint $table) {
+                $table->dropUnique('fund_accounts_code_deleted_at_unique');
+            });
+        }
+
         // Restore the original unique constraint
-        Schema::table('fund_accounts', function (Blueprint $table) {
-            $table->unique('code');
-        });
+        if (! $this->indexExists('fund_accounts', 'fund_accounts_code_unique')) {
+            Schema::table('fund_accounts', function (Blueprint $table) {
+                $table->unique('code');
+            });
+        }
+    }
+
+    protected function indexExists(string $table, string $index): bool
+    {
+        return DB::table('information_schema.statistics')
+            ->where('table_schema', DB::connection()->getDatabaseName())
+            ->where('table_name', $table)
+            ->where('index_name', $index)
+            ->exists();
     }
 };

@@ -31,6 +31,35 @@
   gap: 12px;
 }
 
+.header-icon-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.header-icon-button i {
+  font-size: 16px;
+}
+
+.header-icon-button:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.header-icon-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
 .btn-issue-new-receipt {
   background: #ffffff;
   color: #000000;
@@ -4399,7 +4428,7 @@ input[type="text"].edit-form-input:disabled {
 /* Print-Optimized Receipt Styles - ReceiveMoney Design */
 .receipt-print-area {
   background: #ffffff;
-  padding: 20px;
+  padding: 30px 20px 20px 15px;
   overflow-y: auto;
   flex: 1;
   max-height: calc(90vh - 60px);
@@ -4424,9 +4453,8 @@ input[type="text"].edit-form-input:disabled {
 }
 
 .official-receipt-header {
-  border: 2px solid #000000;
-  padding: 12px 16px;
-  margin-bottom: 0;
+  padding: 4px 16px 0 0;
+  margin-bottom: 8px;
   background: #ffffff;
 }
 
@@ -4467,7 +4495,6 @@ input[type="text"].edit-form-input:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #000000;
   border-radius: 8px;
   padding: 5px;
   background: #ffffff;
@@ -4542,13 +4569,12 @@ input[type="text"].edit-form-input:disabled {
 }
 
 .official-receipt-body {
-  border: 2px solid #000000;
-  border-top: none;
-  padding: 25px 20px 25px 20px;
+  padding: 10px 12px 25px 0;
   position: relative;
   min-height: 420px;
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: #ffffff;
 }
 
@@ -4606,6 +4632,11 @@ input[type="text"].edit-form-input:disabled {
   gap: 8px 16px;
 }
 
+.fund-items-grid.single-column {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
 .fund-item {
   display: flex;
   justify-content: space-between;
@@ -4613,6 +4644,19 @@ input[type="text"].edit-form-input:disabled {
   padding: 4px 0;
   font-size: 11px;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.fund-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 11px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.fund-item-row:last-child {
+  border-bottom: none;
 }
 
 .fund-item:last-child {
@@ -4654,14 +4698,14 @@ input[type="text"].edit-form-input:disabled {
 }
 
 .total-label-bold {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #000000;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
 }
 
 .total-amount-bold {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   color: #000000;
 }
@@ -4670,6 +4714,7 @@ input[type="text"].edit-form-input:disabled {
   position: relative;
   z-index: 1;
   text-align: left;
+  font-size: 12px;
   font-size: 14px;
   font-weight: 700;
   color: #000000;
@@ -4703,47 +4748,19 @@ input[type="text"].edit-form-input:disabled {
   font-style: italic;
 }
 
-.payment-checkboxes {
-  position: relative;
+.receipt-issued-by {
+  position: absolute;
+  right: 0;
+  bottom: 12px;
+  text-align: right;
   z-index: 1;
-  display: flex;
-  gap: 50px;
-  justify-content: flex-start;
-  margin: 15px 0 20px 0;
+  padding-right: 8px;
 }
 
-.payment-checkboxes label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: default;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.payment-checkboxes input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  cursor: default;
-  border: 2px solid #000000;
-}
-
-.payment-checkboxes label.checked {
-  color: #000000;
-}
-
-.receipt-acknowledgment-line {
-  position: relative;
-  z-index: 1;
-  text-align: left;
-  margin: 20px 0 10px 0;
-  font-size: 11px;
-  color: #000000;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #000000;
-  font-style: italic;
+.issued-by-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
 }
 
 .signature-area {

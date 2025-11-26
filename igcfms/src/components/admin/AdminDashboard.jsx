@@ -6,7 +6,7 @@ import IssueMoney from "./IssueMoney";
 import IssueCheque from "./IssueCheque";
 import ViewTransactions from "./ViewTransactions";
 import GenerateReports from "./GenerateReports";
-import ManageStaff from "./ManageStaff";
+import StaffManagement from "./StaffManagement";
 import FundsAccounts from "./FundsAccounts";
 import RecipientAccount from "./RecipientAccount";
 import OverrideTransactions from "./OverrideTransactions";
@@ -37,7 +37,7 @@ const AdminDashboard = ({ user, activeTab }) => {
       case "generate-reports":
         return <GenerateReports user={user} />;
       case "manage-staff":
-        return <ManageStaff />;
+        return <StaffManagement />;
       case "funds-accounts":
         return <FundsAccounts />;
       case "recipient-account":

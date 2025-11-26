@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import "./css/generatereports.css";
 import DailyKPI from "../analytics/ReportAnalysis/dailyKPI";
@@ -15,11 +15,18 @@ const GenerateReports = ({ user }) => {
   const [reports, setReports] = useState([]);
   const [filteredReports, setFilteredReports] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [overrideRequests, setOverrideRequests] = useState([]);
   const [stats, setStats] = useState({
     totalReports: 0,
     dailyReports: 0,
     monthlyReports: 0,
     yearlyReports: 0
+  });
+  const [overrideStats, setOverrideStats] = useState({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0
   });
 
   // Check if user is Admin
@@ -115,15 +122,27 @@ const GenerateReports = ({ user }) => {
       }
 
       const headers = { Authorization: `Bearer ${token}` };
+      const overridesEndpoint = isAdmin
+        ? `${API_BASE}/override_requests`
+        : `${API_BASE}/override_requests/my_requests`;
 
       // Fetch reports and transactions
-      const [reportsRes, transactionsRes] = await Promise.all([
+      const [reportsRes, transactionsRes, overridesRes] = await Promise.all([
         axios.get(`${API_BASE}/reports`, { headers }).catch(() => ({ data: [] })),
-        axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] }))
+        axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] })),
+        axios.get(overridesEndpoint, { headers }).catch(() => ({ data: [] }))
       ]);
 
       setReports(reportsRes.data || []);
       setTransactions(transactionsRes.data || []);
+      const overridesData = overridesRes?.data || [];
+      setOverrideRequests(overridesData);
+      setOverrideStats({
+        total: overridesData.length,
+        pending: overridesData.filter(req => req.status === 'pending').length,
+        approved: overridesData.filter(req => req.status === 'approved').length,
+        rejected: overridesData.filter(req => req.status === 'rejected').length
+      });
       
       // Calculate stats
       const reportData = reportsRes.data || [];
@@ -324,6 +343,74 @@ const GenerateReports = ({ user }) => {
     }
   };
 
+  const recentOverrideRequests = useMemo(() => {
+    if (!overrideRequests || overrideRequests.length === 0) return [];
+
+    return [...overrideRequests]
+      .sort((a, b) => new Date(b.created_at || b.reviewed_at || 0) - new Date(a.created_at || a.reviewed_at || 0))
+      .slice(0, 5);
+  }, [overrideRequests]);
+
+  const overridesForSelectedReport = useMemo(() => {
+    if (!selectedReport) return [];
+
+    const parseDate = (value) => {
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const normalizeRange = () => {
+      const from = parseDate(selectedReport.date_from || selectedReport.dateFrom);
+      const to = parseDate(selectedReport.date_to || selectedReport.dateTo);
+      if (!from && !to) return null;
+
+      return {
+        from,
+        to: to ? new Date(to.setHours(23, 59, 59, 999)) : null
+      };
+    };
+
+    const range = normalizeRange();
+    const reportType = (selectedReport.report_type || '').toLowerCase();
+    const generatedAt = parseDate(selectedReport.generated_at || selectedReport.created_at);
+
+    const isWithinRange = (date) => {
+      if (!date) return false;
+      if (range) {
+        if (range.from && date < range.from) return false;
+        if (range.to && date > range.to) return false;
+        return true;
+      }
+
+      if (!generatedAt) return false;
+
+      if (reportType === 'monthly') {
+        return (
+          date.getFullYear() === generatedAt.getFullYear() &&
+          date.getMonth() === generatedAt.getMonth()
+        );
+      }
+
+      if (reportType === 'yearly') {
+        return date.getFullYear() === generatedAt.getFullYear();
+      }
+
+      return (
+        date.getFullYear() === generatedAt.getFullYear() &&
+        date.getMonth() === generatedAt.getMonth() &&
+        date.getDate() === generatedAt.getDate()
+      );
+    };
+
+    return overrideRequests
+      .filter((req) => {
+        const comparisonDate = parseDate(req.reviewed_at || req.created_at);
+        return isWithinRange(comparisonDate);
+      })
+      .sort((a, b) => new Date(b.created_at || b.reviewed_at || 0) - new Date(a.created_at || a.reviewed_at || 0));
+  }, [overrideRequests, selectedReport]);
+
   if (loading && reports.length === 0) {
     return <ReportPageSkeleton isAdmin={isAdmin} />;
   }
@@ -424,7 +511,98 @@ const GenerateReports = ({ user }) => {
                 <div className="stat-label">Yearly Reports</div>
               </div>
             </div>
+            <div className="stat-card">
+              <div className="stat-icon">
+                <i className="fas fa-exchange-alt"></i>
+              </div>
+              <div className="stat-content">
+                <div className="stat-value">{overrideStats.total}</div>
+                <div className="stat-label">Override Requests</div>
+                <div style={{ fontSize: '12px', marginTop: '4px', color: '#6b7280' }}>
+                  Approved {overrideStats.approved} • Pending {overrideStats.pending} • Rejected {overrideStats.rejected}
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <div className="gr-overrides-section">
+        <div className="gr-section-title-group" style={{ marginBottom: '12px' }}>
+          <h3>
+            <i className="fas fa-history"></i>
+            Override Activity Snapshot
+            <span className="gr-section-count">({overrideRequests.length})</span>
+          </h3>
+        </div>
+        <div className="gr-table-container">
+          <table className="gr-table">
+            <thead>
+              <tr>
+                <th><i className="fas fa-hashtag"></i> REQUEST ID</th>
+                <th><i className="fas fa-exchange-alt"></i> TRANSACTION</th>
+                <th><i className="fas fa-user"></i> REQUESTED BY</th>
+                <th><i className="fas fa-user-shield"></i> REVIEWED BY</th>
+                <th><i className="fas fa-flag"></i> STATUS</th>
+                <th><i className="fas fa-calendar"></i> DATE</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentOverrideRequests.length > 0 ? (
+                recentOverrideRequests.map((request) => {
+                  const requester = request.requested_by || request.requestedBy;
+                  const reviewer = request.reviewed_by || request.reviewedBy;
+                  const displayDate = request.reviewed_at || request.created_at;
+
+                  return (
+                    <tr key={request.id}>
+                      <td>
+                        <div className="gr-cell-content">
+                          <span className="gr-report-id">#{request.id}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="gr-cell-content">
+                          <span className="gr-report-type">#{request.transaction_id}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="gr-cell-content">
+                          <span className="gr-generated-by">{requester?.name || 'N/A'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="gr-cell-content">
+                          <span className="gr-generated-role">{reviewer?.name || 'Pending'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="gr-cell-content">
+                          <span className={`status-badge ${request.status || 'pending'}`}>
+                            {(request.status || 'pending').toUpperCase()}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="gr-cell-content">
+                          <span className="gr-generated-at">{displayDate ? new Date(displayDate).toLocaleString() : 'N/A'}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="6" className="gr-no-data">
+                    <div className="gr-no-data-content">
+                      <i className="fas fa-inbox"></i>
+                      <p>No override activity recorded yet.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

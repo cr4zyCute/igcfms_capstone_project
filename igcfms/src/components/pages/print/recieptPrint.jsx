@@ -13,7 +13,7 @@ export const getReceiptPrintHTML = () => {
         }
         
         @page {
-          size: 4.125in 9.5in; /* Envelope #10 size */
+          size: 4in 8.6in; /* Requested receipt size */
           margin: 0;
         }
         
@@ -28,24 +28,21 @@ export const getReceiptPrintHTML = () => {
         }
         
         .receipt-print-area {
-          width: 4.125in;
-          height: 7in; 
+          width: 4in;
+          height: 8.6in;
+          padding: 1.8in 1in 0.4in 0.35in;
           margin: 0;
-          padding: 8px;
-          padding-top: 8px;
-          margin-top: 0;
-          background: white;
-          overflow: visible;
-          position: absolute;
-          top: 0;
-          left: 0;
+          overflow: hidden;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          page-break-inside: avoid;
         }
         
         /* Header Styles */
         .official-receipt-header {
-          border: 2px solid #000;
-          padding: 10px 8px;
-          margin-bottom: 0;
+          padding: 4px 16px 0 0;
+          margin-bottom: 8px;
         }
         
         .receipt-top-bar {
@@ -57,7 +54,7 @@ export const getReceiptPrintHTML = () => {
         }
         
         .receipt-title-section {
-          margin-bottom: 10px;
+          margin-bottom: 6px;
         }
         
         .receipt-logos {
@@ -115,9 +112,8 @@ export const getReceiptPrintHTML = () => {
           display: flex;
           justify-content: center;
           align-items: center;
-          gap: 8px;
-          padding-top: 8px;
-          border-top: 1px solid #000;
+          gap: 6px;
+          padding-top: 6px;
           font-weight: bold;
         }
         
@@ -132,11 +128,13 @@ export const getReceiptPrintHTML = () => {
         
         /* Body Styles */
         .official-receipt-body {
-          border: 2px solid #000;
           border-top: none;
-          padding: 15px 10px;
+          padding: 6px 6px 28px 0;
           min-height: auto;
           position: relative;
+          display: flex;
+          flex-direction: column;
+          flex: 1;
         }
         
         .receipt-center-logos {
@@ -157,8 +155,8 @@ export const getReceiptPrintHTML = () => {
         .receipt-payer-info {
           position: relative;
           z-index: 1;
-          margin-bottom: 12px;
-          padding-bottom: 8px;
+          margin-bottom: 10px;
+          padding-bottom: 6px;
           border-bottom: 1px solid #ccc;
         }
         
@@ -171,7 +169,7 @@ export const getReceiptPrintHTML = () => {
         .receipt-fund-info {
           position: relative;
           z-index: 1;
-          margin-bottom: 12px;
+          margin-bottom: 10px;
         }
         
         .fund-label {
@@ -182,65 +180,79 @@ export const getReceiptPrintHTML = () => {
         
         .fund-items-grid {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 6px 10px;
-          align-items: start;
+          grid-template-columns: 1fr;
+          gap: 6px;
         }
 
-        .fund-item {
-          display: contents;
+        .fund-item,
+        .fund-item-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 4px 0;
+          font-size: 11px;
+          border-bottom: 1px solid #f3f4f6;
+        }
+
+        .fund-item:last-child,
+        .fund-item-row:last-child {
+          border-bottom: none;
         }
 
         .fund-name {
           font-weight: 700;
           font-size: 11px;
+          flex: 1;
+          color: #000;
         }
 
         .fund-amount {
           font-weight: 700;
           font-size: 11px;
           color: #047857;
+          margin-left: 8px;
         }
         
         .receipt-body-spacer {
-          height: 20px;
+          height: 8px;
+          flex-shrink: 0;
         }
         
         .receipt-total-right {
           display: flex;
           justify-content: flex-end;
           align-items: center;
-          gap: 10px;
-          margin: 12px 0 8px 0;
+          gap: 8px;
+          margin: 10px 0 6px 0;
           position: relative;
           z-index: 1;
         }
         
         .total-label-bold {
-          font-size: 14px;
-          font-weight: bold;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.4px;
         }
         
         .total-amount-bold {
-          font-size: 20px;
-          font-weight: bold;
+          font-size: 17px;
+          font-weight: 700;
           color: #000;
         }
         
         .amount-words-bold {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: bold;
           text-align: center;
-          margin: 10px 0 12px 0;
+          margin: 8px 0 10px 0;
           letter-spacing: 0.3px;
           position: relative;
           z-index: 1;
         }
         
         .receipt-description-box {
-          margin: 10px 0;
+          margin: 8px 0;
           padding: 6px;
-          border-left: 2px solid #000;
           background: #f9f9f9;
           position: relative;
           z-index: 1;
@@ -251,84 +263,30 @@ export const getReceiptPrintHTML = () => {
           font-weight: bold;
           margin-bottom: 3px;
         }
-        
-        .description-text-receipt {
-          font-size: 10px;
-          color: #333;
+
+        .receipt-issued-by {
+          margin-top: auto;
+          text-align: right;
+          align-self: flex-end;
+          padding-top: 12px;
+          padding-right: 6px;
         }
-        
-        .payment-checkboxes {
-          display: flex;
-          gap: 20px;
-          margin: 12px 0;
-          position: relative;
-          z-index: 1;
+
+        .issued-by-label {
+          font-size: 9px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          color: #6b7280;
+          margin-bottom: 3px;
         }
-        
-        .payment-checkboxes label {
-          display: flex;
-          align-items: center;
-          gap: 3px;
-          font-size: 10px;
+
+        .issued-by-name {
+          font-size: 11px;
+          font-weight: 700;
+          color: #111827;
         }
-        
-        .payment-checkboxes input[type="checkbox"] {
-          width: 10px;
-          height: 10px;
-        }
-        
-        .receipt-acknowledgment-line {
-          font-size: 10px;
-          margin: 12px 0 8px 0;
-          text-align: center;
-          position: relative;
-          z-index: 1;
-        }
-        
-        .signature-area {
-          margin-top: 25px;
-          text-align: center;
-          position: relative;
-          z-index: 1;
-        }
-        
-        .signature-line-bottom {
-          width: 200px;
-          border-bottom: 1px solid #000;
-          margin: 0 auto 3px auto;
-        }
-        
-        .signature-text {
-          font-size: 10px;
-          font-style: italic;
-        }
-        
-        @media print {
-          @page {
-            size: 4.125in 9.5in; /* Envelope #10 size */
-            margin: 0;
-          }
-          
-          body {
-            padding: 0;
-            margin: 0;
-            display: block;
-            position: relative;
-          }
-          
-          .receipt-print-area {
-            width: 4.125in;
-            height: 7in; /* Receipt content is 7 inches on 9.5 inch paper */
-            padding: 8px;
-            padding-top: 8px;
-            margin: 0;
-            margin-top: 0;
-            overflow: visible;
-            position: absolute;
-            top: 0;
-            left: 0;
-          }
-        }
+
       </style>
     </head>
     <body>

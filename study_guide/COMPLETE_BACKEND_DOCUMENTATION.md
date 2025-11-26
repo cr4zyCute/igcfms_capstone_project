@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     IGCFMS Backend                           │
-│        Iglesia ni Cristo Fund Management System              │
+│        Integrated Government Cashiering Finacial Management System              │
 ├─────────────────────────────────────────────────────────────┤
 │  Framework: Laravel 12.x                                     │
 │  PHP Version: 8.2+                                           │

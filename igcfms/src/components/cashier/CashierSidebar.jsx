@@ -3,6 +3,7 @@ import './css/cashiersidebar.css';
 
 const CashierSidebar = ({ activeTab, setActiveTab }) => {
   const [expandedSections, setExpandedSections] = useState({
+    "Transaction": true,
     "Accounts": true,
     "Reports": false,
     "Management": false
@@ -17,9 +18,17 @@ const CashierSidebar = ({ activeTab, setActiveTab }) => {
 
   const menuSections = [
     {
+      title: "Transaction",
+      icon: "fas fa-exchange-alt",
+      items: [
+        { id: "override-transactions", label: "Override Transactions", icon: <i className="fas fa-exchange-alt"></i> }
+      ]
+    },
+    {
       title: "Accounts",
       icon: "fas fa-folder",
       items: [
+        { id: "recipient-account", label: "Recipient Account", icon: <i className="fas fa-address-book"></i> },
         { id: "funds-accounts", label: "Funds Accounts", icon: <i className="fas fa-university"></i> }
       ]
     },
@@ -34,8 +43,7 @@ const CashierSidebar = ({ activeTab, setActiveTab }) => {
       title: "Management",
       icon: "fas fa-cogs",
       items: [
-        { id: "view-transactions", label: "View All Transactions", icon: <i className="fas fa-list"></i> },
-        { id: "override-transactions", label: "Override Transactions", icon: <i className="fas fa-exchange-alt"></i> }
+        { id: "view-transactions", label: "View All Transactions", icon: <i className="fas fa-list"></i> }
       ]
     }
   ];

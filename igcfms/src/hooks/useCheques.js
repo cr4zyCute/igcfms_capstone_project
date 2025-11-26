@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getCheques,
   createCheque,
+  updateCheque,
   getDisbursementTransactions,
   getFundAccounts,
 } from '../services/api';
@@ -69,6 +70,18 @@ export const useCreateCheque = () => {
 
   return useMutation({
     mutationFn: createCheque,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CHEQUE_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: CHEQUE_KEYS.disbursementTransactionsRoot() });
+    },
+  });
+};
+
+export const useUpdateCheque = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }) => updateCheque(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CHEQUE_KEYS.all });
       queryClient.invalidateQueries({ queryKey: CHEQUE_KEYS.disbursementTransactionsRoot() });

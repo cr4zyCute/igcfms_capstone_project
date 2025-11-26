@@ -18,6 +18,30 @@ class DisbursementController extends Controller
         return response()->json($disbursements);
     }
 
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'nullable|in:Issued,Cleared,Cancelled',
+            'reconciled' => 'nullable|boolean',
+        ]);
+
+        $disbursement = Disbursement::findOrFail($id);
+
+        if ($request->filled('status')) {
+            $disbursement->status = $request->status;
+        }
+
+        if ($request->has('reconciled')) {
+            $reconciled = (bool) $request->boolean('reconciled');
+            $disbursement->reconciled = $reconciled;
+            $disbursement->reconciled_at = $reconciled ? now() : null;
+        }
+
+        $disbursement->save();
+
+        return response()->json($disbursement->fresh(['transaction']));
+    }
+
     // Create a new disbursement (cheque)
     public function store(Request $request)
     {
@@ -32,6 +56,8 @@ class DisbursementController extends Controller
             'issue_date' => 'nullable|date',
             'memo' => 'nullable|string',
             'fund_account_id' => 'nullable|exists:fund_accounts,id',
+            'status' => 'nullable|in:Issued,Cleared,Cancelled',
+            'reconciled' => 'nullable|boolean',
         ]);
 
         try {
@@ -51,6 +77,9 @@ class DisbursementController extends Controller
                 'fund_account_id' => $request->fund_account_id,
                 'issued_by' => Auth::id(),
                 'issued_at' => now(),
+                'status' => $request->status ?? 'Issued',
+                'reconciled' => $request->boolean('reconciled', false),
+                'reconciled_at' => $request->boolean('reconciled', false) ? now() : null,
             ]);
 
             // Update the transaction to mark it as processed
