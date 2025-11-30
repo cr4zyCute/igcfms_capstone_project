@@ -9,8 +9,8 @@ const TrendChart = React.memo(({ collectionsData, disbursementsData }) => {
     }
 
     // Get max values for dual-axis scaling with 0 in center
-    const maxCollection = Math.max(...collectionsData.map(d => d.value), 1);
-    const maxDisbursement = Math.max(...disbursementsData.map(d => d.value), 1);
+    const maxCollection = Math.max(...collectionsData.map(d => Math.abs(d.value)), 1);
+    const maxDisbursement = Math.max(...disbursementsData.map(d => Math.abs(d.value)), 1);
     
     // Use the larger of the two for symmetric scaling
     const maxValue = Math.max(maxCollection, maxDisbursement);
@@ -33,9 +33,18 @@ const TrendChart = React.memo(({ collectionsData, disbursementsData }) => {
 
     // Create points for disbursements line (using actual positive values)
     const disbursementPointsAll = disbursementsData.map((item, index) => {
+      const normalizedValue = -Math.abs(item.value || 0);
       const x = padding.left + (index / (disbursementsData.length - 1 || 1)) * chartWidth;
-      const y = padding.top + chartHeight - ((item.value - minValue) / range) * chartHeight;
-      return { x, y, value: item.value, date: item.date, type: 'disbursement', originalIndex: index };
+      const y = padding.top + chartHeight - ((normalizedValue - minValue) / range) * chartHeight;
+      return {
+        x,
+        y,
+        value: normalizedValue,
+        displayValue: Math.abs(item.value || 0),
+        date: item.date,
+        type: 'disbursement',
+        originalIndex: index
+      };
     });
     
     // Always show disbursements line if there's data
@@ -144,7 +153,7 @@ const TrendChart = React.memo(({ collectionsData, disbursementsData }) => {
             fill={tick.isZero ? "#000" : "#666"}
             fontWeight={tick.isZero ? "bold" : "normal"}
           >
-            {tick.isZero ? "₱0" : `₱${(Math.abs(tick.value) / 1000).toFixed(0)}k`}
+            {tick.isZero ? "₱0" : `${tick.value < 0 ? '-' : ''}₱${(Math.abs(tick.value) / 1000).toFixed(0)}k`}
           </text>
         ))}
 
@@ -314,7 +323,7 @@ const TrendChart = React.memo(({ collectionsData, disbursementsData }) => {
                   fontSize="8"
                   fontWeight="700"
                 >
-                  ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  ₱{Math.abs(hoveredPoint.displayValue ?? hoveredPoint.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </text>
                 
                 {/* Disbursements tooltip (dark red, bottom) */}
@@ -335,7 +344,7 @@ const TrendChart = React.memo(({ collectionsData, disbursementsData }) => {
                   fontSize="8"
                   fontWeight="700"
                 >
-                  ₱{disbursementPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  ₱{Math.abs(disbursementPoint.displayValue ?? disbursementPoint.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </text>
               </g>
             );
@@ -366,7 +375,7 @@ const TrendChart = React.memo(({ collectionsData, disbursementsData }) => {
                     fontSize="8"
                     fontWeight="700"
                   >
-                    ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    ₱{Math.abs(hoveredPoint.displayValue ?? hoveredPoint.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </text>
                 </g>
               );
@@ -393,7 +402,7 @@ const TrendChart = React.memo(({ collectionsData, disbursementsData }) => {
                     fontSize="8"
                     fontWeight="700"
                   >
-                    ₱{hoveredPoint.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    ₱{Math.abs(hoveredPoint.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </text>
                 </g>
               );

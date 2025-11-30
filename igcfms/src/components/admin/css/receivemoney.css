@@ -2370,10 +2370,54 @@
   transition: all 0.2s ease;
 }
 
+.rm-account-skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rm-account-card.skeleton {
+  border-color: #f3f4f6;
+  cursor: default;
+  pointer-events: none;
+  box-shadow: none;
+  animation: skeletonPulse 1.6s ease-in-out infinite;
+}
+
+.rm-account-card.skeleton .rm-account-info,
+.rm-account-card.skeleton .rm-account-balance {
+  margin-bottom: 12px;
+}
+
+.rm-account-card.skeleton .rm-account-balance {
+  border-top: 1px solid #f1f2f4;
+  padding-top: 14px;
+}
+
+.rm-chevron-skeleton {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e5e7eb;
+}
+
+.rm-account-card.skeleton .skeleton-line {
+  display: block;
+  background: linear-gradient(90deg, #f5f5f5 25%, #e5e5e5 37%, #f5f5f5 63%);
+  background-size: 400% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+
 .rm-account-card:hover {
   border-color: #000000;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   transform: translateY(-2px);
+}
+
+.rm-account-card.skeleton:hover {
+  border-color: #f3f4f6;
+  box-shadow: none;
+  transform: none;
 }
 
 /* Account Main Row */
@@ -2401,6 +2445,27 @@
 .rm-account-card:hover .rm-chevron {
   color: #000000;
   transform: translateX(4px);
+}
+
+@keyframes skeletonPulse {
+  0% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
 }
 
 /* Account Info Row */

@@ -400,7 +400,7 @@
   padding: 30px;
   max-width: 600px;
   width: 100%;
-  overflow: visible;
+  overflow-y: auto; overflow-x: hidden;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
   animation: slideIn 0.3s ease;
   position: relative;
@@ -1038,7 +1038,7 @@
 /* Responsive Adjustments */
 @media (max-width: 768px) {
   .create-account-modal {
-    width: 98%;
+    width: 100%;
     padding: 20px;
   }
   
@@ -1422,8 +1422,433 @@ textarea {
 /* Secondary Button - Cancel */
 .form-actions button[type="button"] {
   background-color: red;
-  color: #000000;
-  border: 2px solid #e5e5e5;
+}
+
+/* ============================================
+   UPDATE FUND ACCOUNT MODAL - UNIQUE STYLES
+   ============================================ */
+
+.update-fund-account-modal {
+  max-width: 1400px;
+  width: min(94vw, 1400px);
+  margin: 0 auto;
+  padding: 0;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.update-fund-account-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 28px;
+  border-bottom: 2px solid #f0f0f0;
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  color: #ffffff;
+  border-radius: 16px 16px 0 0;
+}
+
+.update-fund-account-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.update-fund-account-icon-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08));
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 20px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.update-fund-account-title h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+}
+
+.update-fund-account-title p {
+  margin: 4px 0 0 0;
+  color: #d1d5db;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.update-fund-account-close-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.update-fund-account-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+.update-fund-account-form {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.update-fund-account-body {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+  padding: 32px 36px;
+  background: #fafbfc;
+}
+
+.update-fund-account-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr;
+  gap: 32px;
+}
+
+.update-fund-account-form-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  padding: 28px 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.update-fund-account-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.update-fund-account-form-header h5 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-fund-account-form-header i {
+  color: #3b82f6;
+  font-size: 14px;
+}
+
+.update-fund-account-badge {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(59, 130, 246, 0.1);
+  color: #1e40af;
+  font-weight: 600;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.update-fund-account-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.update-fund-account-form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.update-fund-account-form-group label {
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+}
+
+.update-fund-account-form-group input,
+.update-fund-account-form-group select,
+.update-fund-account-form-group textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1.5px solid #e5e7eb;
+  padding: 11px 13px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+}
+
+.update-fund-account-form-group input:focus,
+.update-fund-account-form-group select:focus,
+.update-fund-account-form-group textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background: #f8faff;
+}
+
+.update-fund-account-readonly-field {
+  background: #f3f4f6 !important;
+  color: #6b7280 !important;
+  border-style: dashed !important;
+  cursor: not-allowed !important;
+}
+
+.update-fund-account-readonly-field:focus {
+  box-shadow: none !important;
+  border-color: #e5e7eb !important;
+}
+
+.update-fund-account-form-group.update-fund-account-full-width {
+  grid-column: 1 / -1;
+}
+
+.update-fund-account-form-group textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.update-fund-account-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.update-fund-account-submit-btn {
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+  color: #ffffff;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(17, 24, 39, 0.2);
+}
+
+.update-fund-account-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(17, 24, 39, 0.3);
+  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+}
+
+.update-fund-account-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.update-fund-account-snapshot-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  padding: 28px 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+  min-height: 100%;
+}
+
+.update-fund-account-snapshot-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.08), transparent 70%);
+  pointer-events: none;
+}
+
+.update-fund-account-snapshot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.update-fund-account-snapshot-header h5 {
+  margin: 0;
+  font-size: 15px;
+  color: #111827;
+  font-weight: 700;
+}
+
+.update-fund-account-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1.5px solid;
+}
+
+.update-fund-account-status-active {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.update-fund-account-status-inactive {
+  background: rgba(107, 114, 128, 0.1);
+  color: #374151;
+  border-color: rgba(107, 114, 128, 0.3);
+}
+
+.update-fund-account-snapshot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.update-fund-account-snapshot-list li {
+  position: relative;
+  z-index: 1;
+}
+
+.update-fund-account-snapshot-list li span {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #9ca3af;
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.update-fund-account-snapshot-list li p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.4;
+}
+
+.update-fund-account-cta {
+  margin-top: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(59, 130, 246, 0.08);
+  border-radius: 12px;
+  color: #1e40af;
+  font-size: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+.update-fund-account-cta i {
+  color: #3b82f6;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.update-fund-account-cta p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.update-fund-account-footer {
+  padding: 16px 28px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 0 0 16px 16px;
+  min-height: 20px;
+}
+
+/* Responsive Design for Update Fund Account Modal */
+@media (max-width: 1024px) {
+  .update-fund-account-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .update-fund-account-snapshot-card {
+    order: -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .update-fund-account-modal {
+    width: 100%;
+    max-height: 95vh;
+  }
+
+  .update-fund-account-header {
+    padding: 20px 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .update-fund-account-title {
+    width: 100%;
+  }
+
+  .update-fund-account-close-btn {
+    align-self: flex-end;
+  }
+
+  .update-fund-account-body {
+    padding: 20px 20px;
+  }
+
+  .update-fund-account-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .update-fund-account-form-card,
+  .update-fund-account-snapshot-card {
+    padding: 20px;
+  }
+
+  .update-fund-account-footer {
+    padding: 16px 20px;
+  }
 }
 
 .form-actions button[type="button"]:hover {
@@ -1578,7 +2003,7 @@ textarea {
   margin: 10px 0;
   height: 120px;
   width: 100%;
-  overflow: visible;
+  overflow-y: auto; overflow-x: hidden;
 }
 
 .card-graph .recharts-wrapper {
@@ -3615,4 +4040,339 @@ table tr:last-child td {
 .modal-header-black .close-button:hover {
   background: rgba(255, 255, 255, 0.1) !important;
   color: #ffffff !important;
+}/* Funds Transaction History Modal */
+.funds-transaction-modal {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 18px;
+  border: 2px solid #000000;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.45);
+  overflow: hidden;
+}
+
+.funds-transaction-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(145deg, #0f172a 0%, #111827 45%, #1f2937 100%);
+  color: #ffffff;
+  gap: 20px;
+}
+
+.funds-transaction-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.funds-transaction-title i {
+  font-size: 20px;
+}
+
+.funds-transaction-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.funds-transaction-search {
+  position: relative;
+}
+
+.funds-transaction-search-input {
+  padding: 10px 42px 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  min-width: 240px;
+  transition: all 0.2s ease;
+}
+
+.funds-transaction-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.funds-transaction-search-input:focus {
+  outline: none;
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.funds-transaction-search-icon {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+}
+
+.funds-transaction-export {
+  position: relative;
+}
+
+.funds-transaction-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.funds-transaction-export-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.funds-transaction-export-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  min-width: 200px;
+  padding: 8px 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-12px);
+  transition: all 0.18s ease;
+  z-index: 10;
+}
+
+.funds-transaction-export-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.funds-transaction-export-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.funds-transaction-export-option i {
+  width: 18px;
+  text-align: center;
+}
+
+.funds-transaction-export-option:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.funds-transaction-close {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.funds-transaction-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.funds-transaction-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  padding: 20px 24px;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.funds-transaction-meta-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
+.funds-transaction-meta-label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.funds-transaction-meta-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.funds-transaction-meta-value.code {
+  color: #2563eb;
+  letter-spacing: 0.06em;
+}
+
+.funds-transaction-meta-value.balance {
+  color: #059669;
+}
+
+.funds-transaction-table-container {
+  flex: 1;
+  overflow-y: auto; overflow-x: hidden;
+  padding: 0 20px 20px;
+  background: #ffffff;
+}
+
+.funds-transaction-table {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.funds-transaction-table thead {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #ffffff;
+}
+
+.funds-transaction-table th {
+  padding: 18px 22px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.funds-transaction-table td {
+  padding: 18px 22px;
+  font-size: 14px;
+  color: #1f2937;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.funds-transaction-table tbody tr:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.funds-transaction-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  color: #6b7280;
+  gap: 12px;
+}
+
+.funds-transaction-empty i {
+  font-size: 48px;
+  color: #cbd5f5;
+}
+
+.funds-transaction-empty h4 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.funds-transaction-empty p {
+  font-size: 14px;
+  max-width: 360px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.funds-transaction-clear-search {
+  padding: 10px 20px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.funds-transaction-clear-search:hover {
+  background: #1f2937;
+}
+
+@media (max-width: 1280px) {
+  .funds-transaction-modal {
+    min-width: auto;
+    width: 95%;
+  }
+
+  .funds-transaction-table {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .funds-transaction-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .funds-transaction-controls {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .funds-transaction-search-input {
+    width: 100%;
+  }
+
+  .funds-transaction-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .funds-transaction-table-container {
+    padding: 0 24px 24px;
+  }
 }

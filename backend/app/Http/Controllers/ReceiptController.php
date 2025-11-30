@@ -28,9 +28,16 @@ class ReceiptController extends Controller
     }
 
     // Add index method for getting receipts
-    public function index()
+    public function index(Request $request)
     {
-        $receipts = Receipt::with('transaction')->get();
+        $query = Receipt::with('transaction');
+
+        if ($request->has('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        $receipts = $query->get();
+
         return response()->json($receipts);
     }
 
@@ -51,6 +58,39 @@ class ReceiptController extends Controller
             'success' => true,
             'message' => 'Receipt updated successfully',
             'data' => $receipt
+        ]);
+    }
+
+    // Cancel receipt (mark as Cancelled without deleting)
+    public function cancel(Request $request, $id)
+    {
+        $receipt = Receipt::findOrFail($id);
+
+        if ($receipt->status === 'Cancelled') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Receipt is already cancelled.',
+                'data' => $receipt,
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'cancellation_reason' => 'nullable|string',
+        ]);
+
+        $user = $request->user();
+
+        $receipt->status = 'Cancelled';
+        $receipt->cancellation_reason = $validated['cancellation_reason'] ?? null;
+        $receipt->cancelled_at = now();
+        $receipt->cancelled_by = $user ? $user->id : null;
+
+        $receipt->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Receipt cancelled successfully',
+            'data' => $receipt,
         ]);
     }
 

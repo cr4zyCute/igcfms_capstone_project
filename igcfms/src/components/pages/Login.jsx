@@ -1,11 +1,23 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { loginUser } from "../../services/api";
 import { Link, useNavigate } from "react-router-dom";
 import "./css/Login.css"; 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+import loginImageOne from "../../assets/images/login/login1.png";
+import loginImageTwo from "../../assets/images/login/login2.png";
 
+
+const sliderImages = [loginImageOne, loginImageTwo];
+const extendedSliderImages =
+  sliderImages.length > 1
+    ? [sliderImages[sliderImages.length - 1], ...sliderImages, sliderImages[0]]
+    : sliderImages;
+
+const SLIDE_INTERVAL_MS = 3000;
+const SLIDE_DURATION_MS = 800;
+const INITIAL_SLIDE_INDEX = sliderImages.length > 1 ? 1 : 0;
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -14,9 +26,58 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [currentSlide, setCurrentSlide] = useState(INITIAL_SLIDE_INDEX);
+  const [isTransitioning, setIsTransitioning] = useState(true);
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (sliderImages.length <= 1) return undefined;
+
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => prev + 1);
+    }, SLIDE_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (sliderImages.length <= 1) return undefined;
+
+    if (currentSlide === extendedSliderImages.length - 1) {
+      const timeout = setTimeout(() => {
+        setIsTransitioning(false);
+        setCurrentSlide(1);
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => setIsTransitioning(true));
+        });
+      }, SLIDE_DURATION_MS);
+
+      return () => clearTimeout(timeout);
+    }
+
+    if (currentSlide === 0) {
+      const timeout = setTimeout(() => {
+        setIsTransitioning(false);
+        setCurrentSlide(sliderImages.length);
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => setIsTransitioning(true));
+        });
+      }, SLIDE_DURATION_MS);
+
+      return () => clearTimeout(timeout);
+    }
+
+    return undefined;
+  }, [currentSlide]);
+
+  const getActiveDot = () => {
+    if (sliderImages.length <= 1) return 0;
+    return (currentSlide - 1 + sliderImages.length) % sliderImages.length;
+  };
 
   // Clear errors when user starts typing
   const handleEmailChange = (e) => {
@@ -160,8 +221,39 @@ const Login = () => {
 
       {/* Right Panel */}
       <div className="right-panel">
-        <img src="/your-image.png" alt="IGCFMS Preview" />
-        {/* place your-image.png inside the public/ folder */}
+        <div className="image-slider" aria-label="System preview slideshow">
+          <div
+            className="image-slider-track"
+            style={{
+              transform: `translateX(-${currentSlide * 100}%)`,
+              transition: isTransitioning
+                ? `transform ${SLIDE_DURATION_MS}ms ease-in-out`
+                : "none",
+            }}
+          >
+            {extendedSliderImages.map((imageSrc, index) => (
+              <div className="image-slide" key={`${imageSrc}-${index}`}>
+                <img src={imageSrc} alt={`IGCFMS preview ${index + 1}`} />
+              </div>
+            ))}
+          </div>
+
+          <div className="slider-dots" role="tablist">
+            {sliderImages.map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                className={`slider-dot ${getActiveDot() === index ? "active" : ""}`}
+                onClick={() => {
+                  setIsTransitioning(true);
+                  setCurrentSlide(sliderImages.length > 1 ? index + 1 : 0);
+                }}
+                aria-label={`Show image ${index + 1}`}
+                aria-selected={getActiveDot() === index}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

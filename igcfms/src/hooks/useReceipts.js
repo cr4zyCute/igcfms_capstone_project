@@ -4,6 +4,7 @@ import {
   createReceipt,
   updateReceipt,
   deleteReceipt,
+  cancelReceipt,
   getCollectionTransactions,
 } from '../services/api';
 
@@ -54,6 +55,21 @@ export const useCreateReceipt = () => {
   return useMutation({
     mutationFn: createReceipt,
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: RECEIPT_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: RECEIPT_KEYS.collectionTransactionsRoot() });
+    },
+  });
+};
+
+export const useCancelReceipt = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }) => cancelReceipt(id, data),
+    onSuccess: (_, variables) => {
+      if (variables?.id) {
+        queryClient.invalidateQueries({ queryKey: RECEIPT_KEYS.detail(variables.id) });
+      }
       queryClient.invalidateQueries({ queryKey: RECEIPT_KEYS.all });
       queryClient.invalidateQueries({ queryKey: RECEIPT_KEYS.collectionTransactionsRoot() });
     },

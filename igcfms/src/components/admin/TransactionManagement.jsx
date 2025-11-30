@@ -583,7 +583,6 @@ const TransactionManagement = () => {
                     <th><i className="fas fa-tag"></i> TYPE</th>
                     <th><i className="fas fa-money-bill"></i> AMOUNT</th>
                     <th><i className="fas fa-user"></i> RECIPIENT/PAYER</th>
-                    <th><i className="fas fa-building"></i> DEPARTMENT</th>
                     <th><i className="fas fa-calendar"></i> DATE</th>
                     <th><i className="fas fa-cog"></i> ACTIONS</th>
                   </tr>
@@ -626,11 +625,6 @@ const TransactionManagement = () => {
                         </td>
                         <td>
                           <div className="cell-content">
-                            <span className="payer-name">{transaction.department || 'N/A'}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="cell-content">
                             <span className="issue-date">
                               {new Date(transaction.created_at).toLocaleDateString()}
                             </span>
@@ -656,7 +650,7 @@ const TransactionManagement = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" className="no-data">
+                      <td colSpan="6" className="no-data">
                         <i className="fas fa-inbox"></i>
                         <p>No transactions found matching your criteria.</p>
                       </td>

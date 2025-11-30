@@ -19,7 +19,7 @@ const CollectingSidebar = ({ activeTab, setActiveTab }) => {
       title: "Transaction",
       icon: "fas fa-exchange-alt",
       items: [
-        { id: "receive-money", label: "Receive Money", icon: <i className="fas fa-money-bill-wave"></i> },
+        { id: "receive-money", label: "Collection", icon: <i className="fas fa-money-bill-wave"></i> },
         { id: "issue-receipt", label: "Issue Receipt", icon: <i className="fas fa-receipt"></i> },
         { id: "view-transactions", label: "View Transactions", icon: <i className="fas fa-list"></i> }
       ]

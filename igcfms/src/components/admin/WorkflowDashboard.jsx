@@ -76,7 +76,7 @@ const WorkflowDashboard = () => {
     },
     {
       id: 3,
-      title: "Receive Money",
+      title: "Collection",
       description: "Record incoming money and update fund balances",
       roles: ["Collecting Officer"],
       icon: "fas fa-money-bill-wave",
@@ -94,7 +94,7 @@ const WorkflowDashboard = () => {
     },
     {
       id: 5,
-      title: "Issue Money",
+      title: "Disburese",
       description: "Disburse funds to recipients",
       roles: ["Disbursing Officer"],
       icon: "fas fa-hand-holding-usd",

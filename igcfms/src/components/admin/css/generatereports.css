@@ -34,6 +34,58 @@
   gap: 12px;
 }
 
+.gr-activity-tabs {
+  margin: 10px 0 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 32px;
+  padding: 0 6px;
+  flex-wrap: wrap;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.gr-activity-tab {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  padding: 4px 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.gr-activity-tab i {
+  font-size: 15px;
+  color: inherit;
+}
+
+.gr-activity-tab:hover {
+  color: #4b5563;
+}
+
+.gr-activity-tab.active {
+  color: #111827;
+}
+
+.gr-activity-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #111827;
+  border-radius: 999px;
+}
+
 .gr-btn-generate-report {
   background: #ffffff;
   color: #000000;

@@ -17,7 +17,7 @@ class RecipientAccount extends Model
         'email',
         'phone',
         'address',
-        'tax_id',
+        'id_number',
         'bank_account',
         'bank_name',
         'account_number',

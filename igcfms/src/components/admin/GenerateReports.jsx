@@ -63,6 +63,7 @@ const GenerateReports = ({ user }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [reportToDelete, setReportToDelete] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activityTab, setActivityTab] = useState('kpi');
 
   const API_BASE = require('../../config/api').default;
   const token = localStorage.getItem("token");
@@ -435,6 +436,33 @@ const GenerateReports = ({ user }) => {
         </div>
       </div>
 
+      <div className="gr-activity-tabs">
+        <button
+          type="button"
+          className={`gr-activity-tab ${activityTab === 'kpi' ? 'active' : ''}`}
+          onClick={() => setActivityTab('kpi')}
+        >
+          <i className="fas fa-chart-column"></i>
+          Reports KPI
+        </button>
+        <button
+          type="button"
+          className={`gr-activity-tab ${activityTab === 'transactions' ? 'active' : ''}`}
+          onClick={() => setActivityTab('transactions')}
+        >
+          <i className="fas fa-exchange-alt"></i>
+          Transaction Activity
+        </button>
+        <button
+          type="button"
+          className={`gr-activity-tab ${activityTab === 'overrides' ? 'active' : ''}`}
+          onClick={() => setActivityTab('overrides')}
+        >
+          <i className="fas fa-history"></i>
+          Override Activity
+        </button>
+      </div>
+
       {error && (
         <div className="error-banner">
           <i className="fas fa-exclamation-triangle"></i>
@@ -450,7 +478,7 @@ const GenerateReports = ({ user }) => {
       )}
 
       {/* Financial Collections & Disbursement Dashboard - Only for Admin */}
-      {isAdmin && (
+      {isAdmin && activityTab === 'kpi' && (
         <>
           {/* DAILY REPORT Section */}
           <div className="report-section">
@@ -469,142 +497,144 @@ const GenerateReports = ({ user }) => {
         </>
       )}
 
-      <div className="gr-content-grid">
-        {/* Report Statistics */}
-        <div className="report-stats-section">
-
-          
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-file-alt"></i>
+      {activityTab === 'kpi' && (
+        <div className="gr-content-grid">
+          {/* Report Statistics */}
+          <div className="report-stats-section">
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <i className="fas fa-file-alt"></i>
+                </div>
+                <div className="stat-content">
+                  <div className="stat-value">{stats.totalReports}</div>
+                  <div className="stat-label">Total Reports</div>
+                </div>
               </div>
-              <div className="stat-content">
-                <div className="stat-value">{stats.totalReports}</div>
-                <div className="stat-label">Total Reports</div>
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <i className="fas fa-calendar-day"></i>
+                </div>
+                <div className="stat-content">
+                  <div className="stat-value">{stats.dailyReports}</div>
+                  <div className="stat-label">Daily Reports</div>
+                </div>
               </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-calendar-day"></i>
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <i className="fas fa-calendar-alt"></i>
+                </div>
+                <div className="stat-content">
+                  <div className="stat-value">{stats.monthlyReports}</div>
+                  <div className="stat-label">Monthly Reports</div>
+                </div>
               </div>
-              <div className="stat-content">
-                <div className="stat-value">{stats.dailyReports}</div>
-                <div className="stat-label">Daily Reports</div>
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <i className="fas fa-calendar"></i>
+                </div>
+                <div className="stat-content">
+                  <div className="stat-value">{stats.yearlyReports}</div>
+                  <div className="stat-label">Yearly Reports</div>
+                </div>
               </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-calendar-alt"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">{stats.monthlyReports}</div>
-                <div className="stat-label">Monthly Reports</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-calendar"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">{stats.yearlyReports}</div>
-                <div className="stat-label">Yearly Reports</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <i className="fas fa-exchange-alt"></i>
-              </div>
-              <div className="stat-content">
-                <div className="stat-value">{overrideStats.total}</div>
-                <div className="stat-label">Override Requests</div>
-                <div style={{ fontSize: '12px', marginTop: '4px', color: '#6b7280' }}>
-                  Approved {overrideStats.approved} • Pending {overrideStats.pending} • Rejected {overrideStats.rejected}
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <i className="fas fa-exchange-alt"></i>
+                </div>
+                <div className="stat-content">
+                  <div className="stat-value">{overrideStats.total}</div>
+                  <div className="stat-label">Override Requests</div>
+                  <div style={{ fontSize: '12px', marginTop: '4px', color: '#6b7280' }}>
+                    Approved {overrideStats.approved} • Pending {overrideStats.pending} • Rejected {overrideStats.rejected}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="gr-overrides-section">
-        <div className="gr-section-title-group" style={{ marginBottom: '12px' }}>
-          <h3>
-            <i className="fas fa-history"></i>
-            Override Activity Snapshot
-            <span className="gr-section-count">({overrideRequests.length})</span>
-          </h3>
-        </div>
-        <div className="gr-table-container">
-          <table className="gr-table">
-            <thead>
-              <tr>
-                <th><i className="fas fa-hashtag"></i> REQUEST ID</th>
-                <th><i className="fas fa-exchange-alt"></i> TRANSACTION</th>
-                <th><i className="fas fa-user"></i> REQUESTED BY</th>
-                <th><i className="fas fa-user-shield"></i> REVIEWED BY</th>
-                <th><i className="fas fa-flag"></i> STATUS</th>
-                <th><i className="fas fa-calendar"></i> DATE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentOverrideRequests.length > 0 ? (
-                recentOverrideRequests.map((request) => {
-                  const requester = request.requested_by || request.requestedBy;
-                  const reviewer = request.reviewed_by || request.reviewedBy;
-                  const displayDate = request.reviewed_at || request.created_at;
-
-                  return (
-                    <tr key={request.id}>
-                      <td>
-                        <div className="gr-cell-content">
-                          <span className="gr-report-id">#{request.id}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="gr-cell-content">
-                          <span className="gr-report-type">#{request.transaction_id}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="gr-cell-content">
-                          <span className="gr-generated-by">{requester?.name || 'N/A'}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="gr-cell-content">
-                          <span className="gr-generated-role">{reviewer?.name || 'Pending'}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="gr-cell-content">
-                          <span className={`status-badge ${request.status || 'pending'}`}>
-                            {(request.status || 'pending').toUpperCase()}
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="gr-cell-content">
-                          <span className="gr-generated-at">{displayDate ? new Date(displayDate).toLocaleString() : 'N/A'}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
+      {activityTab === 'overrides' && (
+        <div className="gr-overrides-section">
+          <div className="gr-section-title-group" style={{ marginBottom: '12px' }}>
+            <h3>
+              <i className="fas fa-history"></i>
+              Override Activity Snapshot
+              <span className="gr-section-count">({overrideRequests.length})</span>
+            </h3>
+          </div>
+          <div className="gr-table-container">
+            <table className="gr-table">
+              <thead>
                 <tr>
-                  <td colSpan="6" className="gr-no-data">
-                    <div className="gr-no-data-content">
-                      <i className="fas fa-inbox"></i>
-                      <p>No override activity recorded yet.</p>
-                    </div>
-                  </td>
+                  <th><i className="fas fa-hashtag"></i> REQUEST ID</th>
+                  <th><i className="fas fa-exchange-alt"></i> TRANSACTION</th>
+                  <th><i className="fas fa-user"></i> REQUESTED BY</th>
+                  <th><i className="fas fa-user-shield"></i> REVIEWED BY</th>
+                  <th><i className="fas fa-flag"></i> STATUS</th>
+                  <th><i className="fas fa-calendar"></i> DATE</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {recentOverrideRequests.length > 0 ? (
+                  recentOverrideRequests.map((request) => {
+                    const requester = request.requested_by || request.requestedBy;
+                    const reviewer = request.reviewed_by || request.reviewedBy;
+                    const displayDate = request.reviewed_at || request.created_at;
+
+                    return (
+                      <tr key={request.id}>
+                        <td>
+                          <div className="gr-cell-content">
+                            <span className="gr-report-id">#{request.id}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="gr-cell-content">
+                            <span className="gr-report-type">#{request.transaction_id}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="gr-cell-content">
+                            <span className="gr-generated-by">{requester?.name || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="gr-cell-content">
+                            <span className="gr-generated-role">{reviewer?.name || 'Pending'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="gr-cell-content">
+                            <span className={`status-badge ${request.status || 'pending'}`}>
+                              {(request.status || 'pending').toUpperCase()}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="gr-cell-content">
+                            <span className="gr-generated-at">{displayDate ? new Date(displayDate).toLocaleString() : 'N/A'}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="gr-no-data">
+                      <div className="gr-no-data-content">
+                        <i className="fas fa-inbox"></i>
+                        <p>No override activity recorded yet.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Reports Table */}
       <div className="gr-reports-section">

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Receipt extends Model
 {
@@ -11,6 +12,10 @@ class Receipt extends Model
         'payer_name',
         'receipt_number',
         'issued_at',
+        'status',
+        'cancellation_reason',
+        'cancelled_at',
+        'cancelled_by',
     ];
 
     // Disable Laravel's automatic timestamps since we only have issued_at
@@ -18,10 +23,16 @@ class Receipt extends Model
 
     protected $casts = [
         'issued_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     public function transaction()
     {
         return $this->belongsTo(Transaction::class);
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }

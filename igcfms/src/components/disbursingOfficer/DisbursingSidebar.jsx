@@ -20,7 +20,7 @@ const DisbursingSidebar = ({ activeTab, setActiveTab }) => {
       title: 'Disbursement',
       icon: 'fas fa-hand-holding-usd',
       items: [
-        { id: 'issue-money', label: 'Issue Money', icon: <i className="fas fa-hand-holding-usd"></i> },
+        { id: 'issue-money', label: 'Disburese', icon: <i className="fas fa-hand-holding-usd"></i> },
         { id: 'issue-cheque', label: 'Issue Cheque', icon: <i className="fas fa-money-check-alt"></i> }
       ]
     },

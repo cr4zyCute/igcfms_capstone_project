@@ -814,12 +814,11 @@ const FundsAccounts = () => {
     {/* Edit Modal */}
       {showEditAccount && (
         <div className="modal-overlay" onClick={() => setShowEditAccount(false)}>
-          <div className="modal edit-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="edit-modal-header">
-              <div className="edit-modal-title">
-                <span className="icon-badge">
-                
-                <i className="fas fa-university"></i>
+          <div className="update-fund-account-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="update-fund-account-header">
+              <div className="update-fund-account-title">
+                <span className="update-fund-account-icon-badge">
+                  <i className="fas fa-university"></i>
                 </span>
                 <div>
                   <h4>Update Fund Account</h4>
@@ -831,24 +830,24 @@ const FundsAccounts = () => {
               <button
                 type="button"
                 onClick={() => setShowEditAccount(false)}
-                className="close-button"
+                className="update-fund-account-close-btn"
                 aria-label="Close edit fund account modal"
               >
                 ×
               </button>
             </div>
 
-            <form onSubmit={handleEditAccountSubmit} className="edit-modal-form">
-              <div className="edit-modal-body">
-                <div className="edit-form-grid">
-                  <div className="form-card">
-                    <div className="form-card-header">
+            <form onSubmit={handleEditAccountSubmit} className="update-fund-account-form">
+              <div className="update-fund-account-body">
+                <div className="update-fund-account-grid">
+                  <div className="update-fund-account-form-card">
+                    <div className="update-fund-account-form-header">
                       <h5><i className="fas fa-info-circle"></i> Account Details</h5>
-                      <span className="badge subtle">Required fields</span>
+                      <span className="update-fund-account-badge">Required fields</span>
                     </div>
 
-                    <div className="form-row tight">
-                      <div className="form-group">
+                    <div className="update-fund-account-form-row">
+                      <div className="update-fund-account-form-group">
                         <label>Account Name</label>
                         <input
                           type="text"
@@ -859,9 +858,8 @@ const FundsAccounts = () => {
                           required
                           disabled={loading}
                         />
-                       
                       </div>
-                      <div className="form-group">
+                      <div className="update-fund-account-form-group">
                         <label>Account Type</label>
                         <select
                           value={editAccount.account_type || ''}
@@ -876,36 +874,34 @@ const FundsAccounts = () => {
                           <option value="Liability">Liability</option>
                           <option value="Equity">Equity</option>
                         </select>
-                      
                       </div>
                     </div>
 
-                    <div className="form-row tight">
-                      <div className="form-group">
+                    <div className="update-fund-account-form-row">
+                      <div className="update-fund-account-form-group">
                         <label>Account Code</label>
                         <input
                           type="text"
                           value={editAccount.code}
                           readOnly
-                          className="readonly-field"
+                          className="update-fund-account-readonly-field"
                           required
                           disabled
                         />
                       </div>
-                      <div className="form-group">
+                      <div className="update-fund-account-form-group">
                         <label>Current Balance</label>
                         <input
                           type="text"
                           value={formatCurrency(editAccount.initial_balance)}
                           readOnly
                           disabled
-                          className="readonly-field"
+                          className="update-fund-account-readonly-field"
                         />
-                       
                       </div>
                     </div>
 
-                    <div className="form-group">
+                    <div className="update-fund-account-form-group update-fund-account-full-width">
                       <label>Description</label>
                       <textarea
                         value={editAccount.description || ''}
@@ -921,10 +917,10 @@ const FundsAccounts = () => {
                       />
                     </div>
 
-                    <div className="form-actions-inline">
+                    <div className="update-fund-account-actions">
                       <button
                         type="submit"
-                        className="btn-primary filled"
+                        className="update-fund-account-submit-btn"
                         disabled={updateAccountMutation.isPending}
                       >
                         {updateAccountMutation.isPending ? (
@@ -942,15 +938,15 @@ const FundsAccounts = () => {
                     </div>
                   </div>
 
-                  <div className="summary-card">
-                    <div className="summary-header">
+                  <div className="update-fund-account-snapshot-card">
+                    <div className="update-fund-account-snapshot-header">
                       <h5>Account Snapshot</h5>
-                      <span className={`status-chip ${editAccount.is_active === false ? 'status-inactive' : 'status-active'}`}>
+                      <span className={`update-fund-account-status-chip ${editAccount.is_active === false ? 'update-fund-account-status-inactive' : 'update-fund-account-status-active'}`}>
                         <i className={`fas ${editAccount.is_active === false ? 'fa-pause-circle' : 'fa-bolt'}`}></i>
                         {editAccount.is_active === false ? 'Inactive' : 'Active'}
                       </span>
                     </div>
-                    <ul className="summary-list">
+                    <ul className="update-fund-account-snapshot-list">
                       <li>
                         <span>Fund Name</span>
                         <p>{editAccount.name || '—'}</p>
@@ -969,7 +965,7 @@ const FundsAccounts = () => {
                       </li>
                     </ul>
 
-                    <div className="summary-cta">
+                    <div className="update-fund-account-cta">
                       <i className="fas fa-shield-alt"></i>
                       <p>Changes are logged for audit and instantly visible to other modules.</p>
                     </div>
@@ -977,8 +973,7 @@ const FundsAccounts = () => {
                 </div>
               </div>
 
-              <div className="edit-modal-footer">
-                
+              <div className="update-fund-account-footer">
               </div>
             </form>
           </div>
@@ -1057,43 +1052,41 @@ const FundsAccounts = () => {
       {/* Transaction History Popup */}
       {showTransactionHistory && selectedAccount && (
         <div className="modal-overlay" onClick={() => setShowTransactionHistory(false)}>
-          <div className="modal transaction-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <div className="transaction-modal-header-improved">
-              <h4 className="transaction-modal-title-improved">
-                <i className="fas fa-history"></i> 
-                Transaction History: {selectedAccount.name}
-              </h4>
-              <div className="transaction-modal-controls">
-                <div className="transaction-search-improved">
+          <div className="funds-transaction-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="funds-transaction-header">
+              <div className="funds-transaction-title">
+                <i className="fas fa-history"></i>
+                <span>Transaction History: {selectedAccount.name}</span>
+              </div>
+              <div className="funds-transaction-controls">
+                <div className="funds-transaction-search">
                   <input
                     type="text"
                     placeholder="Search transactions..."
                     value={searchTerm}
                     onChange={handleTransactionSearchChange}
-                    className="transaction-search-input-improved"
+                    className="funds-transaction-search-input"
                   />
-                  <i className="fas fa-search transaction-search-icon-improved"></i>
+                  <i className="fas fa-search funds-transaction-search-icon"></i>
                 </div>
-                
-                <div className="export-dropdown-improved">
+                <div className="funds-transaction-export">
                   <button
                     onClick={() => setShowExportDropdown(!showExportDropdown)}
-                    className="export-btn-improved"
+                    className="funds-transaction-export-btn"
                   >
                     <i className="fas fa-download"></i>
                     Export
                     <i className={`fas fa-chevron-${showExportDropdown ? 'up' : 'down'}`}></i>
                   </button>
-                  
-                  <div className={`export-dropdown-menu-improved ${showExportDropdown ? 'show' : ''}`}>
+                  <div className={`funds-transaction-export-menu ${showExportDropdown ? 'show' : ''}`}>
                     <button
                       onClick={() => {
                         exportTransactionHistoryPDF(filteredTransactions, selectedAccount.name);
                         setShowExportDropdown(false);
                       }}
-                      className="export-option-improved"
+                      className="funds-transaction-export-option"
                     >
-                      <i className="fas fa-file-pdf export-pdf-icon-improved"></i>
+                      <i className="fas fa-file-pdf"></i>
                       Export as PDF
                     </button>
                     <button
@@ -1101,9 +1094,9 @@ const FundsAccounts = () => {
                         exportToCSV(filteredTransactions, `${selectedAccount.name}_transactions.csv`);
                         setShowExportDropdown(false);
                       }}
-                      className="export-option-improved"
+                      className="funds-transaction-export-option"
                     >
-                      <i className="fas fa-file-csv export-csv-icon-improved"></i>
+                      <i className="fas fa-file-csv"></i>
                       Export as CSV
                     </button>
                     <button
@@ -1111,149 +1104,110 @@ const FundsAccounts = () => {
                         exportToExcel(filteredTransactions, `${selectedAccount.name}_transactions.xlsx`);
                         setShowExportDropdown(false);
                       }}
-                      className="export-option-improved"
+                      className="funds-transaction-export-option"
                     >
-                      <i className="fas fa-file-excel export-excel-icon-improved"></i>
+                      <i className="fas fa-file-excel"></i>
                       Export as Excel
                     </button>
                   </div>
                 </div>
-                <div className="account-info-item-improved">
-                {/* <button 
-                  className="btn btn-secondary refresh-btn-styled"
-                  onClick={() => {
-                    // Invalidate and refetch transaction data for the selected account
-                    queryClient.invalidateQueries({ 
-                      queryKey: FUND_ACCOUNTS_KEYS.transactions(selectedAccount.id) 
-                    });
-                  }}
-                  disabled={transactionsLoading}
-                >
-                  <i className="fas fa-sync-alt"></i> Refresh
-                </button> */}
-              </div>
-                
-                <button 
+                <button
                   onClick={() => setShowTransactionHistory(false)}
-                  className="close-btn-styled"
+                  className="funds-transaction-close"
                 >
                   ×
                 </button>
               </div>
             </div>
 
-            <div className="account-info-section-improved">
-              <div className="account-info-item-improved">
-                <div className="account-info-label-improved">Account Code</div>
-                <div className="account-code-value-improved">{selectedAccount.code}</div>
+            <div className="funds-transaction-meta">
+              <div className="funds-transaction-meta-item">
+                <div className="funds-transaction-meta-label">Account Code</div>
+                <div className="funds-transaction-meta-value code">{selectedAccount.code}</div>
               </div>
-              <div className="account-info-item-improved">
-                <div className="account-info-label-improved">Current Balance</div>
-                <div className="account-balance-value-improved">₱{selectedAccount.current_balance?.toLocaleString() || "0.00"}</div>
+              <div className="funds-transaction-meta-item">
+                <div className="funds-transaction-meta-label">Current Balance</div>
+                <div className="funds-transaction-meta-value balance">₱{selectedAccount.current_balance?.toLocaleString() || "0.00"}</div>
               </div>
-
             </div>
 
-
-            
             {transactionsLoading ? (
               <SkeletonTransactionTable />
-            ) : (() => {
-              // Filter transactions based on search term
-              const filteredTransactions = transactions.filter(transaction => {
-                if (!searchTerm) return true;
-                
-                const searchLower = searchTerm.toLowerCase();
-                return (
-                  transaction.description?.toLowerCase().includes(searchLower) ||
-                  transaction.type?.toLowerCase().includes(searchLower) ||
-                  transaction.recipient?.toLowerCase().includes(searchLower) ||
-                  transaction.payer_name?.toLowerCase().includes(searchLower) ||
-                  String(transaction.reference ?? '').toLowerCase().includes(searchLower) ||
-                  String(transaction.reference_no ?? '').toLowerCase().includes(searchLower) ||
-                  String(transaction.receipt_no ?? '').toLowerCase().includes(searchLower) ||
-                  transaction.amount?.toString().includes(searchTerm) ||
-                  new Date(transaction.created_at).toLocaleDateString().includes(searchTerm)
-                );
-              });
-              
-              return filteredTransactions.length > 0 ? (
-                <div className="transaction-history-table-container">
-                  <table className="transaction-history-table">
-                    <thead>
-                      <tr>
-                        <th><i className="fas fa-calendar"></i> Date</th>
-                        <th><i className="fas fa-file-text"></i> Description</th>
-                        <th><i className="fas fa-user"></i> Payee/Payer</th>
-                        <th><i className="fas fa-exchange-alt"></i> Type</th>
-                        <th><i className="fas fa-money-bill"></i> Amount</th>
-                        <th><i className="fas fa-hashtag"></i> Reference</th>
+            ) : filteredTransactions.length > 0 ? (
+              <div className="funds-transaction-table-container">
+                <table className="funds-transaction-table">
+                  <thead>
+                    <tr>
+                      <th><i className="fas fa-calendar"></i> Date</th>
+                      <th><i className="fas fa-file-text"></i> Description</th>
+                      <th><i className="fas fa-user"></i> Payee/Payer</th>
+                      <th><i className="fas fa-exchange-alt"></i> Type</th>
+                      <th><i className="fas fa-money-bill"></i> Amount</th>
+                      <th><i className="fas fa-hashtag"></i> Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTransactions.map((transaction) => (
+                      <tr
+                        key={transaction.id}
+                        onClick={() => handleTransactionClick(transaction)}
+                      >
+                        <td className="transaction-date-cell">
+                          {new Date(transaction.created_at).toLocaleDateString()}
+                        </td>
+
+                        <td className="transaction-description-cell">
+                          {transaction.description}
+                        </td>
+
+                        <td className={`transaction-payee-cell ${transaction.type?.toLowerCase()}`}>
+                          {transaction.type === "Collection"
+                            ? (transaction.payer_name || transaction.recipient || 'Unknown Payer')
+                            : (transaction.recipient || transaction.payer_name || 'Unknown Payee')}
+                        </td>
+
+                        <td className="transaction-type-cell">
+                          <span className={`transaction-type-badge-table ${transaction.type?.toLowerCase()}`}>
+                            {transaction.type === "Collection" && <i className="fas fa-arrow-up"></i>}
+                            {transaction.type === "Disbursement" && <i className="fas fa-arrow-down"></i>}
+                            {transaction.type}
+                          </span>
+                        </td>
+
+                        <td className={`transaction-amount-cell ${transaction.type?.toLowerCase()}`}>
+                          {transaction.type === "Collection" ? "+" : "-"}₱{Math.abs(transaction.amount || 0).toLocaleString()}
+                        </td>
+
+                        <td className="transaction-reference-cell">
+                          {transaction.reference ||
+                            transaction.reference_no ||
+                            transaction.receipt_no ||
+                            'N/A'}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTransactions.map((transaction, index) => (
-                        <tr 
-                          key={transaction.id}
-                          onClick={() => handleTransactionClick(transaction)}
-                        >
-                          <td className="transaction-date-cell">
-                            {new Date(transaction.created_at).toLocaleDateString()}
-                          </td>
-                          
-                          <td className="transaction-description-cell">
-                            {transaction.description}
-                          </td>
-                          
-                          <td className={`transaction-payee-cell ${transaction.type?.toLowerCase()}`}>
-                            {transaction.type === "Collection" 
-                              ? (transaction.payer_name || transaction.recipient || 'Unknown Payer')
-                              : (transaction.recipient || transaction.payer_name || 'Unknown Payee')
-                            }
-                          </td>
-                          
-                          <td className="transaction-type-cell">
-                            <span className={`transaction-type-badge-table ${transaction.type?.toLowerCase()}`}>
-                              {transaction.type === "Collection" && <i className="fas fa-arrow-up"></i>}
-                              {transaction.type === "Disbursement" && <i className="fas fa-arrow-down"></i>}
-                              {transaction.type}
-                            </span>
-                          </td>
-                          
-                          <td className={`transaction-amount-cell ${transaction.type?.toLowerCase()}`}>
-                            {transaction.type === "Collection" ? "+" : "-"}₱{Math.abs(transaction.amount || 0).toLocaleString()}
-                          </td>
-                          
-                          <td className="transaction-reference-cell">
-                            {transaction.reference ||
-                             transaction.reference_no ||
-                             transaction.receipt_no ||
-                             'N/A'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="transaction-empty-state-improved">
-                  <i className={`fas ${searchTerm ? 'fa-search' : 'fa-inbox'} transaction-empty-icon-improved`}></i>
-                  <h4 className="transaction-empty-title-improved">
-                    {searchTerm ? 'No Matching Transactions' : 'No Transactions Found'}
-                  </h4>
-                  <p className="transaction-empty-text-improved">
-                    {searchTerm ? `No transactions match "${searchTerm}"` : 'This account has no transaction history yet.'}
-                  </p>
-                  {searchTerm && (
-                    <button 
-                      onClick={() => setSearchTerm('')}
-                      className="transaction-clear-search-btn-improved"
-                    >
-                      x
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="funds-transaction-empty">
+                <i className={`fas ${searchTerm ? 'fa-search' : 'fa-inbox'}`}></i>
+                <h4>{searchTerm ? 'No Matching Transactions' : 'No Transactions Found'}</h4>
+                <p>
+                  {searchTerm
+                    ? 'Try adjusting your search terms or clearing the search field.'
+                    : 'This fund account has no recorded transactions yet.'}
+                </p>
+                {searchTerm && (
+                  <button
+                    className="funds-transaction-clear-search"
+                    onClick={() => setSearchTerm('')}
+                  >
+                    Clear Search
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

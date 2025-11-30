@@ -179,6 +179,15 @@ export const getProfile = async () => {
     }
   };
 
+  export const cancelReceipt = async (id, data = {}) => {
+    try {
+      const response = await api.post(`/receipts/${id}/cancel`, data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   export const getCollectionTransactions = async (params = {}) => {
     try {
       const response = await getTransactions({ type: 'Collection', ...params });

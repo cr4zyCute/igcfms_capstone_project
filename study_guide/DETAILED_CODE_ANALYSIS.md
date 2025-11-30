@@ -699,7 +699,7 @@ const IssueMoney = () => {
                 </div>
                 
                 <button type="submit" className="submit-btn">
-                    <i className="fas fa-paper-plane"></i> Issue Money
+                    <i className="fas fa-paper-plane"></i> Disburese
                 </button>
             </form>
         </div>

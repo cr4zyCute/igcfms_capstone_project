@@ -24,10 +24,10 @@ const CHEQUE_FIELD_LABELS = {
 };
 
 const DEFAULT_CHEQUE_FIELD_POSITIONS = {
-  dateIssued: { x: 420, y: 20 },
-  payeeName: { x: 60, y: 60 },
-  amountNumber: { x: 420, y: 100 },
-  amountWords: { x: 60, y: 130 }
+  dateIssued: { x: 420, y: 0 },
+  payeeName: { x: 60, y: 36 },
+  amountNumber: { x: 420, y: 76 },
+  amountWords: { x: 60, y: 106 }
 };
 
 const CHEQUE_DATE_FORMATS = [
@@ -784,10 +784,10 @@ const IssueMoney = () => {
           <title>Cheque Layout</title>
           <style>
             * { box-sizing: border-box; }
-            @page { size: 6.25in 2.25in; margin: 0; }
+            @page { size: 6.25in 2.75in; margin: 0; }
             html, body {
               width: 6.25in;
-              height: 2.25in;
+              height: 2.75in;
               margin: 0;
               padding: 0;
             }
@@ -799,14 +799,15 @@ const IssueMoney = () => {
             }
             .cheque-doc {
               width: 6.25in;
-              height: 2.25in;
+              height: 2.75in;
               position: relative;
             }
             .print-field {
               position: absolute;
-              font-size: 14px;
-              color: #111827;
+              font-size: 15px;
+              color: #0f172a;
               font-weight: 600;
+              white-space: nowrap;
             }
             .print-field-payeeName {
               white-space: nowrap;
@@ -1486,7 +1487,7 @@ const IssueMoney = () => {
     <div className="issue-money-page">
       <div className="im-header">
         <h2 className="im-title">
-          <i className="fas fa-money-check-alt"></i> Issue Money / Disbursement
+          <i className="fas fa-money-check-alt"></i> Disbursement
         </h2>
  
         <div className="im-header-actions">
@@ -2267,10 +2268,6 @@ const IssueMoney = () => {
             </div>
             <div className="modal-body">
               <div className="success-details">
-                <div className="success-icon">
-                  <i className="fas fa-check-circle"></i>
-                </div>
-                <h4>Disbursement Completed</h4>
                 <div className="result-details">
                   <div className="detail-item">
                     <label>Transaction ID:</label>
@@ -2300,12 +2297,6 @@ const IssueMoney = () => {
                     <label>Payment Mode:</label>
                     <span>{disbursementResult.modeOfPayment}</span>
                   </div>
-                  {disbursementResult.modeOfPayment === "Cheque" && (
-                    <div className="detail-item">
-                      <label>Cheque Number:</label>
-                      <span>{disbursementResult.chequeNumber}</span>
-                    </div>
-                  )}
                 </div>
 
                 {disbursementResult.modeOfPayment === "Cheque" && (
@@ -2355,9 +2346,6 @@ const IssueMoney = () => {
                         );
                       })}
                     </div>
-                    <p className="cheque-preview-hint">
-                      Tip: use the "Print Layout" button to print exactly what you see here.
-                    </p>
                   </div>
                 )}
               </div>

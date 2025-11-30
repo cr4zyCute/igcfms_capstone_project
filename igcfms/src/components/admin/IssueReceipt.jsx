@@ -11,7 +11,6 @@ import {
   useReceipts,
   useCollectionTransactions,
   useCreateReceipt,
-  useUpdateReceipt,
   useDeleteReceipt
 } from '../../hooks/useReceipts';
 
@@ -153,7 +152,6 @@ const IssueReceipt = () => {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showIssueFormModal, setShowIssueFormModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [receiptToDelete, setReceiptToDelete] = useState(null);
@@ -161,13 +159,6 @@ const IssueReceipt = () => {
   const [transactionSearch, setTransactionSearch] = useState("");
   const [trendPeriod, setTrendPeriod] = useState('month');
   const [disbursementPeriod, setDisbursementPeriod] = useState('week'); // week, month, year
-  const [editFormData, setEditFormData] = useState({
-    id: null,
-    payerName: "",
-    receiptNumber: "",
-    issueDate: "",
-    transactionId: ""
-  });
   const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   const {
@@ -183,13 +174,12 @@ const IssueReceipt = () => {
   } = useCollectionTransactions();
 
   const createReceiptMutation = useCreateReceipt();
-  const updateReceiptMutation = useUpdateReceipt();
   const deleteReceiptMutation = useDeleteReceipt();
 
   const receipts = useMemo(() => receiptsData || [], [receiptsData]);
   const transactions = useMemo(() => collectionTransactions || [], [collectionTransactions]);
   const isInitialLoading = receiptsLoading || transactionsLoading;
-  const mutationLoading = createReceiptMutation.isPending || updateReceiptMutation.isPending || deleteReceiptMutation.isPending;
+  const mutationLoading = createReceiptMutation.isPending || deleteReceiptMutation.isPending;
 
   useEffect(() => {
     if (receiptsError) {
@@ -548,46 +538,6 @@ const IssueReceipt = () => {
         printWindow.close();
       }, 250);
     };
-  };
-
-  // Handle edit receipt
-  const handleEditReceipt = (receipt) => {
-    setEditFormData({
-      id: receipt.id,
-      payerName: receipt.payer_name || "",
-      receiptNumber: receipt.receipt_number || "",
-      issueDate: receipt.issued_at ? new Date(receipt.issued_at).toISOString().split('T')[0] : "",
-      transactionId: receipt.transaction_id?.toString() || ""
-    });
-    setSelectedReceipt(receipt);
-    setShowEditModal(true);
-  };
-
-  // Handle edit form input change
-  const handleEditInputChange = (field, value) => {
-    setEditFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  // Submit edit receipt
-  const submitEditReceipt = async () => {
-    try {
-      const payload = {
-        payer_name: editFormData.payerName.trim(),
-        receipt_number: editFormData.receiptNumber.trim(),
-        issued_at: editFormData.issueDate
-      };
-
-      await updateReceiptMutation.mutateAsync({ id: editFormData.id, data: payload });
-
-      showMessage('Receipt updated successfully!', 'success');
-      setShowEditModal(false);
-    } catch (err) {
-      console.error('Error updating receipt:', err);
-      showMessage(err?.response?.data?.message || err.message || 'Failed to update receipt.', 'error');
-    }
   };
 
   // Delete receipt
@@ -1325,17 +1275,6 @@ const IssueReceipt = () => {
                               {openActionMenu === receipt.id && (
                                 <div className="action-dropdown-menu">
                                   <button 
-                                    className="action-dropdown-item"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditReceipt(receipt);
-                                      setOpenActionMenu(null);
-                                    }}
-                                  >
-                                    <i className="fas fa-edit"></i>
-                                    <span>Edit Receipt</span>
-                                  </button>
-                                  <button 
                                     className="action-dropdown-item danger"
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1859,139 +1798,6 @@ const IssueReceipt = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Receipt Modal */}
-      {showEditModal && (
-        <div className="edit-modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="edit-modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="edit-modal-header">
-              <h3 style={{ color: 'white' }} className="edit-modal-title">
-                <i className="fas fa-edit"></i>
-                Edit Receipt
-              </h3>
-              <button className="edit-modal-close" onClick={() => setShowEditModal(false)}>
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-
-            <div className="edit-modal-body">
-              <form onSubmit={(e) => { e.preventDefault(); submitEditReceipt(); }}>
-                {/* 2x2 Grid Form */}
-                <div className="edit-form-grid">
-                  {/* Payer Name */}
-                  <div className="edit-form-field">
-                    <label className="edit-form-label">
-                      <i className="fas fa-user"></i>
-                      Payer Name *
-                    </label>
-                    <input
-                      type="text"
-                      className="edit-form-input"
-                      placeholder="Enter payer name"
-                      value={editFormData.payerName}
-                      onChange={(e) => handleEditInputChange('payerName', e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  {/* Receipt Number */}
-                  <div className="edit-form-field">
-                    <label className="edit-form-label">
-                      <i className="fas fa-receipt"></i>
-                      Receipt Number
-                    </label>
-                    <input
-                      type="text"
-                      className="edit-form-input"
-                      value={editFormData.receiptNumber}
-                      disabled
-                    />
-                  </div>
-
-                  {/* Issue Date */}
-                  <div className="edit-form-field">
-                    <label className="edit-form-label">
-                      <i className="fas fa-calendar-alt"></i>
-                      Issue Date
-                    </label>
-                    <input
-                      type="date"
-                      className="edit-form-input"
-                      value={editFormData.issueDate}
-                      onChange={(e) => handleEditInputChange('issueDate', e.target.value)}
-                      disabled
-                    />
-                  </div>
-
-                  {/* Transaction ID */}
-                  <div className="edit-form-field">
-                    <label className="edit-form-label">
-                      <i className="fas fa-hashtag"></i>
-                      Transaction ID
-                    </label>
-                    <input
-                      type="text"
-                      className="edit-form-input"
-                      value={`#${editFormData.transactionId}`}
-                      disabled
-                    />
-                  </div>
-                </div>
-
-                {/* Receipt Info Card */}
-                <div className="edit-info-card">
-                  <div className="edit-info-header">
-                    <i className="fas fa-info-circle"></i>
-                    Current Receipt Information
-                  </div>
-                  <div className="edit-info-grid">
-                    <div className="edit-info-item">
-                      <span className="edit-info-label">Receipt ID</span>
-                      <span className="edit-info-value">#{selectedReceipt?.id}</span>
-                    </div>
-                    <div className="edit-info-item">
-                      <span className="edit-info-label">Created</span>
-                      <span className="edit-info-value">
-                        {selectedReceipt?.created_at ? new Date(selectedReceipt.created_at).toLocaleDateString() : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="edit-info-item">
-                      <span className="edit-info-label">Amount</span>
-                      <span className="edit-info-value">
-                        {(() => {
-                          const transaction = transactions.find(t => t.id === selectedReceipt?.transaction_id);
-                          return transaction ? `₱${parseFloat(transaction.amount || 0).toLocaleString()}` : 'N/A';
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Modal Footer */}
-                <div className="edit-modal-footer">
-                  <button
-                    type="submit"
-                    className="edit-btn edit-btn-save"
-                    disabled={mutationLoading}
-                  >
-                    {mutationLoading ? (
-                      <>
-                        <i className="fas fa-spinner fa-spin"></i>
-                        Updating...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-save"></i>
-                        Save Changes
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
           </div>
         </div>
       )}
