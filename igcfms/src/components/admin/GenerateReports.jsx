@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import "./css/generatereports.css";
 import DailyKPI from "../analytics/ReportAnalysis/dailyKPI";
 import MonthlyKPI from "../analytics/ReportAnalysis/monthlyKPI";
@@ -64,6 +66,14 @@ const GenerateReports = ({ user }) => {
   const [reportToDelete, setReportToDelete] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [activityTab, setActivityTab] = useState('kpi');
+  const [transactionFilters, setTransactionFilters] = useState({
+    type: "all",
+    dateFrom: "",
+    dateTo: "",
+    searchTerm: "",
+    activeFilter: "all",
+    showFilterDropdown: false
+  });
 
   const API_BASE = require('../../config/api').default;
   const token = localStorage.getItem("token");
@@ -344,6 +354,284 @@ const GenerateReports = ({ user }) => {
     }
   };
 
+  const getTransactionDisplayType = useMemo(() => {
+    return (transaction) => {
+      if (!transaction) return 'Unknown';
+
+      const receipt = transaction.receipt_no || transaction.reference_no || '';
+
+      if (transaction.type === 'Override') {
+        return 'Cancelled';
+      }
+
+      if (typeof receipt === 'string' && receipt.startsWith('OVR-')) {
+        return 'Override';
+      }
+
+      return transaction.type || 'Unknown';
+    };
+  }, []);
+
+  const filteredTransactions = useMemo(() => {
+    let filtered = transactions.filter(transaction => {
+      // Type filter
+      if (transactionFilters.type !== "all" && transaction.type !== transactionFilters.type) {
+        return false;
+      }
+
+      // Date range filter
+      if (transactionFilters.dateFrom && new Date(transaction.created_at) < new Date(transactionFilters.dateFrom)) {
+        return false;
+      }
+      if (transactionFilters.dateTo && new Date(transaction.created_at) > new Date(transactionFilters.dateTo + "T23:59:59")) {
+        return false;
+      }
+
+      // Search filter
+      if (transactionFilters.searchTerm) {
+        const searchLower = transactionFilters.searchTerm.toLowerCase();
+        return (
+          transaction.id?.toString().includes(searchLower) ||
+          transaction.type?.toLowerCase().includes(searchLower) ||
+          transaction.description?.toLowerCase().includes(searchLower) ||
+          transaction.recipient?.toLowerCase().includes(searchLower) ||
+          transaction.department?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      return true;
+    });
+
+    // Apply sorting based on activeFilter
+    if (transactionFilters.activeFilter === 'latest') {
+      filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (transactionFilters.activeFilter === 'oldest') {
+      filtered.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    } else if (transactionFilters.activeFilter === 'highest') {
+      filtered.sort((a, b) => parseFloat(b.amount || 0) - parseFloat(a.amount || 0));
+    } else if (transactionFilters.activeFilter === 'lowest') {
+      filtered.sort((a, b) => parseFloat(a.amount || 0) - parseFloat(b.amount || 0));
+    } else if (transactionFilters.activeFilter === 'collections') {
+      filtered = filtered.filter(tx => tx.type === 'Collection');
+    } else if (transactionFilters.activeFilter === 'disbursements') {
+      filtered = filtered.filter(tx => tx.type === 'Disbursement');
+    }
+
+    return filtered;
+  }, [transactions, transactionFilters]);
+
+  const handleTransactionFilterChange = (key, value) => {
+    setTransactionFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const clearTransactionFilters = () => {
+    setTransactionFilters({
+      type: "all",
+      dateFrom: "",
+      dateTo: "",
+      searchTerm: "",
+      activeFilter: "all",
+      showFilterDropdown: false
+    });
+  };
+
+  const exportTransactionsToCSV = () => {
+    const filename = `transactions_${new Date().toISOString().split('T')[0]}.csv`;
+    const headers = ['ID', 'Type', 'Amount', 'Recipient/Payer', 'Date', 'Description'];
+    
+    const csvContent = [
+      headers.map(h => `"${h}"`).join(','),
+      ...filteredTransactions.map(transaction => {
+        const displayType = getTransactionDisplayType(transaction);
+        const amountValue = parseFloat(transaction.amount || 0);
+        const amountPrefix = amountValue >= 0 ? '' : '-';
+        
+        return [
+          transaction.id,
+          displayType,
+          `${amountPrefix}₱${Math.abs(amountValue).toLocaleString()}`,
+          transaction.recipient || 'N/A',
+          new Date(transaction.created_at).toLocaleDateString(),
+          transaction.description || ''
+        ].map(cell => `"${cell}"`).join(',');
+      })
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  };
+
+  const exportTransactionsToExcel = () => {
+    const filename = `transactions_${new Date().toISOString().split('T')[0]}.xls`;
+    const tableHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Recipient/Payer</th>
+            <th>Date</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredTransactions
+            .map(transaction => {
+              const displayType = getTransactionDisplayType(transaction);
+              const amountValue = parseFloat(transaction.amount || 0);
+              const amountPrefix = amountValue >= 0 ? '' : '-';
+              
+              return `
+              <tr>
+                <td>${transaction.id}</td>
+                <td>${displayType}</td>
+                <td>${amountPrefix}₱${Math.abs(amountValue).toLocaleString()}</td>
+                <td>${transaction.recipient || 'N/A'}</td>
+                <td>${new Date(transaction.created_at).toLocaleDateString()}</td>
+                <td>${transaction.description || ''}</td>
+              </tr>
+            `;
+            })
+            .join('')}
+        </tbody>
+      </table>
+    `;
+
+    const blob = new Blob([tableHTML], { type: 'application/vnd.ms-excel' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  };
+
+  const exportTransactionsToPDF = () => {
+    const doc = new jsPDF();
+    const filename = `transactions_${new Date().toISOString().split('T')[0]}.pdf`;
+    
+    // Add header
+    doc.setFillColor(0, 0, 0);
+    doc.rect(0, 0, 210, 35, 'F');
+    
+    // Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('TRANSACTION REPORT', 15, 15);
+    
+    // Report info
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 15, 25);
+    
+    // Created by info
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('Report Details', 15, 45);
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Created By: ${user?.name || 'System'}`, 15, 52);
+    doc.text(`Role: ${user?.role || 'N/A'}`, 15, 59);
+    doc.text(`Total Transactions: ${filteredTransactions.length}`, 15, 66);
+    
+    // Date filter info
+    let dateFilterText = 'Date Range: All Dates';
+    if (transactionFilters.dateFrom && transactionFilters.dateTo) {
+      dateFilterText = `Date Range: ${new Date(transactionFilters.dateFrom).toLocaleDateString()} to ${new Date(transactionFilters.dateTo).toLocaleDateString()}`;
+    } else if (transactionFilters.dateFrom) {
+      dateFilterText = `Date Range: From ${new Date(transactionFilters.dateFrom).toLocaleDateString()}`;
+    } else if (transactionFilters.dateTo) {
+      dateFilterText = `Date Range: Until ${new Date(transactionFilters.dateTo).toLocaleDateString()}`;
+    }
+    doc.text(dateFilterText, 15, 73);
+    
+    // Calculate totals
+    const totalCollections = filteredTransactions
+      .filter(tx => tx.type === 'Collection')
+      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+    
+    const totalDisbursements = filteredTransactions
+      .filter(tx => tx.type === 'Disbursement')
+      .reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount || 0)), 0);
+    
+    doc.setFillColor(240, 240, 240);
+    doc.rect(15, 78, 180, 20, 'F');
+    doc.setFont(undefined, 'bold');
+    doc.text(`Total Collections: PHP ${totalCollections.toLocaleString()}`, 20, 85);
+    doc.text(`Total Disbursements: PHP ${totalDisbursements.toLocaleString()}`, 20, 93);
+    
+    // Table data
+    const tableData = filteredTransactions.map(transaction => {
+      const displayType = getTransactionDisplayType(transaction);
+      const amountValue = parseFloat(transaction.amount || 0);
+      const amountPrefix = amountValue >= 0 ? '' : '-';
+      const creatorName = transaction.created_by?.name || transaction.user?.name || 'System';
+      
+      return [
+        transaction.id,
+        displayType,
+        `${amountPrefix}PHP ${Math.abs(amountValue).toLocaleString()}`,
+        transaction.recipient || 'N/A',
+        creatorName,
+        new Date(transaction.created_at).toLocaleDateString(),
+        transaction.description || 'N/A'
+      ];
+    });
+    
+    // Add table
+    autoTable(doc, {
+      startY: 103,
+      head: [['ID', 'Type', 'Amount', 'Recipient/Payer', 'Created By', 'Date', 'Description']],
+      body: tableData,
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10,
+        halign: 'center'
+      },
+      bodyStyles: {
+        textColor: [0, 0, 0],
+        fontSize: 9
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
+      },
+      margin: { left: 15, right: 15 },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 12 },
+        1: { halign: 'center', cellWidth: 20 },
+        2: { halign: 'right', cellWidth: 25 },
+        3: { halign: 'left', cellWidth: 30 },
+        4: { halign: 'left', cellWidth: 28 },
+        5: { halign: 'center', cellWidth: 25 },
+        6: { halign: 'left', cellWidth: 30 }
+      }
+    });
+    
+    // Add footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`Page ${i} of ${pageCount}`, 195, 285, { align: 'right' });
+      doc.text('IGCFMS - Integrated Government Collections and Funds Management System', 105, 290, { align: 'center' });
+    }
+    
+    doc.save(filename);
+  };
+
+  const [showTransactionExportDropdown, setShowTransactionExportDropdown] = useState(false);
+
   const recentOverrideRequests = useMemo(() => {
     if (!overrideRequests || overrideRequests.length === 0) return [];
 
@@ -555,6 +843,267 @@ const GenerateReports = ({ user }) => {
         </div>
       )}
 
+      {activityTab === 'transactions' && (
+        <div className="gr-transactions-section">
+          <div className="gr-transactions-header">
+            <div className="gr-section-title-group">
+              <h3>
+                <i className="fas fa-exchange-alt"></i>
+                Transaction Activity
+                <span className="gr-section-count">({filteredTransactions.length})</span>
+              </h3>
+            </div>
+            <div className="gr-header-controls">
+              <div className="gr-export-dropdown-container">
+                <button
+                  className="gr-export-btn"
+                  onClick={() => setShowTransactionExportDropdown(!showTransactionExportDropdown)}
+                  disabled={filteredTransactions.length === 0}
+                  title="Export Transactions"
+                >
+                  <i className="fas fa-download"></i>
+                  Export
+                </button>
+                
+                {showTransactionExportDropdown && (
+                  <div className="gr-export-dropdown-menu">
+                    <button
+                      className="gr-export-option"
+                      onClick={() => {
+                        exportTransactionsToCSV();
+                        setShowTransactionExportDropdown(false);
+                      }}
+                    >
+                      <i className="fas fa-file-csv"></i>
+                      <span>Export as CSV</span>
+                    </button>
+                    <button
+                      className="gr-export-option"
+                      onClick={() => {
+                        exportTransactionsToExcel();
+                        setShowTransactionExportDropdown(false);
+                      }}
+                    >
+                      <i className="fas fa-file-excel"></i>
+                      <span>Export as Excel</span>
+                    </button>
+                    <button
+                      className="gr-export-option"
+                      onClick={() => {
+                        exportTransactionsToPDF();
+                        setShowTransactionExportDropdown(false);
+                      }}
+                    >
+                      <i className="fas fa-file-pdf"></i>
+                      <span>Export as PDF</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="gr-header-controls">
+              <div className="gr-search-filter-container">
+                <div className="gr-date-filter-group">
+                  <label>Date From</label>
+                  <input 
+                    type="date" 
+                    value={transactionFilters.dateFrom}
+                    onChange={(e) => handleTransactionFilterChange('dateFrom', e.target.value)}
+                    className="gr-date-input"
+                  />
+                </div>
+                
+                <div className="gr-date-filter-group">
+                  <label>Date To</label>
+                  <input 
+                    type="date" 
+                    value={transactionFilters.dateTo}
+                    onChange={(e) => handleTransactionFilterChange('dateTo', e.target.value)}
+                    className="gr-date-input"
+                  />
+                </div>
+
+                <div className="gr-account-search-container">
+                  <input
+                    type="text"
+                    placeholder="Search transactions..."
+                    value={transactionFilters.searchTerm}
+                    onChange={(e) => handleTransactionFilterChange('searchTerm', e.target.value)}
+                    className="gr-account-search-input"
+                  />
+                  <i className="fas fa-search gr-account-search-icon"></i>
+                </div>
+                
+                <div className="gr-filter-dropdown-container">
+                  <button
+                    className="gr-filter-dropdown-btn"
+                    onClick={() => setTransactionFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
+                    title="Filter transactions"
+                  >
+                    <i className="fas fa-filter"></i>
+                    <span className="gr-filter-label">
+                      {transactionFilters.activeFilter === 'all' ? 'All Transactions' :
+                       transactionFilters.activeFilter === 'latest' ? 'Latest First' :
+                       transactionFilters.activeFilter === 'oldest' ? 'Oldest First' :
+                       transactionFilters.activeFilter === 'highest' ? 'Highest Amount' :
+                       transactionFilters.activeFilter === 'lowest' ? 'Lowest Amount' :
+                       transactionFilters.activeFilter === 'collections' ? 'Collections Only' :
+                       'Disbursements Only'}
+                    </span>
+                    <i className={`fas fa-chevron-${transactionFilters.showFilterDropdown ? 'up' : 'down'} gr-filter-arrow`}></i>
+                  </button>
+                  
+                  {transactionFilters.showFilterDropdown && (
+                    <div className="gr-filter-dropdown-menu">
+                      <button
+                        className={`gr-filter-option ${transactionFilters.activeFilter === 'all' ? 'active' : ''}`}
+                        onClick={() => { handleTransactionFilterChange('activeFilter', 'all'); setTransactionFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-list"></i>
+                        <span>All Transactions</span>
+                        {transactionFilters.activeFilter === 'all' && <i className="fas fa-check gr-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`gr-filter-option ${transactionFilters.activeFilter === 'latest' ? 'active' : ''}`}
+                        onClick={() => { handleTransactionFilterChange('activeFilter', 'latest'); setTransactionFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-down"></i>
+                        <span>Latest First</span>
+                        {transactionFilters.activeFilter === 'latest' && <i className="fas fa-check gr-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`gr-filter-option ${transactionFilters.activeFilter === 'oldest' ? 'active' : ''}`}
+                        onClick={() => { handleTransactionFilterChange('activeFilter', 'oldest'); setTransactionFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-up"></i>
+                        <span>Oldest First</span>
+                        {transactionFilters.activeFilter === 'oldest' && <i className="fas fa-check gr-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`gr-filter-option ${transactionFilters.activeFilter === 'highest' ? 'active' : ''}`}
+                        onClick={() => { handleTransactionFilterChange('activeFilter', 'highest'); setTransactionFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-sort-amount-down"></i>
+                        <span>Highest Amount</span>
+                        {transactionFilters.activeFilter === 'highest' && <i className="fas fa-check gr-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`gr-filter-option ${transactionFilters.activeFilter === 'lowest' ? 'active' : ''}`}
+                        onClick={() => { handleTransactionFilterChange('activeFilter', 'lowest'); setTransactionFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-sort-amount-up"></i>
+                        <span>Lowest Amount</span>
+                        {transactionFilters.activeFilter === 'lowest' && <i className="fas fa-check gr-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`gr-filter-option ${transactionFilters.activeFilter === 'collections' ? 'active' : ''}`}
+                        onClick={() => { handleTransactionFilterChange('activeFilter', 'collections'); setTransactionFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-circle-down"></i>
+                        <span>Collections Only</span>
+                        {transactionFilters.activeFilter === 'collections' && <i className="fas fa-check gr-filter-check"></i>}
+                      </button>
+                      <button
+                        className={`gr-filter-option ${transactionFilters.activeFilter === 'disbursements' ? 'active' : ''}`}
+                        onClick={() => { handleTransactionFilterChange('activeFilter', 'disbursements'); setTransactionFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-arrow-circle-up"></i>
+                        <span>Disbursements Only</span>
+                        {transactionFilters.activeFilter === 'disbursements' && <i className="fas fa-check gr-filter-check"></i>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="gr-table-section">
+            <div className="gr-table-container">
+              <table className="gr-table">
+                <thead>
+                  <tr>
+                    <th><i className="fas fa-hashtag"></i> ID</th>
+                    <th><i className="fas fa-tag"></i> TYPE</th>
+                    <th><i className="fas fa-money-bill"></i> AMOUNT</th>
+                    <th><i className="fas fa-user"></i> RECIPIENT/PAYER</th>
+                    <th><i className="fas fa-calendar"></i> DATE</th>
+                    <th><i className="fas fa-cog"></i> ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.length > 0 ? (
+                    filteredTransactions.map((transaction) => {
+                      const displayType = getTransactionDisplayType(transaction);
+                      const amountValue = parseFloat(transaction.amount || 0);
+                      const amountIsPositive = amountValue >= 0;
+                      const amountPrefix = amountIsPositive ? '' : '-';
+
+                      return (
+                        <tr key={transaction.id} className="table-row">
+                          <td>
+                            <div className="gr-cell-content">
+                              <span className="receipt-id">#{transaction.id}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="gr-cell-content">
+                              <span className={`tm-type-badge ${displayType.toLowerCase()}`}>
+                                {displayType}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="gr-cell-content">
+                              <span className={`amount ${amountIsPositive ? 'amount-positive' : 'amount-negative'}`}>
+                                {amountPrefix}₱{Math.abs(amountValue).toLocaleString()}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="gr-cell-content">
+                              <span className="payer-name">{transaction.recipient || 'N/A'}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="gr-cell-content">
+                              <span className="issue-date">
+                                {new Date(transaction.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="action-cell">
+                            <div className="gr-cell-content">
+                              <div className="action-buttons-group">
+                                <button 
+                                  className="action-btn-icon"
+                                  title="View Details"
+                                >
+                                  <i className="fas fa-eye"></i>
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="gr-no-data">
+                        <div className="gr-no-data-content">
+                          <i className="fas fa-inbox"></i>
+                          <p>No transactions found matching your criteria.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activityTab === 'overrides' && (
         <div className="gr-overrides-section">
           <div className="gr-section-title-group" style={{ marginBottom: '12px' }}>
@@ -637,6 +1186,7 @@ const GenerateReports = ({ user }) => {
       )}
 
       {/* Reports Table */}
+      {activityTab === 'kpi' && (
       <div className="gr-reports-section">
         <div className="gr-reports-header">
           <div className="gr-section-title-group">
@@ -922,6 +1472,7 @@ const GenerateReports = ({ user }) => {
           })()}
         </div>
       </div>
+      )}
 
       {/* Generate Confirmation Modal */}
       {showGenerateModal && (

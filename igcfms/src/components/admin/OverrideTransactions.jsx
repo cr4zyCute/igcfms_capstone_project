@@ -12,6 +12,7 @@ import {
   useCreateOverrideRequest,
   useReviewOverrideRequest
 } from "../../hooks/useOverrideTransactions";
+import { useCreateReceipt } from "../../hooks/useReceipts";
 import "./css/overridetransactions.css";
 
 const OverrideTransactions = ({ role = "Admin" }) => {
@@ -36,6 +37,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
 
   const createOverrideRequestMutation = useCreateOverrideRequest();
   const reviewOverrideRequestMutation = useReviewOverrideRequest();
+  const createReceiptMutation = useCreateReceipt();
 
   // Determine which override requests to use based on role
   const overrideRequests = role === "Admin" ? adminOverrideRequests : myOverrideRequests;
@@ -59,6 +61,13 @@ const OverrideTransactions = ({ role = "Admin" }) => {
   const [showTransactionDropdown, setShowTransactionDropdown] = useState(false);
   
   const transactionDropdownRef = useRef(null);
+
+  // Manual Receipt Modal state
+  const [showManualReceiptModal, setShowManualReceiptModal] = useState(false);
+  const [manualReceiptTxId, setManualReceiptTxId] = useState(null);
+  const [manualReceiptNo, setManualReceiptNo] = useState("");
+  const [manualPayerName, setManualPayerName] = useState("");
+  const [manualReceiptError, setManualReceiptError] = useState("");
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -132,6 +141,16 @@ const OverrideTransactions = ({ role = "Admin" }) => {
         req.id.toString().includes(searchLower)
       );
     }
+    // Default sort: latest first
+    filtered.sort((a, b) => {
+      const aDate = a?.created_at ? new Date(a.created_at) : null;
+      const bDate = b?.created_at ? new Date(b.created_at) : null;
+      if (aDate && bDate) return bDate - aDate; // newest to oldest
+      if (aDate && !bDate) return -1;
+      if (!aDate && bDate) return 1;
+      // Fallback: by id desc
+      return (b?.id || 0) - (a?.id || 0);
+    });
 
     setFilteredRequests(filtered);
   };
@@ -216,8 +235,26 @@ const OverrideTransactions = ({ role = "Admin" }) => {
     reviewOverrideRequestMutation.mutate(
       { requestId, status, review_notes: reviewNotes.trim() },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
           showMessage(`Override request ${status} successfully!`);
+
+          // If approved, prompt for manual receipt creation
+          try {
+            let appliedTxId = null;
+            const changesRaw = data?.changes;
+            const changes = typeof changesRaw === 'string' ? JSON.parse(changesRaw || '{}') : (changesRaw || {});
+            appliedTxId = changes?.applied_transaction_id ?? changes?.appliedTransactionId ?? null;
+
+            if (status === 'approved' && appliedTxId) {
+              setManualReceiptTxId(appliedTxId);
+              const defaultPayer = selectedRequest?.transaction?.recipient || '';
+              setManualPayerName(defaultPayer);
+              setShowManualReceiptModal(true);
+            }
+          } catch (e) {
+            // Fallback: just close if parsing fails
+          }
+
           setReviewNotes("");
           setShowReviewModal(false);
           setSelectedRequest(null);
@@ -226,6 +263,43 @@ const OverrideTransactions = ({ role = "Admin" }) => {
           console.error(err);
           showMessage(err.response?.data?.message || "Failed to review request.", 'error');
         }
+      }
+    );
+  };
+
+  const handleCreateManualReceipt = (e) => {
+    e.preventDefault();
+    setManualReceiptError("");
+    if (!manualReceiptTxId) {
+      setManualReceiptError('Missing transaction ID for receipt.');
+      return;
+    }
+    if (!manualReceiptNo.trim()) {
+      setManualReceiptError('Receipt number is required.');
+      return;
+    }
+    if (!manualPayerName.trim()) {
+      setManualReceiptError('Payer name is required.');
+      return;
+    }
+
+    createReceiptMutation.mutate(
+      {
+        transaction_id: parseInt(manualReceiptTxId, 10),
+        payer_name: manualPayerName.trim(),
+        receipt_number: manualReceiptNo.trim(),
+      },
+      {
+        onSuccess: () => {
+          showMessage('Receipt created successfully!');
+          setShowManualReceiptModal(false);
+          setManualReceiptNo("");
+          setManualPayerName("");
+          setManualReceiptTxId(null);
+        },
+        onError: (err) => {
+          setManualReceiptError(err?.response?.data?.message || err?.message || 'Failed to create receipt.');
+        },
       }
     );
   };
@@ -475,6 +549,70 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                   </button>
                 </div>
               )}
+
+      {/* Manual Receipt Creation Modal */}
+      {showManualReceiptModal && (
+        <div className="ot-modal-overlay" onClick={() => setShowManualReceiptModal(false)}>
+          <div className="ot-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="ot-modal-header">
+              <h3><i className="fas fa-receipt"></i> Create Receipt for Override</h3>
+              <button className="ot-modal-close" onClick={() => setShowManualReceiptModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="ot-modal-body">
+              {manualReceiptError && (
+                <div className="alert alert-error" style={{ marginBottom: '12px' }}>
+                  <i className="fas fa-exclamation-triangle"></i>
+                  {manualReceiptError}
+                </div>
+              )}
+              <form onSubmit={handleCreateManualReceipt}>
+                <div className="form-grid-2x2">
+                  <div className="form-group">
+                    <label>Transaction ID</label>
+                    <input type="text" value={`#${manualReceiptTxId || ''}`} disabled />
+                  </div>
+                  <div className="form-group">
+                    <label>Receipt Number</label>
+                    <input
+                      type="text"
+                      value={manualReceiptNo}
+                      onChange={(e) => setManualReceiptNo(e.target.value.toUpperCase())}
+                      placeholder="Enter receipt number"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Payer Name</label>
+                    <input
+                      type="text"
+                      value={manualPayerName}
+                      onChange={(e) => setManualPayerName(e.target.value)}
+                      placeholder="Enter payer name"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-actions">
+                  <button type="button" className="cancel-btn" onClick={() => setShowManualReceiptModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="approve-btn" disabled={createReceiptMutation.isPending}>
+                    {createReceiptMutation.isPending ? (
+                      <i className="fas fa-spinner fa-spin"></i>
+                    ) : (
+                      <>
+                        <i className="fas fa-save"></i> Save Receipt
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
             </div>
           </div>
         </div>

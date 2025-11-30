@@ -87,13 +87,12 @@ const normalizeAmount = (value) => {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
-  return null;
 };
 
 const formatCurrency = (value) => {
   const amount = normalizeAmount(value);
   if (amount === null) {
-    return '—';
+    return '₱0.00';
   }
   return amount.toLocaleString('en-PH', {
     style: 'currency',
@@ -142,7 +141,7 @@ const IssueReceipt = () => {
   const transactionDropdownRef = useRef(null);
   // Filter states
   const [filters, setFilters] = useState({
-    activeFilter: "all", // all, latest, oldest, highest, lowest
+    activeFilter: "latest", // all, latest, oldest, highest, lowest
     dateFrom: "",
     dateTo: "",
     searchTerm: "",
@@ -180,6 +179,19 @@ const IssueReceipt = () => {
   const transactions = useMemo(() => collectionTransactions || [], [collectionTransactions]);
   const isInitialLoading = receiptsLoading || transactionsLoading;
   const mutationLoading = createReceiptMutation.isPending || deleteReceiptMutation.isPending;
+
+  const getReceiptStatusLabel = (receipt) => {
+    if (!receipt) return 'Issued';
+    const raw = receipt.status || 'Issued';
+    return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+  };
+
+  const getReceiptStatusClass = (receipt) => {
+    const status = (receipt?.status || 'issued').toLowerCase();
+    if (status === 'cancelled') return 'status-cancelled';
+    if (status === 'override') return 'status-override';
+    return 'status-issued';
+  };
 
   useEffect(() => {
     if (receiptsError) {
@@ -268,15 +280,15 @@ const IssueReceipt = () => {
     } else if (filters.activeFilter === 'highest') {
       // Highest to lowest amount
       filtered.sort((a, b) => {
-        const amountA = transactions.find(t => t.id === a.transaction_id)?.amount || 0;
-        const amountB = transactions.find(t => t.id === b.transaction_id)?.amount || 0;
+        const amountA = a.transaction?.amount ?? transactions.find(t => t.id === a.transaction_id)?.amount ?? 0;
+        const amountB = b.transaction?.amount ?? transactions.find(t => t.id === b.transaction_id)?.amount ?? 0;
         return parseFloat(amountB) - parseFloat(amountA);
       });
     } else if (filters.activeFilter === 'lowest') {
       // Lowest to highest amount
       filtered.sort((a, b) => {
-        const amountA = transactions.find(t => t.id === a.transaction_id)?.amount || 0;
-        const amountB = transactions.find(t => t.id === b.transaction_id)?.amount || 0;
+        const amountA = a.transaction?.amount ?? transactions.find(t => t.id === a.transaction_id)?.amount ?? 0;
+        const amountB = b.transaction?.amount ?? transactions.find(t => t.id === b.transaction_id)?.amount ?? 0;
         return parseFloat(amountA) - parseFloat(amountB);
       });
     }
@@ -313,7 +325,7 @@ const IssueReceipt = () => {
 
   const clearFilters = () => {
     setFilters({
-      activeFilter: "all",
+      activeFilter: "latest",
       dateFrom: "",
       dateTo: "",
       searchTerm: "",
@@ -390,12 +402,13 @@ const IssueReceipt = () => {
     const transaction = transactions.find(tx => tx.id.toString() === formData.transactionId);
     if (!transaction) return "-- Select Transaction --";
     
-    return `#${transaction.id} - ₱${parseFloat(transaction.amount || 0).toLocaleString()} - ${transaction.description || 'Collection'} - ${transaction.recipient || 'N/A'}`;
+    return `#${transaction.id} - ₱${parseFloat(transaction.amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} - ${transaction.description || 'Collection'} - ${transaction.recipient || 'N/A'}`;
   };
 
   const showMessage = (message, type = 'success') => {
     if (type === 'success') {
       setSuccess(message);
+      setTimeout(() => setSuccess(""), 5000);
       setError("");
     } else {
       setError(message);
@@ -632,11 +645,11 @@ const IssueReceipt = () => {
       const payerCounts = {};
       const payerAmounts = {};
       const amountRanges = {
-        'Under ₱1,000': 0,
-        '₱1,000 - ₱5,000': 0,
-        '₱5,000 - ₱10,000': 0,
-        '₱10,000 - ₱50,000': 0,
-        'Over ₱50,000': 0
+        'Under 1,000': 0,
+        '1,000 - 5,000': 0,
+        '5,000 - 10,000': 0,
+        '10,000 - 50,000': 0,
+        'Over 50,000': 0
       };
       
       let totalAmount = 0;
@@ -815,10 +828,10 @@ const IssueReceipt = () => {
 
       // Handle special cases
       if (sortConfig.key === 'amount') {
-        const aTransaction = transactions.find(t => t.id === a.transaction_id);
-        const bTransaction = transactions.find(t => t.id === b.transaction_id);
-        aValue = aTransaction ? parseFloat(aTransaction.amount || 0) : 0;
-        bValue = bTransaction ? parseFloat(bTransaction.amount || 0) : 0;
+        const aAmount = a.transaction?.amount ?? transactions.find(t => t.id === a.transaction_id)?.amount ?? 0;
+        const bAmount = b.transaction?.amount ?? transactions.find(t => t.id === b.transaction_id)?.amount ?? 0;
+        aValue = parseFloat(aAmount || 0);
+        bValue = parseFloat(bAmount || 0);
       } else if (sortConfig.key === 'issued_at') {
         aValue = new Date(a.issued_at || a.created_at);
         bValue = new Date(b.issued_at || b.created_at);
@@ -856,8 +869,8 @@ const IssueReceipt = () => {
   const receiptsSummary = useMemo(() => {
     const totalReceiptsCount = sortedReceipts.length;
     const totalAmountValue = sortedReceipts.reduce((sum, receipt) => {
-      const transaction = transactions.find((tx) => tx.id === receipt.transaction_id);
-      const amount = normalizeAmount(receipt.amount ?? transaction?.amount);
+      const amountSource = receipt.transaction?.amount ?? transactions.find((tx) => tx.id === receipt.transaction_id)?.amount;
+      const amount = normalizeAmount(receipt.amount ?? amountSource);
       return sum + (amount ?? 0);
     }, 0);
 
@@ -870,23 +883,26 @@ const IssueReceipt = () => {
     };
   }, [sortedReceipts, transactions]);
 
-  const receiptsForExport = useMemo(() => sortedReceipts.map((receipt) => {
-    const transaction = transactions.find((tx) => tx.id === receipt.transaction_id);
-    const amountValue = normalizeAmount(receipt.amount ?? transaction?.amount) ?? 0;
+  const receiptsForExport = useMemo(() => {
+    return sortedReceipts.map((receipt) => {
+      const transaction = receipt.transaction ?? transactions.find((tx) => tx.id === receipt.transaction_id);
+      const amountValue = normalizeAmount(receipt.amount ?? transaction?.amount) ?? 0;
 
-    return {
-      ...receipt,
-      amount: amountValue,
-      payor: receipt.payer_name || transaction?.recipient || '',
-      payer: receipt.payer_name || transaction?.recipient || '',
-      payment_method: receipt.payment_method || transaction?.payment_method || '',
-      paymentMethod: receipt.paymentMethod || transaction?.payment_method || '',
-      cashier: receipt.cashier || transaction?.cashier || '',
-      issuedBy: receipt.issued_by || transaction?.cashier || '',
-      issue_date: receipt.issued_at || receipt.created_at,
-      dateIssued: receipt.issued_at || receipt.created_at,
-    };
-  }), [sortedReceipts, transactions]);
+      return {
+        ...receipt,
+        amount: amountValue,
+        payor: receipt.payer_name || (transaction?.recipient || ''),
+        payer: receipt.payer_name || (transaction?.recipient || ''),
+        payment_method: receipt.payment_method || (transaction?.payment_method || ''),
+        paymentMethod: receipt.paymentMethod || (transaction?.payment_method || ''),
+        cashier: receipt.cashier || (transaction?.cashier || ''),
+        issuedBy: receipt.issued_by || (transaction?.cashier || ''),
+        issue_date: receipt.issued_at || receipt.created_at,
+        dateIssued: receipt.issued_at || receipt.created_at,
+        status: (receipt.status || 'Issued').toString(),
+      };
+    });
+  }, [sortedReceipts, transactions]);
 
   const exportFilters = useMemo(() => ({
     'Sorting': FILTER_LABEL_MAP[filters.activeFilter] || FILTER_LABEL_MAP.all,
@@ -917,9 +933,9 @@ const IssueReceipt = () => {
       return;
     }
 
-    const headers = ['Receipt ID', 'Receipt Number', 'Transaction', 'Payer Name', 'Amount', 'Issue Date'];
+    const headers = ['Receipt ID', 'Receipt Number', 'Transaction', 'Payer Name', 'Amount', 'Issue Date', 'Status'];
     const rows = sortedReceipts.map((receipt) => {
-      const transaction = transactions.find(tx => tx.id === receipt.transaction_id);
+      const transaction = receipt.transaction ?? transactions.find(tx => tx.id === receipt.transaction_id);
       const amountValue = normalizeAmount(receipt.amount ?? transaction?.amount) ?? 0;
       return [
         `#${receipt.id}`,
@@ -927,7 +943,8 @@ const IssueReceipt = () => {
         `#${receipt.transaction_id}`,
         receipt.payer_name,
         formatCurrency(amountValue),
-        new Date(receipt.issued_at || receipt.created_at).toLocaleDateString()
+        new Date(receipt.issued_at || receipt.created_at).toLocaleDateString(),
+        (receipt.status || 'Issued')
       ].map((value) => `"${(value || '').toString().replace(/"/g, '""')}"`).join(',');
     });
 
@@ -958,7 +975,7 @@ const IssueReceipt = () => {
   // Get selected transaction for display
   const selectedTransaction = transactions.find(tx => tx.id.toString() === formData.transactionId);
   const transactionDisplayValue = selectedTransaction && !showTransactionDropdown
-    ? `#${selectedTransaction.id} - ₱${parseFloat(selectedTransaction.amount || 0).toLocaleString()} - ${selectedTransaction.description || 'Collection'} - ${selectedTransaction.recipient || 'N/A'}`
+    ? `#${selectedTransaction.id} - ₱${parseFloat(selectedTransaction.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} - ${selectedTransaction.description || 'Collection'} - ${selectedTransaction.recipient || 'N/A'}`
     : transactionSearchInput;
 
   if (isInitialLoading) {
@@ -1015,8 +1032,6 @@ const IssueReceipt = () => {
                 <div className="minimal-stat-card">
                   {analyticsData.isLoading ? (
                     <div className="loading-indicator">
-                      <i className="fas fa-spinner fa-spin"></i>
-                      <span>Loading...</span>
                     </div>
                   ) : (
                     <>
@@ -1033,8 +1048,6 @@ const IssueReceipt = () => {
                 <div className="minimal-stat-card">
                   {analyticsData.isLoading ? (
                     <div className="loading-indicator">
-                      <i className="fas fa-spinner fa-spin"></i>
-                      <span>Loading...</span>
                     </div>
                   ) : (
                     <>
@@ -1471,7 +1484,7 @@ const IssueReceipt = () => {
                           <div key={idx} className="fund-item-row">
                             <span className="fund-name">{item.name || item.fundAccountName || `Fund ${idx + 1}`}</span>
                             <span className="fund-amount">
-                              ₱{parseFloat(item.amount || item.allocatedAmount || 0).toLocaleString('en-US', {
+                              {parseFloat(item.amount || item.allocatedAmount || 0).toLocaleString('en-US', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}
@@ -1541,7 +1554,7 @@ const IssueReceipt = () => {
                     Showing {filteredTransactions.length} of {transactions.length} transactions
                   </div>
               <button className="modal-close" onClick={() => setShowTransactionModal(false)}>
-                ×
+                Ã—
               </button>
             </div>
             
@@ -1583,7 +1596,7 @@ const IssueReceipt = () => {
                           <span>#{transaction.id}</span>
                         </div>
                         <div className={`transaction-amount ${parseFloat(transaction.amount || 0) < 0 ? 'negative' : 'positive'}`}>
-                          <span>₱{parseFloat(transaction.amount || 0).toLocaleString()}</span>
+                          <span>{parseFloat(transaction.amount || 0).toLocaleString()}</span>
                         </div>
                       </div>
                       
@@ -1656,7 +1669,7 @@ const IssueReceipt = () => {
                 onClick={() => setShowIssueFormModal(false)}
                 className="close-button"
               >
-                ×
+                Ã—
               </button>
             </div>
 
@@ -1704,7 +1717,7 @@ const IssueReceipt = () => {
                                 <span className="transaction-description">{tx.description || tx.recipient || 'Collection'}</span>
                               </div>
                               <div className="transaction-item-right">
-                                <span className="transaction-amount">₱{parseFloat(tx.amount || 0).toLocaleString()}</span>
+                                <span className="transaction-amount">{parseFloat(tx.amount || 0).toLocaleString()}</span>
                               </div>
                             </div>
                           ))
@@ -1824,3 +1837,8 @@ const IssueReceipt = () => {
 
 
 export default IssueReceipt;
+
+
+
+
+

@@ -35,4 +35,9 @@ class Receipt extends Model
     {
         return $this->belongsTo(User::class, 'cancelled_by');
     }
+
+    public function parentReceipt(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_receipt_id');
+    }
 }

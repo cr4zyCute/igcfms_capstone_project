@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\OverrideRequest;
 use App\Models\Transaction;
+use App\Models\Receipt;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Services\ActivityTracker;
 use App\Mail\OverrideRequestNotificationMail;
 use App\Mail\OverrideRequestReviewedMail;
@@ -105,17 +107,84 @@ class OverrideRequestController extends Controller
 
         // Apply changes if approved
         if ($request->status === 'approved') {
-            $changes = json_decode($overrideRequest->changes, true);
             $transaction = $overrideRequest->transaction;
+            $originalType = $transaction->type;
 
-            if (isset($changes['amount'])) $transaction->amount = $changes['amount'];
-            if (isset($changes['description'])) $transaction->description = $changes['description'];
-            if (isset($changes['category'])) $transaction->category = $changes['category'];
-            if (isset($changes['department'])) $transaction->department = $changes['department'];
+            $changesData = $overrideRequest->changes;
+            if (is_string($changesData)) {
+                $changesData = json_decode($changesData, true) ?: [];
+            } elseif (!is_array($changesData)) {
+                $changesData = [];
+            }
 
-            $transaction->approved_by = Auth::id();
-            $transaction->type = 'Override';
-            $transaction->save();
+            DB::transaction(function () use (&$overrideRequest, $transaction, $originalType, &$changesData) {
+                $newTransaction = $transaction->replicate();
+                $newTransaction->created_at = now();
+                $newTransaction->updated_at = now();
+                $newTransaction->type = $originalType === 'Override' ? ($changesData['original_type'] ?? 'Collection') : $originalType;
+
+                $newAmount = array_key_exists('amount', $changesData)
+                    ? (float) $changesData['amount']
+                    : (float) $transaction->amount;
+
+                if (strcasecmp($newTransaction->type, 'Disbursement') === 0) {
+                    $newAmount = -abs($newAmount);
+                } else {
+                    $newAmount = abs($newAmount);
+                }
+
+                $newTransaction->amount = $newAmount;
+
+                if (isset($changesData['description'])) {
+                    $newTransaction->description = $changesData['description'];
+                }
+                if (isset($changesData['category'])) {
+                    $newTransaction->category = $changesData['category'];
+                }
+                if (isset($changesData['department'])) {
+                    $newTransaction->department = $changesData['department'];
+                }
+
+                $identifiers = $this->generateOverrideIdentifiers($newTransaction->type);
+                $newTransaction->receipt_no = $identifiers['receipt_no'];
+                $newTransaction->reference_no = $identifiers['reference_no'];
+                $newTransaction->reference = $newTransaction->reference ?? $identifiers['reference_no'];
+                $newTransaction->approved_by = Auth::id();
+                $newTransaction->save();
+
+                // Handle receipts from the original transaction: mark them cancelled for audit trail
+                $linkedReceipts = Receipt::where('transaction_id', $transaction->id)->get();
+                foreach ($linkedReceipts as $receipt) {
+                    $receipt->status = 'Cancelled';
+                    $receipt->cancellation_reason = 'Override approved';
+                    $receipt->cancelled_at = now();
+                    $receipt->cancelled_by = Auth::id();
+                    $receipt->save();
+                }
+
+                // Optionally auto-create a new receipt for the replicated transaction if requested
+                if (request()->boolean('auto_receipt', false)) {
+                    $payerName = optional($linkedReceipts->first())->payer_name ?? ($newTransaction->recipient ?? '');
+                    Receipt::create([
+                        'transaction_id' => $newTransaction->id,
+                        'payer_name' => $payerName,
+                        'receipt_number' => $newTransaction->receipt_no,
+                        'issued_at' => now(),
+                        'status' => 'Issued',
+                    ]);
+                }
+
+                $transaction->type = 'Override';
+                $transaction->approved_by = Auth::id();
+                $transaction->save();
+
+                $changesData['applied_transaction_id'] = $newTransaction->id;
+                $changesData['original_transaction_id'] = $transaction->id;
+                $overrideRequest->changes = json_encode($changesData);
+                $overrideRequest->save();
+
+                $overrideRequest->setRelation('transaction', $transaction);
+            });
         }
 
         // Send email notification to the cashier who requested the override
@@ -148,5 +217,22 @@ class OverrideRequestController extends Controller
         ActivityTracker::trackOverrideReview($overrideRequest, Auth::user(), $request->status);
 
         return response()->json($overrideRequest);
+    }
+
+    private function generateOverrideIdentifiers(string $type): array
+    {
+        $timestamp = now()->format('YmdHis');
+
+        if (strcasecmp($type, 'Disbursement') === 0) {
+            return [
+                'receipt_no' => "OVR-DIS-{$timestamp}",
+                'reference_no' => "OVR-DIS-{$timestamp}"
+            ];
+        }
+
+        return [
+            'receipt_no' => "OVR-COL-{$timestamp}",
+            'reference_no' => "OVR-COL-{$timestamp}"
+        ];
     }
 }

@@ -289,6 +289,24 @@ const TransactionManagement = () => {
     setShowDetailsModal(true);
   };
 
+  const getTransactionDisplayType = useMemo(() => {
+    return (transaction) => {
+      if (!transaction) return 'Unknown';
+
+      const receipt = transaction.receipt_no || transaction.reference_no || '';
+
+      if (transaction.type === 'Override') {
+        return 'Cancelled';
+      }
+
+      if (typeof receipt === 'string' && receipt.startsWith('OVR-')) {
+        return 'Override';
+      }
+
+      return transaction.type || 'Unknown';
+    };
+  }, []);
+
 
   const departments = [
     "Finance", "Administration", "Operations", "HR", "IT", "Legal",
@@ -589,7 +607,13 @@ const TransactionManagement = () => {
                 </thead>
                 <tbody>
                   {currentTransactions.length > 0 ? (
-                    currentTransactions.map((transaction) => (
+                    currentTransactions.map((transaction) => {
+                      const displayType = getTransactionDisplayType(transaction);
+                      const amountValue = parseFloat(transaction.amount || 0);
+                      const amountIsPositive = amountValue >= 0;
+                      const amountPrefix = amountIsPositive ? '' : '-';
+
+                      return (
                       <tr 
                         key={transaction.id}
                         className="table-row"
@@ -606,15 +630,15 @@ const TransactionManagement = () => {
                         </td>
                         <td>
                           <div className="cell-content">
-                            <span className={`tm-type-badge ${transaction.type.toLowerCase()}`}>
-                              {transaction.type}
+                            <span className={`tm-type-badge ${displayType.toLowerCase()}`}>
+                              {displayType}
                             </span>
                           </div>
                         </td>
                         <td>
                           <div className="cell-content">
-                            <span className={`amount ${transaction.type === 'Collection' ? 'amount-positive' : 'amount-negative'}`}>
-                              {transaction.type === 'Collection' ? '' : '-'}₱{Math.abs(parseFloat(transaction.amount || 0)).toLocaleString()}
+                            <span className={`amount ${amountIsPositive ? 'amount-positive' : 'amount-negative'}`}>
+                              {amountPrefix}₱{Math.abs(amountValue).toLocaleString()}
                             </span>
                           </div>
                         </td>
@@ -647,7 +671,8 @@ const TransactionManagement = () => {
                           </div>
                         </td>
                       </tr>
-                    ))
+                    );
+                    })
                   ) : (
                     <tr>
                       <td colSpan="6" className="no-data">
@@ -722,18 +747,34 @@ const TransactionManagement = () => {
                     <span className="tm-id-value">#{selectedTransaction.id}</span>
                   </div>
                   <div className="tm-transaction-type">
-                    <span className={`tm-type-indicator ${selectedTransaction.type.toLowerCase()}`}>
-                      <i className={`fas ${selectedTransaction.type === 'Collection' ? 'fa-arrow-down' : 'fa-arrow-up'}`}></i>
-                      {selectedTransaction.type}
-                    </span>
+                    {(() => {
+                      const displayType = getTransactionDisplayType(selectedTransaction);
+                      const amountValue = parseFloat(selectedTransaction.amount || 0);
+                      const iconClass = amountValue >= 0 ? 'fa-arrow-down' : 'fa-arrow-up';
+
+                      return (
+                        <span className={`tm-type-indicator ${displayType.toLowerCase()}`}>
+                          <i className={`fas ${iconClass}`}></i>
+                          {displayType}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="tm-summary-right">
                   <div className="tm-transaction-amount">
                     <span className="tm-amount-label">Amount</span>
-                    <span className={`tm-amount-value ${selectedTransaction.type === 'Collection' ? 'tm-amount-positive' : 'tm-amount-negative'}`}>
-                      {selectedTransaction.type === 'Collection' ? '+' : '-'}₱{Math.abs(parseFloat(selectedTransaction.amount || 0)).toLocaleString()}
-                    </span>
+                    {(() => {
+                      const amountValue = parseFloat(selectedTransaction.amount || 0);
+                      const isPositive = amountValue >= 0;
+                      const prefix = isPositive ? '+' : '-';
+
+                      return (
+                        <span className={`tm-amount-value ${isPositive ? 'tm-amount-positive' : 'tm-amount-negative'}`}>
+                          {prefix}₱{Math.abs(amountValue).toLocaleString()}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

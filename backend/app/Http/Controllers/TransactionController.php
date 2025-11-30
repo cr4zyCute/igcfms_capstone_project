@@ -65,63 +65,78 @@ class TransactionController extends Controller
             ], 401);
         }
 
-        // Auto-generate receipt number and reference number with better concurrency handling
+        // Auto-generate or accept manual receipt number and reference number
         $today = now()->format('Ymd');
         $transactionType = $validated['type'];
-
-        // Generate unique receipt number with retry logic for concurrent transactions
-        $maxRetries = 10;
         $receiptNo = '';
         $referenceNo = '';
 
-        for ($retry = 0; $retry < $maxRetries; $retry++) {
-            // Use single query to get both counts efficiently
+        // If Collection and client provided a manual receipt number, prefer it
+        $manualReceiptNo = null;
+        if ($transactionType === 'Collection' && $request->filled('receipt_no')) {
+            $manualReceiptNo = strtoupper(trim((string) $request->input('receipt_no')));
+        }
+
+        if ($manualReceiptNo) {
+            // Use provided manual receipt number; compute a yearly reference number
             $counts = DB::table('transactions')
-                ->selectRaw('
-                    COUNT(CASE WHEN DATE(created_at) = CURDATE() AND type = ? THEN 1 END) as daily_count,
-                    COUNT(CASE WHEN YEAR(created_at) = YEAR(NOW()) AND type = ? THEN 1 END) as yearly_count
-                ', [$transactionType, $transactionType])
+                ->selectRaw('COUNT(CASE WHEN YEAR(created_at) = YEAR(NOW()) AND type = ? THEN 1 END) as yearly_count', [$transactionType])
                 ->first();
+            $yearlyCount = ($counts->yearly_count ?? 0) + 1;
+            $receiptNo = $manualReceiptNo;
+            $referenceNo = 'COL-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
+        } else {
+            // Generate unique receipt number with retry logic for concurrent transactions
+            $maxRetries = 10;
+            for ($retry = 0; $retry < $maxRetries; $retry++) {
+                // Use single query to get both counts efficiently
+                $counts = DB::table('transactions')
+                    ->selectRaw('
+                        COUNT(CASE WHEN DATE(created_at) = CURDATE() AND type = ? THEN 1 END) as daily_count,
+                        COUNT(CASE WHEN YEAR(created_at) = YEAR(NOW()) AND type = ? THEN 1 END) as yearly_count
+                    ', [$transactionType, $transactionType])
+                    ->first();
 
-            // Add retry offset to handle concurrent transactions
-            $dailyCount = ($counts->daily_count ?? 0) + 1 + $retry;
-            $yearlyCount = ($counts->yearly_count ?? 0) + 1 + $retry;
+                // Add retry offset to handle concurrent transactions
+                $dailyCount = ($counts->daily_count ?? 0) + 1 + $retry;
+                $yearlyCount = ($counts->yearly_count ?? 0) + 1 + $retry;
 
-            if ($transactionType === 'Collection') {
-                // RCPT-YYYYMMDD-####
-                $receiptNo = 'RCPT-' . $today . '-' . str_pad($dailyCount, 4, '0', STR_PAD_LEFT);
-                // COL-YYYY-#### (yearly sequential for collections)
-                $referenceNo = 'COL-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
+                if ($transactionType === 'Collection') {
+                    // RCPT-YYYYMMDD-####
+                    $receiptNo = 'RCPT-' . $today . '-' . str_pad($dailyCount, 4, '0', STR_PAD_LEFT);
+                    // COL-YYYY-#### (yearly sequential for collections)
+                    $referenceNo = 'COL-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
 
-                // Check if this receipt number already exists in receipts table
-                $existingReceipt = DB::table('receipts')
-                    ->where('receipt_number', $receiptNo)
-                    ->exists();
+                    // Check if this receipt number already exists in receipts table
+                    $existingReceipt = DB::table('receipts')
+                        ->where('receipt_number', $receiptNo)
+                        ->exists();
 
-                if (!$existingReceipt) {
-                    break; // Found a unique receipt number
+                    if (!$existingReceipt) {
+                        break; // Found a unique receipt number
+                    }
+                } else {
+                    // DIS-YYYYMMDD-####
+                    $receiptNo = 'DIS-' . $today . '-' . str_pad($dailyCount, 4, '0', STR_PAD_LEFT);
+                    // DIS-YYYY-#### (yearly sequential for disbursements)
+                    $referenceNo = 'DIS-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
+
+                    // Check if this receipt number already exists in transactions table
+                    $existingTransaction = DB::table('transactions')
+                        ->where('receipt_no', $receiptNo)
+                        ->exists();
+
+                    if (!$existingTransaction) {
+                        break; // Found a unique receipt number
+                    }
                 }
-            } else {
-                // DIS-YYYYMMDD-####
-                $receiptNo = 'DIS-' . $today . '-' . str_pad($dailyCount, 4, '0', STR_PAD_LEFT);
-                // DIS-YYYY-#### (yearly sequential for disbursements)
-                $referenceNo = 'DIS-' . now()->year . '-' . str_pad($yearlyCount, 4, '0', STR_PAD_LEFT);
 
-                // Check if this receipt number already exists in transactions table
-                $existingTransaction = DB::table('transactions')
-                    ->where('receipt_no', $receiptNo)
-                    ->exists();
-
-                if (!$existingTransaction) {
-                    break; // Found a unique receipt number
+                // If we're on the last retry and still haven't found a unique number,
+                // add a random component to ensure uniqueness
+                if ($retry == $maxRetries - 1) {
+                    $randomSuffix = strtoupper(substr(md5(uniqid()), 0, 4));
+                    $receiptNo = $receiptNo . '-' . $randomSuffix;
                 }
-            }
-
-            // If we're on the last retry and still haven't found a unique number,
-            // add a random component to ensure uniqueness
-            if ($retry == $maxRetries - 1) {
-                $randomSuffix = strtoupper(substr(md5(uniqid()), 0, 4));
-                $receiptNo = $receiptNo . '-' . $randomSuffix;
             }
         }
 
@@ -150,14 +165,17 @@ class TransactionController extends Controller
                 'purpose' => $validated['purpose'] ?? null,
             ]);
 
-            // If Collection → also create a receipt record
+            // If Collection → also create a receipt record (only once per unique receipt number)
             if ($validated['type'] === 'Collection') {
-                DB::table('receipts')->insert([
-                    'transaction_id' => $transaction->id,
-                    'payer_name' => $validated['payer_name'],
-                    'receipt_number' => $receiptNo,
-                    'issued_at' => now(),
-                ]);
+                $exists = DB::table('receipts')->where('receipt_number', $receiptNo)->exists();
+                if (!$exists) {
+                    DB::table('receipts')->insert([
+                        'transaction_id' => $transaction->id,
+                        'payer_name' => $validated['payer_name'],
+                        'receipt_number' => $receiptNo,
+                        'issued_at' => now(),
+                    ]);
+                }
             }
 
             return $transaction;

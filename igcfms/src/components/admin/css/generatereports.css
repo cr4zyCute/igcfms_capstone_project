@@ -727,10 +727,26 @@
   gap: 16px;
 }
 
-.gr-section-title-group {
+.gr-transactions-section {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 30px;
+}
+
+.gr-transactions-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  padding: 20px 25px;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 45%, #f0f0f0 100%);
+  border-bottom: 2px solid #000000;
+  border-radius: 12px 12px 0 0;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .gr-section-title-group h3 {
@@ -1122,18 +1138,79 @@
   padding: 0;
 }
 
-.gr-action-dropdown-menu {
+.gr-export-dropdown-container {
+  position: relative;
+}
+
+.gr-export-btn {
+  background: #000000;
+  color: #ffffff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.gr-export-btn:hover:not(:disabled) {
+  background: #333333;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.gr-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gr-export-dropdown-menu {
   position: absolute;
-  right: 0;
   top: calc(100% + 4px);
+  left: 0;
   background: #ffffff;
   border: 2px solid #000000;
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  min-width: 180px;
-  z-index: 1001;
-  overflow: hidden;
-  animation: dropdownSlideIn 0.2s ease-out;
+  min-width: 200px;
+  z-index: 1000;
+}
+
+.gr-export-option {
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333333;
+  transition: all 0.2s ease;
+}
+
+.gr-export-option:first-child {
+  border-radius: 6px 6px 0 0;
+}
+
+.gr-export-option:last-child {
+  border-radius: 0 0 6px 6px;
+}
+
+.gr-export-option:hover {
+  background: #f5f5f5;
+}
+
+.gr-export-option i {
+  width: 16px;
+  text-align: center;
+  color: #000000;
 }
 
 @keyframes dropdownSlideIn {
