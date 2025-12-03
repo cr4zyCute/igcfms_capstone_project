@@ -20,8 +20,8 @@ const CollectingSidebar = ({ activeTab, setActiveTab }) => {
       icon: "fas fa-exchange-alt",
       items: [
         { id: "receive-money", label: "Collection", icon: <i className="fas fa-money-bill-wave"></i> },
-        { id: "issue-receipt", label: "Issue Receipt", icon: <i className="fas fa-receipt"></i> },
-        { id: "view-transactions", label: "View Transactions", icon: <i className="fas fa-list"></i> }
+        { id: "issue-receipt", label: "Receipt", icon: <i className="fas fa-receipt"></i> },
+        { id: "override-transactions", label: "Override Transactions", icon: <i className="fas fa-edit"></i> },
       ]
     },
     {
@@ -29,7 +29,6 @@ const CollectingSidebar = ({ activeTab, setActiveTab }) => {
       icon: "fas fa-chart-bar",
       items: [
         { id: "generate-reports", label: "Generate Reports", icon: <i className="fas fa-chart-line"></i> },
-        { id: "daily-summary", label: "Daily Summary", icon: <i className="fas fa-calendar-day"></i> }
       ]
     }
   ];
@@ -46,6 +45,19 @@ const CollectingSidebar = ({ activeTab, setActiveTab }) => {
         >
           <i className="fas fa-tachometer-alt collecting-item-icon"></i>
           <span className="collecting-item-label">Dashboard</span>
+        </button>
+      </div>
+
+      {/* Notifications - Special Item */}
+      <div className="collecting-dashboard-section">
+        <button
+          className={`collecting-sidebar-item dashboard-item ${
+            activeTab === "notifications" ? "active" : ""
+          }`}
+          onClick={() => setActiveTab("notifications")}
+        >
+          <i className="fas fa-bell collecting-item-icon"></i>
+          <span className="collecting-item-label">Notifications</span>
         </button>
       </div>
 

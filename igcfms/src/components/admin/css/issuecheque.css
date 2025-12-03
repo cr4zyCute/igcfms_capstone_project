@@ -1041,6 +1041,8 @@
   font-size: 14px;
   color: #333333;
   vertical-align: middle;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .ic-cheques-table tr:hover {
@@ -1056,9 +1058,21 @@
   color: #2563eb;
 }
 
-.ic-amount-negative {
-  color: #dc2626;
-  font-weight: 600;
+.payer-name {
+  display: block;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.payer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
 }
 
 /* Action Buttons */
@@ -1662,6 +1676,7 @@
   top: calc(100% + 8px);
   left: 0;
   min-width: 220px;
+  max-height: 400px;
   background: #ffffff;
   border: 2px solid #000000;
   border-radius: 12px;
@@ -1669,6 +1684,27 @@
   padding: 8px;
   z-index: 1000;
   animation: slideDown 0.2s ease;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Scrollbar styling */
+.filter-dropdown-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.filter-dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.filter-dropdown-menu::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.filter-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 @keyframes slideDown {
@@ -1729,10 +1765,16 @@
   color: #ffffff;
 }
 
-.action-buttons {
-  position: relative;
-  display: flex;
-  gap: 8px;
+.filter-section-header {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .btn-icon {

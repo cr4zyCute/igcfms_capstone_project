@@ -648,7 +648,7 @@ const CollectorHome = () => {
       </div>
 
       {/* Collection KPIs - Main Metrics */}
-      <div className="collector-kpi-section">
+      {/* <div className="collector-kpi-section">
         <div className="kpi-section-title">
           <i className="fas fa-chart-line"></i>
           <span>Collection Performance</span>
@@ -705,10 +705,10 @@ const CollectorHome = () => {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Receipt Analytics KPIs - From IssueReceipt */}
-      <div className="collector-kpi-section">
+      {/* <div className="collector-kpi-section">
         <div className="kpi-section-title">
           <i className="fas fa-file-invoice"></i>
           <span>Receipt Analytics</span>
@@ -763,7 +763,7 @@ const CollectorHome = () => {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Data Tables and Analytics */}
       <div className="collector-data-grid">

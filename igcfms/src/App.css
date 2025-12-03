@@ -44,3 +44,12 @@
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
 }
+
+/* Disable blur for specific pages/components by adding sm-no-blur to body */
+body.sm-no-blur .modal-overlay,
+body.sm-no-blur .history-modal-overlay,
+body.sm-no-blur [class*="modal-overlay"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: transparent !important;
+}

@@ -12,7 +12,7 @@ import { useFundAccounts } from "../../hooks/useFundAccounts";
 import { useRecipientAccounts } from "../../hooks/useRecipientAccounts";
 import { SkeletonLine } from "../ui/LoadingSkeleton";
 
-const ReceiveMoney = () => {
+const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => {
   const { user } = useAuth();
   const [payerName, setPayerName] = useState("");
   const [receiptNo, setReceiptNo] = useState("");
@@ -314,7 +314,7 @@ const ReceiveMoney = () => {
       })
     : [];
 
-  const displayedRecipientAccounts = filteredRecipientAccounts.slice(0, 3);
+  const displayedRecipientAccounts = filteredRecipientAccounts;
   
   // Handle payer selection from recipient accounts
   const handlePayerSelect = (recipient) => {
@@ -381,6 +381,7 @@ const ReceiveMoney = () => {
           fund_account_id: parseInt(fundAccount.id),
           mode_of_payment: modeOfPayment,
           payer_name: finalPayerName,
+          recipient_account_id: selectedRecipientId || null,
         };
         
         const response = await axios.post('/api/transactions', transactionData, {
@@ -399,6 +400,45 @@ const ReceiveMoney = () => {
       });
 
       const transactionResults = await Promise.all(transactionPromises);
+      
+      // If payment method is Cheque, automatically create cheque records
+      if (modeOfPayment === "Cheque") {
+        const chequeCreationPromises = transactionResults.map(async (result) => {
+          try {
+            const chequePayload = {
+              transaction_id: result.id || result.transaction_id,
+              payee_name: finalPayerName,
+              method: 'Cheque',
+              cheque_number: receiptNo.trim() || `CHQ-${Date.now()}`,
+              bank_name: 'Unknown Bank',
+              account_number: '',
+              amount: parseFloat(result.allocatedAmount),
+              issue_date: new Date().toISOString().split('T')[0],
+              memo: description.trim() || null,
+              fund_account_id: parseInt(result.fundAccountId)
+            };
+
+            await axios.post('/api/disbursements', chequePayload, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            console.log('Cheque record created automatically for transaction:', result.id);
+          } catch (chequeError) {
+            console.error('Failed to create cheque record:', chequeError);
+            // Don't fail the entire transaction if cheque creation fails
+          }
+        });
+
+        try {
+          await Promise.all(chequeCreationPromises);
+        } catch (chequeError) {
+          console.error('Cheque creation error:', chequeError);
+          // Continue with balance updates even if cheque creation fails
+        }
+      }
       
       // Process balance updates in parallel for better performance
       const balanceUpdatePromises = transactionResults.map(async (result) => {
@@ -447,6 +487,33 @@ const ReceiveMoney = () => {
 
   return (
     <div className="receive-money-container">
+      {/* Display created transactions for collecting officer */}
+      {isCollectingOfficer && createdTransactions.length > 0 && (
+        <div className="created-transactions-section">
+          <div className="transactions-header">
+            <h4><i className="fas fa-check-circle"></i> Created Transactions</h4>
+            <span className="transaction-count">{createdTransactions.length}</span>
+          </div>
+          <div className="transactions-list">
+            {createdTransactions.map((transaction, index) => (
+              <div key={transaction.id || index} className="transaction-item">
+                <div className="transaction-info">
+                  <span className="transaction-number">#{index + 1}</span>
+                  <span className="transaction-fund">{transaction.fundAccountName}</span>
+                  <span className="transaction-date">{new Date().toLocaleDateString()}</span>
+                </div>
+                <div className="transaction-amount">
+                  ₱{parseFloat(transaction.allocatedAmount || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="receive-money-form">
         
 
@@ -544,7 +611,7 @@ const ReceiveMoney = () => {
                           <span className="no-results-text">Loading recipients...</span>
                         </div>
                       ) : displayedRecipientAccounts.length > 0 ? (
-                        displayedRecipientAccounts.slice(0, 3).map((account) => (
+                        displayedRecipientAccounts.map((account) => (
                           <div 
                             key={account.id}
                             className={`payer-option ${selectedRecipientId === account.id ? 'selected' : ''}`}

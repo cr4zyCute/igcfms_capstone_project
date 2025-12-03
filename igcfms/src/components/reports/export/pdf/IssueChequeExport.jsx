@@ -27,11 +27,7 @@ const formatCurrency = (value) => {
   if (amount === null) {
     return '—';
   }
-  const formatted = amount.toLocaleString('en-PH', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return `${amount < 0 ? '-' : ''}PHP ${Math.abs(amount).toLocaleString('en-PH', {
+  return `PHP ${Math.abs(amount).toLocaleString('en-PH', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -50,15 +46,15 @@ const formatDate = (value) => {
   }
 };
 
-export const generateIssuedReceiptsPDF = ({
+export const generateIssueChequesPDF = ({
   filters = {},
-  receipts = [],
+  cheques = [],
   summary = {},
   generatedBy = 'System',
-  reportTitle = 'Issued Receipts Report',
+  reportTitle = 'Issued Cheques Report',
 }) => {
   const doc = new jsPDF({ 
-    orientation: 'landscape',
+    
     unit: 'mm',
     format: 'a4'
   });
@@ -101,7 +97,7 @@ export const generateIssuedReceiptsPDF = ({
 
   const addSummary = () => {
     const summaryRows = [
-      ['Total Receipts', summary.totalReceipts ?? receipts.length],
+      ['Total Cheques', summary.totalCheques ?? cheques.length],
       ['Total Amount', formatCurrency(summary.totalAmount ?? 0)],
       ['Average Amount', formatCurrency(summary.averageAmount ?? 0)],
     ];
@@ -120,38 +116,23 @@ export const generateIssuedReceiptsPDF = ({
     });
   };
 
-  const addReceiptsTable = () => {
-    if (!receipts.length) {
+  const addChequesTable = () => {
+    if (!cheques.length) {
       doc.setFontSize(12);
-      doc.text('No receipts found for the selected filters.', margin, doc.lastAutoTable.finalY + 16 || 90);
+      doc.text('No cheques found for the selected filters.', margin, doc.lastAutoTable.finalY + 16 || 90);
       return;
     }
 
-    const tableBody = receipts.map((receipt, index) => {
-      // Get payment method with multiple fallback options
-      const paymentMethod = receipt.payment_method 
-        || receipt.paymentMethod 
-        || receipt.mode_of_payment 
-        || receipt.modeOfPayment 
-        || '—';
-      
-      // Get issued by (creator name) with multiple fallback options
-      const issuedBy = receipt.creator_name
-        || receipt.issuedBy 
-        || receipt.issued_by 
-        || receipt.cashier 
-        || receipt.user_name 
-        || '—';
-
+    const tableBody = cheques.map((cheque, index) => {
       return [
         String(index + 1),
-        receipt.receipt_number || receipt.receiptNo || '—',
-        formatDate(receipt.issue_date || receipt.dateIssued),
-        receipt.payor || receipt.payer || '—',
-        formatCurrency(receipt.amount),
-        paymentMethod,
-        issuedBy,
-        receipt.status || 'Issued',
+        cheque.cheque_number || '—',
+        formatDate(cheque.issue_date || cheque.created_at),
+        cheque.payee_name || '—',
+        cheque.bank_name || '—',
+        formatCurrency(cheque.amount),
+        cheque.status || 'Issued',
+        cheque.reconciled ? 'Reconciled' : 'Unmatched',
       ];
     });
 
@@ -159,13 +140,13 @@ export const generateIssuedReceiptsPDF = ({
       startY: doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 14 : 90,
       head: [[
         '#',
-        'Receipt No.',
+        'Cheque No.',
         'Issue Date',
-        'Payor',
+        'Payee Name',
+        'Bank',
         'Amount',
-        'Payment Method',
-        'Issued By',
         'Status',
+        'Reconciliation',
       ]],
       body: tableBody,
       styles: { fontSize: 9 },
@@ -177,7 +158,7 @@ export const generateIssuedReceiptsPDF = ({
         doc.text(`Page ${data.pageNumber} of ${pageNumber}`, centerX, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
       },
       willDrawCell: (data) => {
-        if (data.row.section === 'body' && data.column.index === 4) {
+        if (data.row.section === 'body' && data.column.index === 5) {
           data.cell.text = [formatCurrency(data.cell.raw)];
         }
       },
@@ -188,9 +169,10 @@ export const generateIssuedReceiptsPDF = ({
   addHeader();
   addFilters();
   addSummary();
-  addReceiptsTable();
+  addChequesTable();
 
-  doc.save(`${reportTitle.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}.pdf`);
+  const fileName = `${reportTitle.replace(/\s+/g, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
 };
 
-export default generateIssuedReceiptsPDF;
+export default generateIssueChequesPDF;

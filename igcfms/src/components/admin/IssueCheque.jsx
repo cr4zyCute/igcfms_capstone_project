@@ -5,6 +5,7 @@ import { useFundAccounts } from "../../hooks/useFundAccounts";
 import IssueChequeSkeleton from "../ui/chequeSL";
 import { ErrorModal, SuccessModal } from "../common/Modals/IssueChequeModals";
 import { printCompleteCheque } from "../pages/print/chequeSimplePrint";
+import { generateIssueChequesPDF } from "../reports/export/pdf/IssueChequeExport";
 import "./css/issuecheque.css";
 import "./css/cheque-styles.css";
 
@@ -43,21 +44,46 @@ const AnalyticsLoader = () => (
   </div>
 );
 
-const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) => {
-  const [errorMessage, setErrorMessage] = useState("");
+const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterByUserId = null, hideKpiDashboard = false } = {}) => {
   const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [filteredCheques, setFilteredCheques] = useState([]);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [updatingChequeId, setUpdatingChequeId] = useState(null);
 
   // TanStack Query hooks
-  const {
+  let {
     data: cheques = [],
     isLoading: chequesLoading,
     error: chequesError
   } = useCheques();
 
-  const {
+  // Debug: Log cheques data to see what's being returned
+  useEffect(() => {
+    if (cheques.length > 0) {
+      console.log('Cheques data from API:', cheques);
+      console.log('First cheque structure:', cheques[0]);
+    }
+  }, [cheques]);
+
+  // Filter cheques by userId if provided
+  if (filterByUserId) {
+    const userIdInt = parseInt(filterByUserId);
+    cheques = cheques.filter(cheque => {
+      // Check multiple possible field names for the creator/issuer
+      const matches = 
+        cheque.issued_by === userIdInt || 
+        cheque.created_by === userIdInt ||
+        cheque.user_id === userIdInt ||
+        cheque.creator_id === userIdInt ||
+        cheque.disbursing_officer_id === userIdInt ||
+        (cheque.creator && cheque.creator.id === userIdInt);
+      
+      return matches;
+    });
+  }
+
+  let {
     data: disbursements = [],
     isLoading: disbursementsLoading,
     error: disbursementsError
@@ -101,8 +127,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
     searchTerm: "",
     bankName: "all",
     showFilterDropdown: false,
-    sortBy: "latest",
-    showSortDropdown: false
+    sortBy: "latest"
   });
 
   const [showIssueModal, setShowIssueModal] = useState(false);
@@ -125,14 +150,14 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
 
   // Defer analytics loading for faster initial render
   useEffect(() => {
-    if (!showKpiSections) return;
+    if (!showKpiSections || hideKpiDashboard) return;
 
     const timer = setTimeout(() => {
       setShowAnalytics(true);
     }, 100); // Load analytics after 100ms
     
     return () => clearTimeout(timer);
-  }, [showKpiSections]);
+  }, [showKpiSections, hideKpiDashboard]);
 
   // Debounced filter application
   useEffect(() => {
@@ -150,7 +175,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
         setShowExportDropdown(false);
       }
       if (!event.target.closest('.filter-dropdown-container')) {
-        setFilters(prev => ({ ...prev, showFilterDropdown: false, showSortDropdown: false }));
+        setFilters(prev => ({ ...prev, showFilterDropdown: false }));
       }
       if (!event.target.closest('.action-menu-container')) {
         setOpenActionMenu(null);
@@ -351,8 +376,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
       searchTerm: "",
       bankName: "all",
       sortBy: "latest",
-      showFilterDropdown: false,
-      showSortDropdown: false
+      showFilterDropdown: false
     });
   };
 
@@ -539,6 +563,36 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
     printCompleteCheque(chequeData);
   };
 
+  // Handle PDF export for all cheques
+  const handleExportPDF = () => {
+    const totalAmount = filteredCheques.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
+    const averageAmount = filteredCheques.length > 0 ? totalAmount / filteredCheques.length : 0;
+
+    const summary = {
+      totalCheques: filteredCheques.length,
+      totalAmount: totalAmount,
+      averageAmount: averageAmount,
+    };
+
+    const filterInfo = {
+      ...(filters.status !== 'all' && { Status: filters.status }),
+      ...(filters.bankName !== 'all' && { Bank: filters.bankName }),
+      ...(filters.dateFrom && { 'From Date': filters.dateFrom }),
+      ...(filters.dateTo && { 'To Date': filters.dateTo }),
+      ...(filters.searchTerm && { Search: filters.searchTerm }),
+    };
+
+    generateIssueChequesPDF({
+      filters: filterInfo,
+      cheques: filteredCheques,
+      summary: summary,
+      generatedBy: 'System',
+      reportTitle: 'Issued Cheques Report',
+    });
+
+    setShowExportDropdown(false);
+  };
+
   // Helper function to convert numbers to words (simplified)
   const numberToWords = (num) => {
     // Convert to integer (whole pesos only)
@@ -587,7 +641,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
       const searchLower = fundAccountSearch.toLowerCase();
       return (
         account.name?.toLowerCase().includes(searchLower) ||
-        account.balance?.toString().includes(searchLower)
+        account.current_balance?.toString().includes(searchLower)
       );
     });
   }, [fundAccounts, fundAccountSearch]);
@@ -595,7 +649,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
   // Get selected fund account name for display
   const selectedFundAccount = fundAccounts.find(acc => acc.id.toString() === formData.fundAccountId);
   const fundAccountDisplayText = selectedFundAccount 
-    ? `${selectedFundAccount.name} - ₱${parseFloat(selectedFundAccount.balance || 0).toLocaleString()}`
+    ? `${selectedFundAccount.name} - ₱${parseFloat(selectedFundAccount.current_balance || 0).toLocaleString()}`
     : "-- Select Fund Account --";
 
   // Filter disbursements based on search - memoized
@@ -619,7 +673,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
 
   // Get selected fund account for display
   const fundAccountDisplayValue = selectedFundAccount && !showFundAccountDropdown
-    ? `${selectedFundAccount.name} - ₱${parseFloat(selectedFundAccount.balance || 0).toLocaleString()}`
+    ? `${selectedFundAccount.name} - ₱${parseFloat(selectedFundAccount.current_balance || 0).toLocaleString()}`
     : fundAccountSearch;
 
   // Memoize calculations
@@ -708,13 +762,6 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
             </span> */}
           </h1>
           <div className="ic-header-actions">
-            <button 
-              className="ic-btn-issue-new-cheque"
-              onClick={() => setShowIssueFormModal(true)}
-            >
-              <i className="fas fa-plus-circle"></i>
-              Issue New Cheque
-            </button>
           </div>
         </div>
       </div>
@@ -732,7 +779,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
       />
 
       {/* Dashboard Layout */}
-      {showKpiSections && (
+      {showKpiSections && !hideKpiDashboard && (
         <div className="ic-dashboard-grid">
           {/* Left Column - Summary Cards */}
           <div className="ic-left-column">
@@ -841,7 +888,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
       )}
 
       {/* Bottom Row - Analytics Cards - Lazy loaded */}
-      {showKpiSections && showAnalytics && (
+      {showKpiSections && !hideKpiDashboard && showAnalytics && (
         <div className="ic-analytics-row">
           <div className="ic-analytics-wrapper">
             <div className="ic-analytics-title">Cheque Processing Accuracy Rate</div>
@@ -892,17 +939,24 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
               <button
                 className="filter-dropdown-btn"
                 onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
-                title="Filter cheques"
+                title="Filter and sort cheques"
               >
                 <i className="fas fa-filter"></i>
                 <span className="filter-label">
-                  {filters.status === 'all' ? 'All Cheques' : 'Recent (Last 7 days)'}
+                  {filters.status === 'recent' ? 'Recent (Last 7 days)' : 
+                   filters.sortBy === 'latest' ? 'Latest First' :
+                   filters.sortBy === 'oldest' ? 'Oldest First' :
+                   filters.sortBy === 'highest' ? 'Highest Amount' :
+                   filters.sortBy === 'lowest' ? 'Lowest Amount' :
+                   'All Cheques'}
                 </span>
                 <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
               </button>
               
               {filters.showFilterDropdown && (
                 <div className="filter-dropdown-menu">
+                  {/* Status Filter Section */}
+                  <div className="filter-section-header">Status</div>
                   <button
                     className={`filter-option ${filters.status === 'all' ? 'active' : ''}`}
                     onClick={() => { handleFilterChange('status', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
@@ -919,31 +973,12 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
                     <span>Recent (Last 7 days)</span>
                     {filters.status === 'recent' && <i className="fas fa-check filter-check"></i>}
                   </button>
-                </div>
-              )}
-            </div>
 
-            <div className="filter-dropdown-container">
-              <button
-                className="filter-dropdown-btn"
-                onClick={() => setFilters(prev => ({ ...prev, showSortDropdown: !prev.showSortDropdown }))}
-                title="Sort cheques"
-              >
-                <i className="fas fa-sort"></i>
-                <span className="filter-label">
-                  {filters.sortBy === 'latest' && 'Latest First'}
-                  {filters.sortBy === 'oldest' && 'Oldest First'}
-                  {filters.sortBy === 'highest' && 'Highest Amount'}
-                  {filters.sortBy === 'lowest' && 'Lowest Amount'}
-                </span>
-                <i className={`fas fa-chevron-${filters.showSortDropdown ? 'up' : 'down'} filter-arrow`}></i>
-              </button>
-              
-              {filters.showSortDropdown && (
-                <div className="filter-dropdown-menu">
+                  {/* Sort Filter Section */}
+                 
                   <button
                     className={`filter-option ${filters.sortBy === 'latest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('sortBy', 'latest'); setFilters(prev => ({ ...prev, showSortDropdown: false })); }}
+                    onClick={() => { handleFilterChange('sortBy', 'latest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
                   >
                     <i className="fas fa-arrow-down"></i>
                     <span>Latest First</span>
@@ -951,7 +986,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
                   </button>
                   <button
                     className={`filter-option ${filters.sortBy === 'oldest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('sortBy', 'oldest'); setFilters(prev => ({ ...prev, showSortDropdown: false })); }}
+                    onClick={() => { handleFilterChange('sortBy', 'oldest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
                   >
                     <i className="fas fa-arrow-up"></i>
                     <span>Oldest First</span>
@@ -959,7 +994,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
                   </button>
                   <button
                     className={`filter-option ${filters.sortBy === 'highest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('sortBy', 'highest'); setFilters(prev => ({ ...prev, showSortDropdown: false })); }}
+                    onClick={() => { handleFilterChange('sortBy', 'highest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
                   >
                     <i className="fas fa-sort-amount-down"></i>
                     <span>Highest Amount</span>
@@ -967,7 +1002,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
                   </button>
                   <button
                     className={`filter-option ${filters.sortBy === 'lowest' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('sortBy', 'lowest'); setFilters(prev => ({ ...prev, showSortDropdown: false })); }}
+                    onClick={() => { handleFilterChange('sortBy', 'lowest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
                   >
                     <i className="fas fa-sort-amount-up"></i>
                     <span>Lowest Amount</span>
@@ -989,11 +1024,16 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
             </button>
             {showExportDropdown && (
               <div className="export-dropdown-menu">
-                <button type="button" className="export-option">
+                <button 
+                  type="button" 
+                  className="export-option"
+                  onClick={handleExportPDF}
+                  title="Export filtered cheques as PDF"
+                >
                   <i className="fas fa-file-pdf"></i>
                   <span>Download PDF</span>
                 </button>
-                <button type="button" className="export-option">
+                <button type="button" className="export-option" disabled title="Excel export coming soon">
                   <i className="fas fa-file-excel"></i>
                   <span>Download Excel</span>
                 </button>
@@ -1009,9 +1049,6 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
           <table className="ic-cheques-table">
             <thead>
               <tr>
-                <th><i className="fas fa-hashtag"></i> CHEQUE ID</th>
-                <th><i className="fas fa-money-check"></i> CHEQUE NUMBER</th>
-                <th><i className="fas fa-exchange-alt"></i> DISBURSEMENT</th>
                 <th><i className="fas fa-user"></i> PAYEE NAME</th>
                 <th><i className="fas fa-university"></i> BANK</th>
                 <th><i className="fas fa-money-bill"></i> AMOUNT</th>
@@ -1034,16 +1071,6 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
                   >
                     <td>
                       <div className="cell-content">
-                        <span className="cheque-number">{cheque.cheque_number}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cell-content">
-                        <span className="transaction-ref">#{cheque.disbursement_id}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cell-content">
                         <div className="payer-info">
                           <span className="payer-name">{cheque.payee_name}</span>
                         </div>
@@ -1057,14 +1084,14 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
                     <td>
                       <div className="cell-content">
                         <span className="amount amount-negative">
-                          -₱{parseFloat(cheque.amount || 0).toLocaleString()}
+                          ₱{Math.abs(parseFloat(cheque.amount || cheque.cheque_amount || cheque.transaction?.amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     </td>
                     <td>
                       <div className="cell-content">
                         <span className="issue-date">
-                          {new Date(cheque.issue_date || cheque.created_at).toLocaleDateString()}
+                          {new Date(cheque.issue_date || cheque.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
                         </span>
                       </div>
                     </td>
@@ -1605,7 +1632,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true } = {}) 
                                   }}
                                 >
                                   <span className="fund-account-name">{account.name}</span>
-                                  <span className="fund-account-balance">₱{parseFloat(account.balance || 0).toLocaleString()}</span>
+                                  <span className="fund-account-balance">₱{parseFloat(account.current_balance || 0).toLocaleString()}</span>
                                 </div>
                               ))
                             ) : (

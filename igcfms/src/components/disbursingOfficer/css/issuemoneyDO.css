@@ -1,0 +1,22 @@
+/**
+ * Disbursing Officer IssueMoney Styles
+ * 
+ * Hides the KPI dashboard for disbursing officers
+ * Only shows the Recent Disbursements table
+ */
+
+/* Hide the KPI dashboard (5 boxes) */
+.issue-money-do-wrapper .issue-money-dashboard {
+  display: none !important;
+}
+
+/* Ensure the table section takes full width */
+.issue-money-do-wrapper .recent-disbursements-section {
+  width: 100%;
+  margin-top: 0;
+}
+
+/* Optional: Add some spacing to the header */
+.issue-money-do-wrapper .im-header {
+  margin-bottom: 1.5rem;
+}

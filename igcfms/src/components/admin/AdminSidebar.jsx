@@ -21,8 +21,8 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
       icon: "fas fa-exchange-alt",
       items: [
         { id: "receive-money", label: "Collection", icon: <i className="fas fa-money-bill-wave"></i> },
-        { id: "issue-receipt", label: "Receipt", icon: <i className="fas fa-receipt"></i> },
         { id: "issue-money", label: "Disburse", icon: <i className="fas fa-hand-holding-usd"></i> },
+        { id: "issue-receipt", label: "Receipt", icon: <i className="fas fa-receipt"></i> },
         { id: "issue-check", label: "Cheque", icon: <i className="fas fa-money-check-alt"></i> },
         { id: "override-transactions", label: "Override Transactions", icon: <i className="fas fa-exchange-alt"></i> },
         { id: "transaction-management", label: "Transaction Management", icon: <i className="fas fa-cogs"></i> }
@@ -48,7 +48,6 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
       icon: "fas fa-cogs",
       items: [
         { id: "manage-staff", label: "Manage Staff", icon: <i className="fas fa-users"></i> },
-        { id: "view-transactions", label: "View All Transactions", icon: <i className="fas fa-list"></i> },
         { id: "activity-dashboard", label: "Activity Monitor", icon: <i className="fas fa-chart-line"></i> }
       ]
     }

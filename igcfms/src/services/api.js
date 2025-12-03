@@ -236,9 +236,18 @@ export const getProfile = async () => {
     }
   };
 
-  export const getReports = async () => {
+  export const getReports = async (params = {}) => {
     try {
-      const response = await api.get('/reports');
+      const response = await api.get('/reports', { params });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  export const deleteReport = async (reportId) => {
+    try {
+      const response = await api.delete(`/reports/${reportId}`);
       return response.data;
     } catch (error) {
       throw error;
@@ -248,13 +257,28 @@ export const getProfile = async () => {
   // Cheques API
   export const getCheques = async (params = {}) => {
     try {
-      const response = await api.get('/cheques', { params });
+      // First try to fetch from /disbursements with method=Cheque filter
+      const response = await api.get('/disbursements', { 
+        params: {
+          ...params,
+          method: 'Cheque'
+        } 
+      });
       const data = response.data;
       if (Array.isArray(data)) return data;
       if (Array.isArray(data?.data)) return data.data;
-      return data?.cheques ?? [];
+      return data?.disbursements ?? [];
     } catch (error) {
-      throw error;
+      // Fallback to /cheques endpoint if /disbursements fails
+      try {
+        const fallbackResponse = await api.get('/cheques', { params });
+        const fallbackData = fallbackResponse.data;
+        if (Array.isArray(fallbackData)) return fallbackData;
+        if (Array.isArray(fallbackData?.data)) return fallbackData.data;
+        return fallbackData?.cheques ?? [];
+      } catch (fallbackError) {
+        throw error;
+      }
     }
   };
 

@@ -101,9 +101,13 @@ const formatCurrency = (value) => {
     maximumFractionDigits: 2,
   });
 };
-const IssueReceipt = () => {
+const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, currentUser = null }) => {
   const { user } = useAuth();
   const isAdmin = (user?.role || '').toString().toLowerCase() === 'admin';
+  
+  // Use currentUser if provided, otherwise use user from auth
+  const effectiveUser = currentUser || user;
+  const effectiveUserId = currentUserId || effectiveUser?.id;
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [filteredReceipts, setFilteredReceipts] = useState([]);
@@ -207,7 +211,7 @@ const IssueReceipt = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [filters, receipts, transactions]);
+  }, [filters, receipts, transactions, isCollectingOfficer, effectiveUserId]);
 
   useEffect(() => {
     if (receipts.length > 0 && transactions.length > 0) {
@@ -246,6 +250,41 @@ const IssueReceipt = () => {
 
   const applyFilters = () => {
     let filtered = [...receipts];
+
+    // Filter by creator for collecting officer view
+    if (isCollectingOfficer && effectiveUserId) {
+      filtered = filtered.filter(receipt => {
+        // Check if receipt was created by current user
+        // First check receipt directly
+        const receiptCreatorId = receipt.creator_id || receipt.created_by || receipt.user_id;
+        if (receiptCreatorId === effectiveUserId || receipt.creator?.id === effectiveUserId) {
+          return true;
+        }
+        
+        // Then check the associated transaction
+        if (receipt.transaction) {
+          const transactionCreatorId = receipt.transaction.creator_id || 
+                                       receipt.transaction.created_by || 
+                                       receipt.transaction.user_id;
+          if (transactionCreatorId === effectiveUserId || receipt.transaction.creator?.id === effectiveUserId) {
+            return true;
+          }
+        }
+        
+        // Also check by transaction_id in the transactions array
+        const relatedTransaction = transactions.find(t => t.id === receipt.transaction_id);
+        if (relatedTransaction) {
+          const txCreatorId = relatedTransaction.creator_id || 
+                             relatedTransaction.created_by || 
+                             relatedTransaction.user_id;
+          if (txCreatorId === effectiveUserId || relatedTransaction.creator?.id === effectiveUserId) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+    }
 
     // Search term filter
     if (filters.searchTerm) {
@@ -888,15 +927,27 @@ const IssueReceipt = () => {
       const transaction = receipt.transaction ?? transactions.find((tx) => tx.id === receipt.transaction_id);
       const amountValue = normalizeAmount(receipt.amount ?? transaction?.amount) ?? 0;
 
+      // Get creator name from transaction (the person who created/recorded the collection)
+      const creatorName = transaction?.creator?.name 
+        || transaction?.creator?.full_name 
+        || transaction?.creator_name 
+        || transaction?.user_name 
+        || '';
+
       return {
         ...receipt,
         amount: amountValue,
         payor: receipt.payer_name || (transaction?.recipient || ''),
         payer: receipt.payer_name || (transaction?.recipient || ''),
-        payment_method: receipt.payment_method || (transaction?.payment_method || ''),
-        paymentMethod: receipt.paymentMethod || (transaction?.payment_method || ''),
-        cashier: receipt.cashier || (transaction?.cashier || ''),
-        issuedBy: receipt.issued_by || (transaction?.cashier || ''),
+        payment_method: receipt.payment_method || (transaction?.payment_method || transaction?.mode_of_payment || ''),
+        paymentMethod: receipt.paymentMethod || (transaction?.payment_method || transaction?.mode_of_payment || ''),
+        mode_of_payment: receipt.mode_of_payment || (transaction?.mode_of_payment || transaction?.payment_method || ''),
+        modeOfPayment: receipt.modeOfPayment || (transaction?.mode_of_payment || transaction?.payment_method || ''),
+        cashier: receipt.cashier || creatorName || '',
+        issuedBy: receipt.issued_by || creatorName || '',
+        issued_by: receipt.issued_by || creatorName || '',
+        user_name: receipt.user_name || creatorName || '',
+        creator_name: creatorName,
         issue_date: receipt.issued_at || receipt.created_at,
         dateIssued: receipt.issued_at || receipt.created_at,
         status: (receipt.status || 'Issued').toString(),
@@ -989,20 +1040,6 @@ const IssueReceipt = () => {
           <h1 className="ir-title">
             <i className="fas fa-receipt"></i> Issue Receipt
           </h1>
-          <div className="header-actions">
-            <button
-              className="header-settings-btn"
-              onClick={() => setShowIssueFormModal(true)}
-            >
-              <i className="fas fa-cog"></i>
-            </button>
-            <button
-              className="header-primary-btn"
-              onClick={() => setShowIssueFormModal(true)}
-            >
-              <i className="fas fa-plus-circle"></i> Issue New Receipt
-            </button>
-          </div>
         </div>
       </div>
 
@@ -1192,10 +1229,7 @@ const IssueReceipt = () => {
                       <i className="fas fa-file-pdf"></i>
                       <span>Download PDF</span>
                     </button>
-                    <button type="button" className="export-option" onClick={handleExportExcel}>
-                      <i className="fas fa-file-excel"></i>
-                      <span>Download Excel</span>
-                    </button>
+                    
                   </div>
                 )}
               </div>
@@ -1209,7 +1243,7 @@ const IssueReceipt = () => {
                 <thead>
               <tr>
                 <th><i className="fas fa-hashtag"></i> RECEIPT ID</th>
-                <th><i className="fas fa-receipt"></i> RECEIPT NUMBER</th>
+                <th><i className="fas fa-receipt"></i> O.R NUMBER</th>
                 <th><i className="fas fa-exchange-alt"></i> TRANSACTION</th>
                 <th><i className="fas fa-user"></i> PAYER NAME</th>
                 <th><i className="fas fa-money-bill"></i> AMOUNT</th>

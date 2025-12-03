@@ -3128,14 +3128,152 @@
   .delete-modal-body-modern {
     padding: 24px 20px;
   }
-  
-  .delete-modal-footer-modern {
-    padding: 16px 20px 20px;
-    flex-direction: column-reverse;
+}
+
+/* Transaction Summary Statistics */
+.transaction-summary-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 20px 0;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f0f4f8 100%);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.summary-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.summary-stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.summary-stat-item.collection .stat-value {
+  color: #10b981;
+}
+
+.summary-stat-item.disbursement .stat-value {
+  color: #ef4444;
+}
+
+/* Responsive adjustments for transaction summary */
+@media (max-width: 1024px) {
+  .transaction-summary-stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 12px;
+    margin: 16px 0;
   }
-  
-  .delete-modal-btn-cancel,
-  .delete-modal-btn-delete {
-    width: 100%;
+
+  .summary-stat-item {
+    padding: 12px;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  .stat-value {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .transaction-summary-stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 10px;
+    margin: 12px 0;
+  }
+
+  .summary-stat-item {
+    padding: 10px;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .stat-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+  }
+
+  .stat-value {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .transaction-summary-stats {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+    margin: 10px 0;
+  }
+
+  .summary-stat-item {
+    padding: 12px;
+    flex-direction: row;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  .stat-value {
+    font-size: 16px;
   }
 }

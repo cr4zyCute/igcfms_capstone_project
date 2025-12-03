@@ -3,6 +3,7 @@ import '../common/css/Navbar.css';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../common/NotificationBell';
+import NotificationBellCO from '../collectingOfficer/NotificationBellCO';
 
 const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -72,7 +73,13 @@ const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab }) =
           </div>
           
           <div className="navbar-actions">
-            <NotificationBell onNavigate={onNavigate} />
+            {userRole === 'Disbursing Officer' ? (
+              <NotificationBell onNavigate={onNavigate} />
+            ) : userRole === 'Collecting Officer' ? (
+              <NotificationBellCO onNavigate={onNavigate} />
+            ) : (
+              <NotificationBell onNavigate={onNavigate} />
+            )}
             
             <div className="profile-dropdown" ref={dropdownRef}>
           <button 
@@ -84,7 +91,6 @@ const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab }) =
               {getInitials(user?.name, user?.email)}
             </div>
             <div className="user-info">
-              <span className="user-email">{user?.email}</span>
               <span className="user-role">{userRole}</span>
             </div>
             <span className={`dropdown-arrow ${isProfileOpen ? 'open' : ''}`}></span>

@@ -330,7 +330,7 @@ const OverrideRequestTrendanalaytics = ({
         <div className="ot-timeline-title-group">
           <h3 className="ot-timeline-title">
             <i className="fas fa-chart-bar"></i>
-            Override Transactions – Bar Graph Analysis
+            Override Transactions
             <i 
               className="fas fa-info-circle" 
               style={{ marginLeft: '8px', fontSize: '14px', color: '#6b7280', cursor: 'help' }}

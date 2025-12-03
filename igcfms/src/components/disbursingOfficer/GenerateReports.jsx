@@ -2,16 +2,18 @@ import React from 'react';
 import GenerateReportsComponent from '../admin/GenerateReports';
 import { useAuth } from '../../contexts/AuthContext';
 
-const CashierGenerateReports = () => {
+const DisbursingOfficerGenerateReports = () => {
   const { user } = useAuth();
 
+  
   return (
     <GenerateReportsComponent 
       user={user}
+      isDisbursing={true} 
       currentUserId={user?.id}
       currentUser={user}
-      hideTransactionTab={false}
-      hideOverrideTab={false}
+      hideTransactionTab={true}
+      hideOverrideTab={true}
       hideCollectionReportTab={true}
       filterTransactionsByCreator={true}
       hideTransactionActions={true}
@@ -19,4 +21,4 @@ const CashierGenerateReports = () => {
   );
 };
 
-export default CashierGenerateReports;
+export default DisbursingOfficerGenerateReports;

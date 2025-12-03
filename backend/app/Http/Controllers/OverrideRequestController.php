@@ -187,31 +187,50 @@ class OverrideRequestController extends Controller
             });
         }
 
-        // Send email notification to the cashier who requested the override
+        // Send email notification to the user who requested the override
         try {
-            $cashierEmail = $overrideRequest->requestedBy->email;
-            Mail::to($cashierEmail)->send(new OverrideRequestReviewedMail($overrideRequest));
+            $userEmail = $overrideRequest->requestedBy->email;
+            Mail::to($userEmail)->send(new OverrideRequestReviewedMail($overrideRequest));
         } catch (\Exception $e) {
             Log::error('Failed to send override review email: ' . $e->getMessage());
         }
 
-        // TODO: Create notification for the cashier (after notifications table is created)
-        // Uncomment this after running migrations
-        /*
+        // Create notification for the user who requested the override (Collecting Officer, Disbursing Officer, or Cashier)
+        // IMPORTANT: Use the requested_by ID, NOT the current authenticated user (admin)
+        $requestedByUserId = $overrideRequest->requested_by;
         $status = ucfirst($request->status);
-        NotificationController::createNotification(
-            $overrideRequest->requested_by,
-            'override_reviewed',
-            "Override Request {$status}",
-            "Your override request #{$overrideRequest->id} has been {$request->status} by {$overrideRequest->reviewedBy->name}",
-            [
-                'override_request_id' => $overrideRequest->id,
-                'transaction_id' => $overrideRequest->transaction_id,
-                'status' => $request->status,
-                'reviewed_by' => $overrideRequest->reviewedBy->name
-            ]
-        );
-        */
+        
+        // Log for debugging
+        Log::info("Creating notification for override request #{$overrideRequest->id}", [
+            'requested_by_user_id' => $requestedByUserId,
+            'current_admin_id' => Auth::id(),
+            'status' => $request->status
+        ]);
+        
+        try {
+            $notification = NotificationController::createNotification(
+                $requestedByUserId,
+                'override_reviewed',
+                "Override Request {$status}",
+                "Your override request #{$overrideRequest->id} has been {$request->status} by {$overrideRequest->reviewedBy->name}",
+                [
+                    'override_request_id' => $overrideRequest->id,
+                    'transaction_id' => $overrideRequest->transaction_id,
+                    'status' => $request->status,
+                    'reviewed_by' => $overrideRequest->reviewedBy->name
+                ]
+            );
+            
+            Log::info("Notification created successfully", [
+                'notification_id' => $notification->id,
+                'user_id' => $notification->user_id
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to create notification for override request: ' . $e->getMessage(), [
+                'requested_by_user_id' => $requestedByUserId,
+                'exception' => $e
+            ]);
+        }
 
         // Track override review activity
         ActivityTracker::trackOverrideReview($overrideRequest, Auth::user(), $request->status);

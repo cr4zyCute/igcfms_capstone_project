@@ -7,6 +7,7 @@ import { broadcastFundTransaction } from "../../services/fundTransactionChannel"
 import Chart from 'chart.js/auto';
 import IssueMoneySkeletonLoader from "../ui/issuemoneySL";
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from "../../contexts/AuthContext";
 import { 
   useDisbursements, 
   useFundAccountsForDisbursement, 
@@ -38,7 +39,10 @@ const CHEQUE_DATE_FORMATS = [
 
 const cloneDefaultChequeLayout = () => JSON.parse(JSON.stringify(DEFAULT_CHEQUE_FIELD_POSITIONS));
 
-const IssueMoney = () => {
+const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
+  // Auth hook
+  const { user } = useAuth();
+  
   // TanStack Query hooks
   const queryClient = useQueryClient();
   const { 
@@ -65,8 +69,23 @@ const IssueMoney = () => {
   const [success, setSuccess] = useState("");
   const [filteredDisbursements, setFilteredDisbursements] = useState([]);
   
-  // Derived data from React Query
-  const recentDisbursements = disbursementsData || [];
+  // Derived data from React Query - filter by userId if provided
+  let recentDisbursements = disbursementsData || [];
+  if (filterByUserId) {
+    const userIdInt = parseInt(filterByUserId);
+    recentDisbursements = recentDisbursements.filter(disbursement => {
+      // Check multiple possible field names for the creator/issuer
+      const matches = 
+        disbursement.issued_by === userIdInt || 
+        disbursement.created_by === userIdInt ||
+        disbursement.user_id === userIdInt ||
+        disbursement.creator_id === userIdInt ||
+        disbursement.disbursing_officer_id === userIdInt ||
+        (disbursement.creator && disbursement.creator.id === userIdInt);
+      
+      return matches;
+    });
+  }
   const fundAccounts = fundAccountsData || [];
   const recipientAccounts = recipientAccountsData || [];
   const loading = disbursementsLoading || fundAccountsLoading || recipientAccountsLoading;
@@ -93,6 +112,7 @@ const IssueMoney = () => {
     fundAccountId: "",
     modeOfPayment: "Cash",
     chequeNumber: "",
+    receiptNumber: "", // Receipt number for printing
     description: ""
   });
 
@@ -131,6 +151,11 @@ const IssueMoney = () => {
   const [chequePreviewPositions, setChequePreviewPositions] = useState(cloneDefaultChequeLayout());
   const [dragState, setDragState] = useState(null);
   const [chequeDateFormatIndex, setChequeDateFormatIndex] = useState(0);
+  
+  // Receipt number modal state
+  const [showReceiptNumberModal, setShowReceiptNumberModal] = useState(false);
+  const [receiptNumber, setReceiptNumber] = useState("");
+  const [receiptNumberError, setReceiptNumberError] = useState("");
 
   const API_BASE = API_BASE_URL;
   const token = localStorage.getItem("token");
@@ -142,31 +167,35 @@ const IssueMoney = () => {
     return Math.round(parsed * 100) / 100;
   };
 
-  // Helper function to convert numbers to words
+  // Function to convert number to words
   const numberToWords = (num) => {
-    const wholeNum = Math.floor(Math.abs(parseFloat(num) || 0));
+    const ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
+    const tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+    const teens = ['TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
     
-    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    if (num === 0) return 'ZERO';
     
-    const convertBelowThousand = (n) => {
+    const convertHundreds = (n) => {
       if (n === 0) return '';
       if (n < 10) return ones[n];
-      if (n < 20) return teens[n - 10];
-      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
-      return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertBelowThousand(n % 100) : '');
+      if (n >= 10 && n < 20) return teens[n - 10];
+      if (n >= 20 && n < 100) {
+        return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+      }
+      if (n >= 100) {
+        return ones[Math.floor(n / 100)] + ' HUNDRED' + (n % 100 !== 0 ? ' ' + convertHundreds(n % 100) : '');
+      }
+    };
+
+    const convertThousands = (n) => {
+      if (n < 1000) return convertHundreds(n);
+      if (n < 1000000) {
+        return convertHundreds(Math.floor(n / 1000)) + ' THOUSAND' + (n % 1000 !== 0 ? ' ' + convertHundreds(n % 1000) : '');
+      }
+      return convertHundreds(Math.floor(n / 1000000)) + ' MILLION' + (n % 1000000 !== 0 ? ' ' + convertThousands(n % 1000000) : '');
     };
     
-    if (wholeNum === 0) return 'Zero';
-    if (wholeNum < 1000) return convertBelowThousand(wholeNum);
-    if (wholeNum < 1000000) {
-      const thousands = Math.floor(wholeNum / 1000);
-      const remainder = wholeNum % 1000;
-      return convertBelowThousand(thousands) + ' Thousand' + (remainder !== 0 ? ' ' + convertBelowThousand(remainder) : '');
-    }
-    
-    return wholeNum.toString();
+    return convertThousands(Math.floor(num)).trim();
   };
 
 
@@ -762,6 +791,66 @@ const IssueMoney = () => {
     setChequePreviewPositions(cloneDefaultChequeLayout());
   };
 
+  const handlePrintReceiptClick = () => {
+    // Use receipt number from disbursementResult if available
+    const receiptNum = disbursementResult?.receiptNumber || "";
+    
+    if (!receiptNum.trim()) {
+      showMessage("Receipt number is required. Please enter it in the form.", 'error');
+      return;
+    }
+
+    handlePrintReceiptWithNumber(receiptNum.trim());
+  };
+
+  const handlePrintReceiptWithNumber = (receiptNum) => {
+    // Get the receipt print area element
+    const receiptElement = document.getElementById('disbursementReceiptPrint');
+    if (!receiptElement) {
+      console.error('Receipt print area not found.');
+      return;
+    }
+
+    // Create a new window for printing - Receipt size (4 x 8.6 inches)
+    const printWindow = window.open('', '_blank', 'width=384,height=825');
+    if (!printWindow) {
+      console.error('Unable to open print window.');
+      return;
+    }
+
+    // Get the print HTML template from the imported function
+    printWindow.document.write(getReceiptPrintHTML());
+
+    // Clone the receipt content and update receipt number
+    const clonedReceipt = receiptElement.cloneNode(true);
+    
+    // Update the receipt number in the cloned element
+    const receiptNumberElement = clonedReceipt.querySelector('.receipt-number');
+    if (receiptNumberElement) {
+      receiptNumberElement.textContent = receiptNum;
+    }
+    
+    printWindow.document.write(clonedReceipt.outerHTML);
+
+    // Close the document
+    printWindow.document.write(`
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    // Wait for content to load then print
+    printWindow.onload = function() {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    };
+
+    setReceiptNumber("");
+  };
+
   const sanitizeForHtml = (value) => (value || '').toString()
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -1078,11 +1167,43 @@ const IssueMoney = () => {
         issued_by: parseInt(userId),
       };
 
-      await axios.post(
+      const disbursementRes = await axios.post(
         `${API_BASE}/disbursements`,
         disbursementPayload,
         { headers }
       );
+
+      const disbursementId = disbursementRes.data.id || disbursementRes.data.data?.id;
+
+      // If payment method is Cheque, automatically create a cheque record
+      if (formData.modeOfPayment === "Cheque" && formData.chequeNumber.trim()) {
+        try {
+          const chequePayload = {
+            transaction_id: transactionId,
+            payee_name: payeeName,
+            method: 'Cheque',
+            cheque_number: formData.chequeNumber.trim(),
+            bank_name: formData.bankName?.trim() || 'Unknown Bank',
+            account_number: formData.accountNumber?.trim() || '',
+            amount: normalizedAmount,
+            issue_date: new Date().toISOString().split('T')[0],
+            memo: formData.description?.trim() || null,
+            fund_account_id: parseInt(formData.fundAccountId)
+          };
+
+          await axios.post(
+            `${API_BASE}/disbursements`,
+            chequePayload,
+            { headers }
+          );
+
+          console.log('Cheque record created automatically for transaction:', transactionId);
+        } catch (chequeError) {
+          console.error('Failed to create cheque record:', chequeError);
+          // Don't fail the entire transaction if cheque creation fails
+          showMessage('Disbursement created but cheque record creation failed. Please create it manually in Issue Cheque.', 'warning');
+        }
+      }
 
       // selectedFund already declared above
       
@@ -1165,6 +1286,7 @@ const IssueMoney = () => {
         referenceNo: formData.referenceNo,
         modeOfPayment: formData.modeOfPayment,
         chequeNumber: formData.chequeNumber,
+        receiptNumber: formData.receiptNumber,
         fundAccount: selectedFund?.name || 'Unknown Fund',
         issuedAt: new Date().toISOString()
       });
@@ -1195,6 +1317,7 @@ const IssueMoney = () => {
         description: "",
         modeOfPayment: "Cash",
         chequeNumber: "",
+        receiptNumber: "",
       });
 
       setShowFormModal(false);
@@ -1460,6 +1583,20 @@ const IssueMoney = () => {
             rows="2"
           />
         </div>
+        <div className="form-group">
+          <label>Receipt Number *</label>
+          <input
+            type="text"
+            placeholder="Enter receipt number"
+            value={formData.receiptNumber || ''}
+            onChange={(e) => handleInputChange('receiptNumber', e.target.value.toUpperCase())}
+            required
+          />
+          <small className="field-hint">
+            <i className="fas fa-info-circle"></i>
+            Receipt number for printing.
+          </small>
+        </div>
       </div>
 
       <div className="form-actions">
@@ -1517,6 +1654,7 @@ const IssueMoney = () => {
       )}
 
       {/* Dashboard Layout - 5 Box Exact Layout */}
+      {!hideKpiDashboard && (
       <div className="issue-money-dashboard">
         <div className="issue-money-box-1">
           <div className="total-disbursement-card">
@@ -1928,6 +2066,7 @@ const IssueMoney = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Disbursement Form Modal */}
       {showFormModal && (
@@ -2053,10 +2192,7 @@ const IssueMoney = () => {
                     <i className="fas fa-file-pdf"></i>
                     <span>Download PDF</span>
                   </button>
-                  <button type="button" className="export-option" onClick={handleExportCsv}>
-                    <i className="fas fa-file-excel"></i>
-                    <span>Download CSV</span>
-                  </button>
+              
                 </div>
               )}
             </div>
@@ -2267,6 +2403,76 @@ const IssueMoney = () => {
               </button>
             </div>
             <div className="modal-body">
+              {/* Receipt Display Area - Visible in modal */}
+              <div className="receipt-print-area" id="disbursementReceiptPrint">
+                <div className="official-receipt-header">
+                  <div className="receipt-title-section">
+                    <div className="receipt-logos">
+                      <div className="logo-image left-logo" aria-hidden="true"></div>
+                      <div className="receipt-title-content" aria-hidden="true"></div>
+                      <div className="logo-image right-logo" aria-hidden="true"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="official-receipt-body">
+                  <div className="receipt-center-logos" aria-hidden="true">
+                    <div className="center-logo-container"></div>
+                  </div>
+
+                  <div className="receipt-payer-info">
+                    <p>
+                      <strong>ISSUED TO:</strong> {disbursementResult?.recipientName || 'N/A'}
+                    </p>
+                    <p>
+                      <strong>DATE:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
+
+                  <div className="receipt-fund-info">
+                    <p className="fund-label">FUND ACCOUNTS USED:</p>
+                    <div className="fund-items-grid single-column">
+                      <div className="fund-item-row">
+                        <span className="fund-name">{disbursementResult?.fundAccount || 'N/A'}</span>
+                        <span className="fund-amount">
+                          ₱{disbursementResult?.amount ? parseFloat(disbursementResult.amount).toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          }) : '0.00'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="receipt-body-spacer"></div>
+
+                  <div className="receipt-total-right">
+                    <span className="total-label-bold">TOTAL:</span>
+                    <span className="total-amount-bold">PHP{disbursementResult?.amount ? parseFloat(disbursementResult.amount).toFixed(2) : '0.00'}</span>
+                  </div>
+
+                  <div className="amount-words-bold">
+                    {disbursementResult?.amount ? numberToWords(parseFloat(disbursementResult.amount)) : 'ZERO'} PESOS ONLY
+                  </div>
+
+                  {disbursementResult?.description && (
+                    <div className="receipt-description-box">
+                      <p className="description-label-receipt">Description:</p>
+                      <p className="description-text-receipt">{disbursementResult.description}</p>
+                    </div>
+                  )}
+
+                  {(user?.name || user?.role) && (
+                    <div className="receipt-issued-by">
+                      <p className="issued-by-name">
+                        {user?.name || 'N/A'}
+                        {user?.role ? ` • ${user.role}` : ''}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="success-details">
                 <div className="result-details">
                   <div className="detail-item">
@@ -2370,19 +2576,7 @@ const IssueMoney = () => {
               <button
                 type="button"
                 className="print-btn"
-                onClick={() => {
-                  const printWindow = window.open('', '_blank', 'width=800,height=600');
-                  if (printWindow) {
-                    printWindow.document.write(getReceiptPrintHTML());
-                    printWindow.document.close();
-                    printWindow.onload = () => {
-                      setTimeout(() => {
-                        printWindow.focus();
-                        printWindow.print();
-                      }, 500);
-                    };
-                  }
-                }}
+                onClick={handlePrintReceiptClick}
               >
                 <i className="fas fa-receipt"></i> Print Receipt
               </button>
@@ -2390,6 +2584,7 @@ const IssueMoney = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

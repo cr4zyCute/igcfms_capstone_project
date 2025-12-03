@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from 'axios';
+import API_BASE_URL from '../../config/api';
 import TotalMiniGraph from "../analytics/OverrideTransactionsAnalystics/totalminigraph";
 import RequestDistributionPieG from "../analytics/OverrideTransactionsAnalystics/RequestDistributionPieG";
 import BarGraph from "../analytics/OverrideTransactionsAnalystics/bargraph";
@@ -13,9 +15,13 @@ import {
   useReviewOverrideRequest
 } from "../../hooks/useOverrideTransactions";
 import { useCreateReceipt } from "../../hooks/useReceipts";
+import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
+import { useAuth } from "../../contexts/AuthContext";
 import "./css/overridetransactions.css";
 
-const OverrideTransactions = ({ role = "Admin" }) => {
+const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDashboard = false }) => {
+  const { user } = useAuth();
+  
   // TanStack Query hooks
   const {
     data: transactions = [],
@@ -24,24 +30,31 @@ const OverrideTransactions = ({ role = "Admin" }) => {
   } = useTransactions();
 
   const {
-    data: adminOverrideRequests = [],
-    isLoading: adminRequestsLoading,
-    error: adminRequestsError
-  } = useOverrideRequests({ enabled: role === "Admin" });
-
-  const {
-    data: myOverrideRequests = [],
-    isLoading: myRequestsLoading,
-    error: myRequestsError
-  } = useMyOverrideRequests({ enabled: role !== "Admin" });
+    data: allOverrideRequests = [],
+    isLoading: allRequestsLoading,
+    error: allRequestsError
+  } = useOverrideRequests({ enabled: true });
 
   const createOverrideRequestMutation = useCreateOverrideRequest();
   const reviewOverrideRequestMutation = useReviewOverrideRequest();
   const createReceiptMutation = useCreateReceipt();
 
-  // Determine which override requests to use based on role
-  const overrideRequests = role === "Admin" ? adminOverrideRequests : myOverrideRequests;
-  const isInitialLoading = transactionsLoading || (role === "Admin" ? adminRequestsLoading : myRequestsLoading);
+  // Filter override requests by user if filterByUserId is provided
+  let overrideRequests = allOverrideRequests;
+  if (filterByUserId) {
+    const userIdInt = parseInt(filterByUserId);
+    overrideRequests = allOverrideRequests.filter(request => {
+      const matches = 
+        request.created_by === userIdInt || 
+        request.user_id === userIdInt ||
+        request.creator_id === userIdInt ||
+        (request.creator && request.creator.id === userIdInt);
+      
+      return matches;
+    });
+  }
+
+  const isInitialLoading = transactionsLoading || allRequestsLoading;
   const mutationLoading = createOverrideRequestMutation.isPending || reviewOverrideRequestMutation.isPending;
 
   // Local state
@@ -68,6 +81,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
   const [manualReceiptNo, setManualReceiptNo] = useState("");
   const [manualPayerName, setManualPayerName] = useState("");
   const [manualReceiptError, setManualReceiptError] = useState("");
+  const [receiptData, setReceiptData] = useState(null);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -104,13 +118,10 @@ const OverrideTransactions = ({ role = "Admin" }) => {
     if (transactionsError) {
       setError(transactionsError.message || 'Failed to load transactions');
     }
-    if (adminRequestsError) {
-      setError(adminRequestsError.message || 'Failed to load override requests');
+    if (allRequestsError) {
+      setError(allRequestsError.message || 'Failed to load override requests');
     }
-    if (myRequestsError) {
-      setError(myRequestsError.message || 'Failed to load your override requests');
-    }
-  }, [transactionsError, adminRequestsError, myRequestsError]);
+  }, [transactionsError, allRequestsError]);
 
   const applyFilters = () => {
     let filtered = [...overrideRequests];
@@ -243,12 +254,76 @@ const OverrideTransactions = ({ role = "Admin" }) => {
             let appliedTxId = null;
             const changesRaw = data?.changes;
             const changes = typeof changesRaw === 'string' ? JSON.parse(changesRaw || '{}') : (changesRaw || {});
-            appliedTxId = changes?.applied_transaction_id ?? changes?.appliedTransactionId ?? null;
+            appliedTxId = changes?.applied_transaction_id ?? changes?.appliedTransactionId ?? data?.applied_transaction_id ?? data?.appliedTransactionId ?? null;
+
+            console.log('Override response data:', data);
+            console.log('Parsed changes:', changes);
+            console.log('Applied Transaction ID:', appliedTxId);
 
             if (status === 'approved' && appliedTxId) {
               setManualReceiptTxId(appliedTxId);
               const defaultPayer = selectedRequest?.transaction?.recipient || '';
               setManualPayerName(defaultPayer);
+              
+              // Populate receipt data even if transaction list doesn't contain the ID
+              const toNum = (v) => {
+                if (v === null || v === undefined) return 0;
+                const cleaned = String(v).replace(/[^0-9.-]/g, '').trim();
+                const n = parseFloat(cleaned);
+                return Number.isFinite(n) ? n : 0;
+              };
+              const transaction = transactions.find(tx => tx.id === appliedTxId);
+              const fallbackTx = selectedRequest?.transaction || {};
+              const fundAccountsSource = (
+                transaction?.fund_accounts ??
+                fallbackTx?.fund_accounts ??
+                (transaction?.fund_account ? [transaction.fund_account] : []) ??
+                (fallbackTx?.fund_account ? [fallbackTx.fund_account] : [])
+              );
+              const fundAccounts = Array.isArray(fundAccountsSource) ? fundAccountsSource : [fundAccountsSource];
+              
+              // Prefer approved/new amount from changes, then API response, then transaction values
+              const approvedAmount = toNum(changes?.amount ?? data?.amount ?? data?.approved_amount ?? fallbackTx?.amount ?? transaction?.amount ?? 0);
+              
+              console.log('Computed approved amount:', approvedAmount);
+              console.log('Fallback tx amount:', fallbackTx?.amount, 'Transaction amount:', transaction?.amount);
+              
+              setReceiptData({
+                fundAccounts: (fundAccounts && fundAccounts.length > 0)
+                  ? fundAccounts.map(fa => ({
+                      name: fa?.name || fa?.fund_name || 'N/A',
+                      amount: fa?.amount ?? fa?.allocated_amount ?? approvedAmount
+                    }))
+                  : [],
+                totalAmount: approvedAmount,
+                description: fallbackTx?.description || fallbackTx?.remarks || transaction?.description || transaction?.remarks || ''
+              });
+              
+              // Auto-create receipt record in IssueReceipt with approved amount
+              try {
+                const receiptPayload = {
+                  transaction_id: appliedTxId,
+                  receipt_no: `OVR-${Date.now()}`, // Auto-generate receipt number
+                  payment_method: transaction?.mode_of_payment || 'Cash',
+                  amount: approvedAmount,
+                  payer_name: defaultPayer,
+                  description: `Override: ${(fallbackTx?.description || fallbackTx?.remarks || transaction?.description || transaction?.remarks || '')}`
+                };
+                
+                console.log('Creating receipt with payload:', receiptPayload);
+                
+                createReceiptMutation.mutate(receiptPayload, {
+                  onSuccess: () => {
+                    console.log('Receipt record created for override transaction:', appliedTxId, 'with amount:', approvedAmount);
+                  },
+                  onError: (err) => {
+                    console.error('Failed to create receipt record:', err);
+                  }
+                });
+              } catch (receiptError) {
+                console.error('Error creating receipt record:', receiptError);
+              }
+              
               setShowManualReceiptModal(true);
             }
           } catch (e) {
@@ -267,7 +342,38 @@ const OverrideTransactions = ({ role = "Admin" }) => {
     );
   };
 
-  const handleCreateManualReceipt = (e) => {
+  // Number to words conversion
+  const numberToWords = (num) => {
+    const ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
+    const tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+    const teens = ['TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
+    
+    if (num === 0) return 'ZERO';
+    
+    const convertHundreds = (n) => {
+      if (n === 0) return '';
+      if (n < 10) return ones[n];
+      if (n >= 10 && n < 20) return teens[n - 10];
+      if (n >= 20 && n < 100) {
+        return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+      }
+      if (n >= 100) {
+        return ones[Math.floor(n / 100)] + ' HUNDRED' + (n % 100 !== 0 ? ' ' + convertHundreds(n % 100) : '');
+      }
+    };
+
+    const convertThousands = (n) => {
+      if (n < 1000) return convertHundreds(n);
+      if (n < 1000000) {
+        return convertHundreds(Math.floor(n / 1000)) + ' THOUSAND' + (n % 1000 !== 0 ? ' ' + convertHundreds(n % 1000) : '');
+      }
+      return convertHundreds(Math.floor(n / 1000000)) + ' MILLION' + (n % 1000000 !== 0 ? ' ' + convertThousands(n % 1000000) : '');
+    };
+    
+    return convertThousands(Math.floor(num)).trim();
+  };
+
+  const handleCreateManualReceipt = async (e) => {
     e.preventDefault();
     setManualReceiptError("");
     if (!manualReceiptTxId) {
@@ -283,25 +389,273 @@ const OverrideTransactions = ({ role = "Admin" }) => {
       return;
     }
 
-    createReceiptMutation.mutate(
-      {
-        transaction_id: parseInt(manualReceiptTxId, 10),
-        payer_name: manualPayerName.trim(),
-        receipt_number: manualReceiptNo.trim(),
-      },
-      {
-        onSuccess: () => {
-          showMessage('Receipt created successfully!');
+    // Instead of saving, print the receipt
+    await handlePrintReceipt();
+  };
+
+  const handlePrintReceipt = async () => {
+    // Get the receipt print area element
+    const receiptElement = document.getElementById('overrideReceiptPrint');
+    if (!receiptElement) {
+      console.error('Receipt print area not found.');
+      return;
+    }
+
+    // Create a new window for printing - Receipt size (4 x 8.6 inches)
+    const printWindow = window.open('', '_blank', 'width=384,height=825');
+    if (!printWindow) {
+      console.error('Unable to open print window.');
+      return;
+    }
+
+    // Compose receipt markup explicitly to avoid cloning issues from hidden element
+    const toNumber = (val) => {
+      if (val === null || val === undefined) return 0;
+      const cleaned = String(val).replace(/,/g, '').trim();
+      const n = parseFloat(cleaned);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const formatAmount = (val) => toNumber(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let selectedTxForPrint = transactions.find(tx => tx.id === manualReceiptTxId || String(tx.id) === String(manualReceiptTxId));
+    let funds = (receiptData && receiptData.fundAccounts) ? receiptData.fundAccounts : [];
+    try { console.log('[Print] Selected Tx from cache:', selectedTxForPrint); } catch {}
+    try { console.log('[Print] ReceiptData funds:', receiptData?.fundAccounts); } catch {}
+    let fundsSum = funds.reduce((sum, fa) => sum + toNumber(fa?.amount ?? fa?.allocated_amount ?? 0), 0);
+    let totalAmountNum = toNumber(receiptData?.totalAmount);
+    if (totalAmountNum <= 0) totalAmountNum = fundsSum;
+    if (totalAmountNum <= 0) totalAmountNum = toNumber(selectedTxForPrint?.amount);
+
+    // If still zero and we have a transaction id, fetch transaction details directly
+    if ((totalAmountNum <= 0 || !Number.isFinite(totalAmountNum)) && manualReceiptTxId) {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        // No GET /transactions/{id} endpoint; fetch all then find
+        const res = await axios.get(`${API_BASE_URL}/transactions`, { headers });
+        const list = Array.isArray(res?.data) ? res.data : [];
+        const tx = list.find(t => String(t.id) === String(manualReceiptTxId));
+        if (tx) {
+          selectedTxForPrint = tx;
+          const fetchedFunds = tx.fund_accounts ? (Array.isArray(tx.fund_accounts) ? tx.fund_accounts : [tx.fund_accounts]) : [];
+          if (!funds || funds.length === 0) {
+            funds = fetchedFunds.map(fa => ({ name: fa?.name || fa?.fund_name || 'N/A', amount: fa?.amount ?? fa?.allocated_amount ?? 0 }));
+            fundsSum = funds.reduce((sum, fa) => sum + toNumber(fa?.amount ?? 0), 0);
+          }
+          const fetchedAmount = toNumber(tx.amount ?? tx.total_amount ?? 0);
+          if (fetchedAmount > 0) {
+            totalAmountNum = fetchedAmount;
+          } else if (fundsSum > 0) {
+            totalAmountNum = fundsSum;
+          }
+        }
+      } catch (fetchErr) {
+        console.error('Failed to fetch transaction for print:', fetchErr);
+      }
+    }
+
+    // If still no funds listed, resolve via transaction's fund_account relation or fund_account_id
+    if ((!funds || funds.length === 0) && selectedTxForPrint) {
+      let faName = selectedTxForPrint?.fund_account?.name 
+        || selectedTxForPrint?.fundAccount?.name 
+        || selectedTxForPrint?.fund_name 
+        || null;
+      if (!faName && selectedTxForPrint?.fund_account_id) {
+        try {
+          const token = localStorage.getItem('token');
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+          const faRes = await axios.get(`${API_BASE_URL}/fund-accounts/${selectedTxForPrint.fund_account_id}`, { headers });
+          faName = faRes?.data?.name || faRes?.data?.fund_name || faName;
+        } catch (e) {
+          console.warn('Failed to fetch fund account by id for print:', e);
+        }
+      }
+      const amt = Math.abs(toNumber(selectedTxForPrint?.amount ?? totalAmountNum));
+      funds = [{ name: faName || 'Fund Account', amount: amt }];
+      fundsSum = funds.reduce((sum, fa) => sum + toNumber(fa?.amount ?? 0), 0);
+      if (totalAmountNum <= 0 && fundsSum > 0) {
+        totalAmountNum = fundsSum;
+      } else if (totalAmountNum <= 0) {
+        totalAmountNum = amt;
+      }
+    }
+
+    // If still zero, fall back to selectedRequest data (changes.amount or transaction.amount)
+    if ((totalAmountNum <= 0 || !Number.isFinite(totalAmountNum)) && selectedRequest) {
+      try {
+        const changesRaw = selectedRequest?.changes;
+        const changesObj = typeof changesRaw === 'string' ? JSON.parse(changesRaw || '{}') : (changesRaw || {});
+        const srAmount = toNumber(changesObj?.amount ?? selectedRequest?.amount ?? selectedRequest?.transaction?.amount ?? 0);
+        if (srAmount > 0) totalAmountNum = srAmount;
+        if ((!funds || funds.length === 0) && selectedRequest?.transaction?.fund_accounts) {
+          const srFundsSrc = Array.isArray(selectedRequest.transaction.fund_accounts) ? selectedRequest.transaction.fund_accounts : [selectedRequest.transaction.fund_accounts];
+          funds = srFundsSrc.map(fa => ({ name: fa?.name || fa?.fund_name || 'N/A', amount: fa?.amount ?? fa?.allocated_amount ?? 0 }));
+        }
+      } catch (_) {}
+    }
+
+    // Final fallback: if no funds yet, build one from any available source and total
+    if (!funds || funds.length === 0) {
+      let faName = selectedTxForPrint?.fund_account?.name
+        || selectedTxForPrint?.fundAccount?.name
+        || selectedRequest?.transaction?.fund_account?.name
+        || null;
+      if (!faName) {
+        const faId = selectedTxForPrint?.fund_account_id || selectedRequest?.transaction?.fund_account_id;
+        if (faId) {
+          try {
+            const token = localStorage.getItem('token');
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const faRes = await axios.get(`${API_BASE_URL}/fund-accounts/${faId}`, { headers });
+            faName = faRes?.data?.name || faRes?.data?.fund_name || faName;
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+      const fallbackAmt = Math.abs(toNumber(totalAmountNum || selectedTxForPrint?.amount || selectedRequest?.transaction?.amount || 0));
+      funds = [{ name: faName || 'Fund Account', amount: fallbackAmt }];
+    }
+
+    // Normalize to positive for display
+    totalAmountNum = Math.abs(toNumber(totalAmountNum));
+    try { console.log('[Print] Funds to render:', funds, 'Total:', totalAmountNum); } catch {}
+    const fundsHTML = funds.map((account, idx) => `
+        <div class="fund-item-row">
+          <span class="fund-name">${account?.name || 'N/A'}</span>
+          <span class="fund-amount">₱${formatAmount(account?.amount || account?.allocated_amount || 0)}</span>
+        </div>
+    `).join('');
+
+    const bodyMarkup = `
+      <div class="receipt-print-area" id="overrideReceiptPrintPrint">
+        <div class="official-receipt-header">
+          <div class="receipt-title-section">
+            <div class="receipt-logos">
+              <div class="logo-image left-logo" aria-hidden="true"></div>
+              <div class="receipt-title-content"></div>
+              <div class="logo-image right-logo" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="official-receipt-body">
+          <div class="receipt-center-logos" aria-hidden="true">
+            <div class="center-logo-image"></div>
+          </div>
+
+          <div class="receipt-payer-info">
+            <p><strong>RECEIVED FROM:</strong> ${manualPayerName || 'N/A'}</p>
+            <p><strong>DATE:</strong> ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <p><strong>TRANSACTION ID:</strong> #${manualReceiptTxId || 'N/A'}</p>
+          </div>
+
+          <div class="receipt-fund-info">
+            <p class="fund-label">FUND ACCOUNTS USED:</p>
+            <div class="fund-items-grid single-column">
+              ${fundsHTML}
+            </div>
+          </div>
+
+          <div class="receipt-body-spacer"></div>
+
+          <div class="receipt-total-right">
+            <span class="total-label-bold">TOTAL:</span>
+            <span class="total-amount-bold">PHP${formatAmount(totalAmountNum)}</span>
+          </div>
+          <div class="amount-words-bold">${numberToWords(totalAmountNum)} PESOS ONLY</div>
+
+          ${(user && (user.name || user.role)) ? `
+          <div class="receipt-issued-by">
+            <p class="issued-by-name">${user?.name || 'N/A'}${user?.role ? ` • ${user.role}` : ''}</p>
+          </div>` : ''}
+        </div>
+      </div>`;
+
+    // Compose the full HTML in a single write to avoid timing issues
+    const fullHTML = `${getReceiptPrintHTML()}${bodyMarkup}\n</body>\n</html>`;
+    printWindow.document.open();
+    printWindow.document.write(fullHTML);
+    printWindow.document.close();
+
+    const finalizeAndClose = () => {
+      setTimeout(() => {
+        try {
+          printWindow.focus();
+          printWindow.print();
+        } catch (e) {
+          console.error('Print error:', e);
+        } finally {
+          printWindow.close();
+          // Close modal after printing
           setShowManualReceiptModal(false);
           setManualReceiptNo("");
           setManualPayerName("");
           setManualReceiptTxId(null);
-        },
-        onError: (err) => {
-          setManualReceiptError(err?.response?.data?.message || err?.message || 'Failed to create receipt.');
-        },
+          setReceiptData(null);
+        }
+      }, 250);
+    };
+
+    if (printWindow.document.readyState === 'complete') {
+      finalizeAndClose();
+    } else {
+      printWindow.addEventListener('load', finalizeAndClose);
+      printWindow.document.addEventListener('DOMContentLoaded', finalizeAndClose);
+    }
+
+    // Fallback: if popup renders blank (popup blockers or Brave quirks), print via hidden iframe
+    setTimeout(() => {
+      try {
+        const body = printWindow && printWindow.document && printWindow.document.body;
+        const blank = !body || (!body.textContent?.trim() && body.children.length === 0);
+        if (blank) {
+          // Use hidden iframe in same window
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'fixed';
+          iframe.style.right = '0';
+          iframe.style.bottom = '0';
+          iframe.style.width = '0';
+          iframe.style.height = '0';
+          iframe.style.border = '0';
+          document.body.appendChild(iframe);
+
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          iframeDoc.open();
+          iframeDoc.write(fullHTML);
+          iframeDoc.close();
+
+          const printFromIframe = () => {
+            try {
+              (iframe.contentWindow || iframe).focus();
+              (iframe.contentWindow || iframe).print();
+            } catch (e) {
+              console.error('Iframe print error:', e);
+            } finally {
+              setTimeout(() => {
+                document.body.removeChild(iframe);
+                // Close modal after printing
+                setShowManualReceiptModal(false);
+                setManualReceiptNo("");
+                setManualPayerName("");
+                setManualReceiptTxId(null);
+                setReceiptData(null);
+              }, 250);
+            }
+          };
+
+          if (iframeDoc.readyState === 'complete') {
+            printFromIframe();
+          } else {
+            iframe.addEventListener('load', printFromIframe);
+            iframeDoc.addEventListener('DOMContentLoaded', printFromIframe);
+          }
+
+          try { printWindow && printWindow.close(); } catch {}
+        }
+      } catch (e) {
+        console.warn('Popup print failed, attempting iframe fallback...', e);
       }
-    );
+    }, 1200);
   };
 
   const openReviewModal = (request) => {
@@ -354,126 +708,130 @@ const OverrideTransactions = ({ role = "Admin" }) => {
       <ErrorModal message={error} onClose={() => setError("")} />
 
       {/* Dashboard Layout */}
-      <div className="ot-dashboard-container">
-        {/* Left Section - Total Requests + Status Cards */}
-        <div className="ot-left-column">
-          {/* Total Requests Card */}
-          <div className="ot-total-card">
-            <div className="ot-total-wrapper">
-              <div className="ot-total-info">
-                <div className="ot-card-header-inline">
-                  <div className="ot-card-title">
-                    Total Requests
-                    <i 
-                      className="fas fa-info-circle" 
-                      style={{ marginLeft: '8px', fontSize: '14px', color: '#6b7280', cursor: 'help' }}
-                      title="Total number of override requests submitted. Measures overall transaction volume requiring manual intervention. High numbers may indicate system configuration issues or training needs."
-                    ></i>
+      {!hideKpiDashboard && (
+        <>
+          <div className="ot-dashboard-container">
+            {/* Left Section - Total Requests + Status Cards */}
+            <div className="ot-left-column">
+              {/* Total Requests Card */}
+              <div className="ot-total-card">
+                <div className="ot-total-wrapper">
+                  <div className="ot-total-info">
+                    <div className="ot-card-header-inline">
+                      <div className="ot-card-title">
+                        Total Requests
+                        <i 
+                          className="fas fa-info-circle" 
+                          style={{ marginLeft: '8px', fontSize: '14px', color: '#6b7280', cursor: 'help' }}
+                          title="Total number of override requests submitted. Measures overall transaction volume requiring manual intervention. High numbers may indicate system configuration issues or training needs."
+                        ></i>
+                      </div>
+                      <div className="ot-card-menu">
+                        <i className="fas fa-ellipsis-v"></i>
+                      </div>
+                    </div>
+                    <div className="ot-card-value">{overrideRequests.length}</div>
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                      All override requests
+                    </div>
                   </div>
-                  <div className="ot-card-menu">
-                    <i className="fas fa-ellipsis-v"></i>
+                  <div className="ot-total-graph">
+                    <TotalMiniGraph overrideRequests={overrideRequests} />
                   </div>
                 </div>
-                <div className="ot-card-value">{overrideRequests.length}</div>
-                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                  All override requests
+              </div>
+
+              {/* Status Cards Row */}
+              <div className="ot-status-cards-row">
+                <div className="ot-status-card pending">
+                  <div className="ot-status-icon">
+                    <i className="fas fa-clock"></i>
+                  </div>
+                  <div className="ot-status-content">
+                    <div className="ot-status-label">
+                      Pending Review
+                      <i 
+                        className="fas fa-info-circle" 
+                        style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
+                        title="Override requests awaiting review or decision. Tracks workflow backlog and review efficiency. High pending count indicates delays in decision-making and potential bottlenecks."
+                      ></i>
+                    </div>
+                    <div className="ot-status-value">
+                      {overrideRequests.filter(req => req.status === 'pending').length}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
+                      Awaiting decision
+                    </div>
+                  </div>
+                </div>
+
+                <div className="ot-status-card approved">
+                  <div className="ot-status-icon">
+                    <i className="fas fa-check"></i>
+                  </div>
+                  <div className="ot-status-content">
+                    <div className="ot-status-label">
+                      Approved
+                      <i 
+                        className="fas fa-info-circle" 
+                        style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
+                        title="Override requests approved by authorized personnel. Indicates valid and legitimate overrides. Helps audit teams monitor approval patterns and identify potential control weaknesses."
+                      ></i>
+                    </div>
+                    <div className="ot-status-value">
+                      {overrideRequests.filter(req => req.status === 'approved').length}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
+                      Valid overrides
+                    </div>
+                  </div>
+                </div>
+
+                <div className="ot-status-card rejected">
+                  <div className="ot-status-icon">
+                    <i className="fas fa-times"></i>
+                  </div>
+                  <div className="ot-status-content">
+                    <div className="ot-status-label">
+                      Rejected
+                      <i 
+                        className="fas fa-info-circle" 
+                        style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
+                        title="Override requests denied or marked invalid. Tracks invalid, unnecessary, or suspicious override attempts. High rejection rate indicates good control discipline but may point to training needs."
+                      ></i>
+                    </div>
+                    <div className="ot-status-value">
+                      {overrideRequests.filter(req => req.status === 'rejected').length}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
+                      Invalid requests
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="ot-total-graph">
-                <TotalMiniGraph overrideRequests={overrideRequests} />
+            </div>
+
+            {/* Right Section - Pie Chart */}
+            <div className="ot-right-column">
+              <div className="ot-pie-card">
+                <div className="ot-card-header">
+                  <div className="ot-card-title">Request Distribution</div>
+                </div>
+                <div className="ot-pie-chart">
+                  <RequestDistributionPieG overrideRequests={overrideRequests} />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Status Cards Row */}
-          <div className="ot-status-cards-row">
-            <div className="ot-status-card pending">
-              <div className="ot-status-icon">
-                <i className="fas fa-clock"></i>
-              </div>
-              <div className="ot-status-content">
-                <div className="ot-status-label">
-                  Pending Review
-                  <i 
-                    className="fas fa-info-circle" 
-                    style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
-                    title="Override requests awaiting review or decision. Tracks workflow backlog and review efficiency. High pending count indicates delays in decision-making and potential bottlenecks."
-                  ></i>
-                </div>
-                <div className="ot-status-value">
-                  {overrideRequests.filter(req => req.status === 'pending').length}
-                </div>
-                <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
-                  Awaiting decision
-                </div>
-              </div>
-            </div>
-
-            <div className="ot-status-card approved">
-              <div className="ot-status-icon">
-                <i className="fas fa-check"></i>
-              </div>
-              <div className="ot-status-content">
-                <div className="ot-status-label">
-                  Approved
-                  <i 
-                    className="fas fa-info-circle" 
-                    style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
-                    title="Override requests approved by authorized personnel. Indicates valid and legitimate overrides. Helps audit teams monitor approval patterns and identify potential control weaknesses."
-                  ></i>
-                </div>
-                <div className="ot-status-value">
-                  {overrideRequests.filter(req => req.status === 'approved').length}
-                </div>
-                <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
-                  Valid overrides
-                </div>
-              </div>
-            </div>
-
-            <div className="ot-status-card rejected">
-              <div className="ot-status-icon">
-                <i className="fas fa-times"></i>
-              </div>
-              <div className="ot-status-content">
-                <div className="ot-status-label">
-                  Rejected
-                  <i 
-                    className="fas fa-info-circle" 
-                    style={{ marginLeft: '6px', fontSize: '12px', color: '#9ca3af', cursor: 'help' }}
-                    title="Override requests denied or marked invalid. Tracks invalid, unnecessary, or suspicious override attempts. High rejection rate indicates good control discipline but may point to training needs."
-                  ></i>
-                </div>
-                <div className="ot-status-value">
-                  {overrideRequests.filter(req => req.status === 'rejected').length}
-                </div>
-                <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
-                  Invalid requests
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Section - Pie Chart */}
-        <div className="ot-right-column">
-          <div className="ot-pie-card">
-            <div className="ot-card-header">
-              <div className="ot-card-title">Request Distribution</div>
-            </div>
-            <div className="ot-pie-chart">
-              <RequestDistributionPieG overrideRequests={overrideRequests} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Override Request Trend Analytics */}
-      <OverrideRequestTrendanalaytics 
-        overrideRequests={overrideRequests}
-        isLoading={isInitialLoading}
-        error={error}
-      />
+          {/* Override Request Trend Analytics */}
+          <OverrideRequestTrendanalaytics 
+            overrideRequests={overrideRequests}
+            isLoading={isInitialLoading}
+            error={error}
+          />
+        </>
+      )}
 
       {/* Override Requests Section Header */}
       <div className="section-header">
@@ -549,6 +907,10 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Manual Receipt Creation Modal */}
       {showManualReceiptModal && (
@@ -598,14 +960,8 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                   <button type="button" className="cancel-btn" onClick={() => setShowManualReceiptModal(false)}>
                     Cancel
                   </button>
-                  <button type="submit" className="approve-btn" disabled={createReceiptMutation.isPending}>
-                    {createReceiptMutation.isPending ? (
-                      <i className="fas fa-spinner fa-spin"></i>
-                    ) : (
-                      <>
-                        <i className="fas fa-save"></i> Save Receipt
-                      </>
-                    )}
+                  <button type="submit" className="approve-btn">
+                    <i className="fas fa-print"></i> Print Receipt
                   </button>
                 </div>
               </form>
@@ -613,8 +969,82 @@ const OverrideTransactions = ({ role = "Admin" }) => {
           </div>
         </div>
       )}
+
+      {/* Hidden Receipt Print Area - Professional Receipt Format */}
+      <div className="receipt-print-area" id="overrideReceiptPrint" style={{ display: 'none' }}>
+        <div className="official-receipt-header">
+          <div className="receipt-title-section">
+            <div className="receipt-logos">
+              <div className="logo-image left-logo" aria-hidden="true"></div>
+              <div className="receipt-title-content"></div>
+              <div className="logo-image right-logo" aria-hidden="true"></div>
             </div>
           </div>
+        </div>
+
+        <div className="official-receipt-body">
+          <div className="receipt-center-logos" aria-hidden="true">
+            <div className="center-logo-image"></div>
+          </div>
+
+          <div className="receipt-payer-info">
+            <p>
+              <strong>RECEIVED FROM:</strong> {manualPayerName || 'N/A'}
+            </p>
+            <p>
+              <strong>DATE:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+            <p>
+              <strong>TRANSACTION ID:</strong> #{manualReceiptTxId || 'N/A'}
+            </p>
+          </div>
+
+          {receiptData && receiptData.fundAccounts && receiptData.fundAccounts.length > 0 && (
+            <div className="receipt-fund-info">
+              <p className="fund-label">FUND ACCOUNTS USED:</p>
+              <div className="fund-items-grid">
+                {receiptData.fundAccounts.map((account, idx) => (
+                  <div key={`${account.name}-${idx}`} className="fund-item-row">
+                    <span className="fund-name">{account.name}</span>
+                    <span className="fund-amount">
+                      ₱{parseFloat(account.amount || 0).toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="receipt-body-spacer"></div>
+
+          {receiptData && receiptData.totalAmount && (
+            <>
+              <div className="receipt-total-right">
+                <span className="total-label-bold">TOTAL:</span>
+                <span className="total-amount-bold">PHP{receiptData.totalAmount.toFixed(2)}</span>
+              </div>
+
+              <div className="amount-words-bold">
+                {numberToWords(receiptData.totalAmount)} PESOS ONLY
+              </div>
+            </>
+          )}
+
+          {false && receiptData && receiptData.description && (
+            <div className="receipt-description-box"></div>
+          )}
+
+          {(user?.name || user?.role) && (
+            <div className="receipt-issued-by">
+              <p className="issued-by-name">
+                {user?.name || 'N/A'}
+                {user?.role ? ` • ${user.role}` : ''}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -632,7 +1062,6 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                 <th><i className="fas fa-edit"></i> Proposed Changes</th>
                 <th><i className="fas fa-flag"></i> Status</th>
                 <th><i className="fas fa-calendar"></i> Date</th>
-                <th><i className="fas fa-cogs"></i> Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -655,7 +1084,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                         if (role === "Admin" && request.status === 'pending') {
                           openReviewModal(request);
                         } else {
-                          // Open details modal for approved/rejected requests
+                          // Open details modal for all other cases
                           setSelectedRequest(request);
                           setShowDetailsModal(true);
                         }
@@ -707,57 +1136,11 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                         <span className="request-date">{new Date(request.created_at).toLocaleDateString()}</span>
                       </div>
                     </td>
-                    <td className="action-cell">
-                      <div className="cell-content">
-                        <div className="action-buttons-group">
-                          <div className="action-menu-container">
-                            <button 
-                              className="action-btn-icon more-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenActionMenu(openActionMenu === request.id ? null : request.id);
-                              }}
-                              title="Actions"
-                            >
-                              <i className="fas fa-ellipsis-v"></i>
-                            </button>
-                            {openActionMenu === request.id && (
-                              <div className="action-dropdown-menu">
-                                {role === "Admin" && request.status === 'pending' && (
-                                  <button 
-                                    className="action-dropdown-item"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openReviewModal(request);
-                                      setOpenActionMenu(null);
-                                    }}
-                                  >
-                                    <i className="fas fa-gavel"></i>
-                                    <span>Review Request</span>
-                                  </button>
-                                )}
-                                <button 
-                                  className="action-dropdown-item"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    console.log('View details:', request);
-                                    setOpenActionMenu(null);
-                                  }}
-                                >
-                                  <i className="fas fa-eye"></i>
-                                  <span>View Details</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
                   </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="8" className="no-data">
+                    <td colSpan="7" className="no-data">
                       <i className="fas fa-inbox"></i>
                       <p>No override requests found matching your criteria.</p>
                     </td>
@@ -878,7 +1261,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
 
                 <div className="form-grid-2x2">
                   <div className="form-group">
-                    <label>Proposed New Amount (Optional)</label>
+                    <label>Proposed New Amount </label>
                     <input
                       type="number"
                       step="0.01"
@@ -900,7 +1283,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                     />
                   </div>
 
-                  <div className="form-group">
+                  {/* <div className="form-group">
                     <label>Proposed New Category (Optional)</label>
                     <select
                       onChange={(e) =>
@@ -919,9 +1302,9 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                       <option value="Utilities">Utilities</option>
                       <option value="Other">Other</option>
                     </select>
-                  </div>
+                  </div> */}
 
-                  <div className="form-group">
+                  {/* <div className="form-group">
                     <label>Proposed New Department (Optional)</label>
                     <select
                       onChange={(e) =>
@@ -942,7 +1325,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                       <option value="Social Services">Social Services</option>
                       <option value="Other">Other</option>
                     </select>
-                  </div>
+                  </div> */}
                 </div>
 
                 <div className="form-group full-width">
@@ -979,8 +1362,8 @@ const OverrideTransactions = ({ role = "Admin" }) => {
         </div>
       )}
 
-      {/* Review Modal */}
-      {showReviewModal && selectedRequest && (
+      {/* Review Modal - Only for Admin */}
+      {showReviewModal && selectedRequest && role === "Admin" && (
         <div className="ot-modal-overlay" onClick={() => setShowReviewModal(false)}>
           <div className="ot-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="ot-modal-header">
@@ -1159,7 +1542,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                 )}
               </div>
 
-              <div className="form-actions" style={{ marginTop: '20px' }}>
+              {/* <div className="form-actions" style={{ marginTop: '20px' }}>
                 <button
                   type="button"
                   className="cancel-btn"
@@ -1168,7 +1551,7 @@ const OverrideTransactions = ({ role = "Admin" }) => {
                 >
                   <i className="fas fa-times"></i> Close
                 </button>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>

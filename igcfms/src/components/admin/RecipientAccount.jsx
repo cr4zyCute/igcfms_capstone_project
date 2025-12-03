@@ -515,8 +515,8 @@ const RecipientAccount = () => {
   const getFilterLabel = (filter) => {
     const filterLabels = {
       'all': 'All Recipients',
-      'vendor': 'Vendors',
-      'bank': 'With Banking',
+      'latest': 'Latest Account',
+      'oldest': 'Oldest Account',
       'active': 'Active',
       'inactive': 'Inactive'
     };
@@ -556,12 +556,12 @@ const RecipientAccount = () => {
 
   // Memoized filtered recipients for performance
   const filteredRecipients = useMemo(() => {
-    return recipients.filter(recipient => {
+    let filtered = recipients.filter(recipient => {
       const matchesFilter = activeFilter === "all" || 
                            (activeFilter === "active" && recipient.status === "active") ||
                            (activeFilter === "inactive" && recipient.status === "inactive") ||
-                           (activeFilter === "bank" && recipient.bank_name) ||
-                           (activeFilter === "vendor" && recipient.type === "disbursement");
+                           (activeFilter === "latest" && true) ||
+                           (activeFilter === "oldest" && true);
       const matchesSearch = !searchTerm || 
                            recipient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            recipient.contact_person.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -570,6 +570,15 @@ const RecipientAccount = () => {
                            (recipient.account_number && recipient.account_number.toLowerCase().includes(searchTerm.toLowerCase()));
       return matchesFilter && matchesSearch;
     });
+
+    // Apply sorting for latest/oldest
+    if (activeFilter === "latest") {
+      filtered.sort((a, b) => new Date(b.created_at || b.id) - new Date(a.created_at || a.id));
+    } else if (activeFilter === "oldest") {
+      filtered.sort((a, b) => new Date(a.created_at || a.id) - new Date(b.created_at || b.id));
+    }
+
+    return filtered;
   }, [recipients, activeFilter, searchTerm]);
 
   const stats = useMemo(() => ({
@@ -656,20 +665,20 @@ const RecipientAccount = () => {
                     {activeFilter === 'all' && <i className="fas fa-check filter-check"></i>}
                   </button>
                   <button
-                    className={`filter-option ${activeFilter === 'vendor' ? 'active' : ''}`}
-                    onClick={() => handleFilterChange('vendor')}
+                    className={`filter-option ${activeFilter === 'latest' ? 'active' : ''}`}
+                    onClick={() => handleFilterChange('latest')}
                   >
-                    <i className="fas fa-building"></i>
-                    <span>Vendors</span>
-                    {activeFilter === 'vendor' && <i className="fas fa-check filter-check"></i>}
+                    <i className="fas fa-arrow-down"></i>
+                    <span>Latest Account</span>
+                    {activeFilter === 'latest' && <i className="fas fa-check filter-check"></i>}
                   </button>
                   <button
-                    className={`filter-option ${activeFilter === 'bank' ? 'active' : ''}`}
-                    onClick={() => handleFilterChange('bank')}
+                    className={`filter-option ${activeFilter === 'oldest' ? 'active' : ''}`}
+                    onClick={() => handleFilterChange('oldest')}
                   >
-                    <i className="fas fa-university"></i>
-                    <span>With Banking</span>
-                    {activeFilter === 'bank' && <i className="fas fa-check filter-check"></i>}
+                    <i className="fas fa-arrow-up"></i>
+                    <span>Oldest Account</span>
+                    {activeFilter === 'oldest' && <i className="fas fa-check filter-check"></i>}
                   </button>
                   <button
                     className={`filter-option ${activeFilter === 'active' ? 'active' : ''}`}
@@ -889,6 +898,39 @@ const RecipientAccount = () => {
                 <div className="transaction-history-meta-value email">{selectedRecipient.email}</div>
               </div>
             </div>
+
+            {/* Transaction Summary Statistics */}
+            {transactions.length > 0 && (
+              <div className="transaction-summary-stats">
+                <div className="summary-stat-item total">
+                  <div className="stat-icon">
+                    <i className="fas fa-coins"></i>
+                  </div>
+                  <div className="stat-content">
+                    <div className="stat-label">Total Amount</div>
+                    <div className="stat-value">₱{Math.abs(transactions.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)).toLocaleString()}</div>
+                  </div>
+                </div>
+                <div className="summary-stat-item collection">
+                  <div className="stat-icon">
+                    <i className="fas fa-arrow-up"></i>
+                  </div>
+                  <div className="stat-content">
+                    <div className="stat-label">Collection Total</div>
+                    <div className="stat-value">₱{transactions.filter(t => t.type === 'Collection').reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0).toLocaleString()}</div>
+                  </div>
+                </div>
+                <div className="summary-stat-item disbursement">
+                  <div className="stat-icon">
+                    <i className="fas fa-arrow-down"></i>
+                  </div>
+                  <div className="stat-content">
+                    <div className="stat-label">Disbursement Total</div>
+                    <div className="stat-value">₱{Math.abs(transactions.filter(t => t.type === 'Disbursement').reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)).toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {transactionsLoading ? (
               <SkeletonTransactionTable />

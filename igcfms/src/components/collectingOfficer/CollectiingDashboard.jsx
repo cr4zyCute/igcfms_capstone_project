@@ -2,7 +2,9 @@ import React, { useMemo } from 'react';
 import IssueReceipt from './IssueReceipt';
 import ReceiveMoney from './ReceiveMoney';
 import CollectorHome from './CollectorHome';
-import GenerateReports from '../admin/GenerateReports';
+import GenerateReports from './GenerateReports';
+import OverrideTransactions from './OverrideTransactions';
+import NotificationsPage from './NotificationsPage';
 import ViewTransactions from '../admin/ViewTransactions';
 import '../pages/css/Dashboard.css';
 import '../common/css/Sidebar.css';
@@ -42,8 +44,12 @@ const CollectingDashboard = ({ user, activeTab }) => {
       return <IssueReceipt/>;
     case "receive-money":
       return <ReceiveMoney/>;
+    case "notifications":
+      return <NotificationsPage />;
     case "generate-reports":
       return <GenerateReports user={user} />;
+    case "override-transactions":
+      return <OverrideTransactions/>;
     case "view-transactions":
       return (
         <ViewTransactions

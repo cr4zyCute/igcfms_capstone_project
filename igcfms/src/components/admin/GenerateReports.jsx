@@ -2,22 +2,44 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useQueryClient } from "@tanstack/react-query";
 import "./css/generatereports.css";
 import DailyKPI from "../analytics/ReportAnalysis/dailyKPI";
 import MonthlyKPI from "../analytics/ReportAnalysis/monthlyKPI";
 import YearlyKPI from "../analytics/ReportAnalysis/yearlyKPI";
 import ReportPageSkeleton from "../ui/ReportPageSL";
+import CollectionReportTab from "../reports/reportsTab/CollectionReportTab";
+import { 
+  useReports, 
+  useTransactions, 
+  useOverrideRequests, 
+  useCreateReport, 
+  useDeleteReport,
+  REPORT_KEYS 
+} from "../../hooks/useReports";
 
+const API_BASE = require('../../config/api').default;
 const REPORTS_PER_PAGE = 10;
 
-const GenerateReports = ({ user }) => {
-  const [loading, setLoading] = useState(false);
+const GenerateReports = ({ 
+  user, 
+  isCollectingOfficer = false, 
+  isDisbursing = false,
+  currentUserId = null, 
+  currentUser = null,
+  hideTransactionTab = false,
+  hideOverrideTab = false,
+  hideCollectionReportTab = false,
+  filterTransactionsByCreator = false,
+  hideTransactionActions = false
+}) => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [reports, setReports] = useState([]);
   const [filteredReports, setFilteredReports] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [overrideRequests, setOverrideRequests] = useState([]);
+  
+  // Use currentUser if provided, otherwise use user from props
+  const effectiveUser = currentUser || user;
+  const effectiveUserId = currentUserId || effectiveUser?.id;
   const [stats, setStats] = useState({
     totalReports: 0,
     dailyReports: 0,
@@ -33,6 +55,31 @@ const GenerateReports = ({ user }) => {
 
   // Check if user is Admin
   const isAdmin = user?.role === 'Admin';
+  
+  // TanStack Query hooks
+  const queryClient = useQueryClient();
+  const { 
+    data: reports = [], 
+    isLoading: reportsLoading, 
+    error: reportsError 
+  } = useReports({ enabled: true });
+  
+  const { 
+    data: transactions = [], 
+    isLoading: transactionsLoading, 
+    error: transactionsError 
+  } = useTransactions({ enabled: true });
+  
+  const { 
+    data: overrideRequests = [], 
+    isLoading: overridesLoading, 
+    error: overridesError 
+  } = useOverrideRequests({ isAdmin, enabled: true });
+  
+  const createReportMutation = useCreateReport();
+  const deleteReportMutation = useDeleteReport();
+  
+  const loading = reportsLoading || transactionsLoading || overridesLoading;
 
   // Report generation form
   const [reportForm, setReportForm] = useState({
@@ -74,20 +121,23 @@ const GenerateReports = ({ user }) => {
     activeFilter: "all",
     showFilterDropdown: false
   });
-
-  const API_BASE = require('../../config/api').default;
-  const token = localStorage.getItem("token");
-
-  useEffect(() => {
-    fetchInitialData(true); // Show loading on initial fetch
-    
-    // Set up real-time polling every 5 seconds (without loading spinner)
-    const pollInterval = setInterval(() => {
-      fetchInitialData(false);
-    }, 5000);
-    
-    return () => clearInterval(pollInterval);
-  }, [token]);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState(null);
+  const [selectedReportType, setSelectedReportType] = useState('collection-or-fee-details');
+  const [showReportTypeDropdown, setShowReportTypeDropdown] = useState(false);
+  const [collectionReportFilters, setCollectionReportFilters] = useState({
+    dateFrom: "",
+    dateTo: "",
+    searchTerm: ""
+  });
+  const [overrideRequestsPage, setOverrideRequestsPage] = useState(1);
+  const OVERRIDE_REQUESTS_PER_PAGE = 10;
+  const [overrideFilters, setOverrideFilters] = useState({
+    status: "all",
+    searchTerm: "",
+    showFilterDropdown: false
+  });
 
   useEffect(() => {
     applyFilters();
@@ -101,13 +151,16 @@ const GenerateReports = ({ user }) => {
       if (filters.showFilterDropdown && !event.target.closest('.gr-filter-dropdown-container')) {
         setFilters(prev => ({ ...prev, showFilterDropdown: false }));
       }
+      if (showReportTypeDropdown && !event.target.closest('.gr-report-type-dropdown-container')) {
+        setShowReportTypeDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [openActionMenu, filters.showFilterDropdown]);
+  }, [openActionMenu, filters.showFilterDropdown, showReportTypeDropdown]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -120,61 +173,29 @@ const GenerateReports = ({ user }) => {
     }
   }, [filteredReports.length, currentPage]);
 
-  const fetchInitialData = async (showLoadingSpinner = true) => {
-    try {
-      if (showLoadingSpinner) {
-        setLoading(true);
-      }
-      setError("");
-
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        return;
-      }
-
-      const headers = { Authorization: `Bearer ${token}` };
-      const overridesEndpoint = isAdmin
-        ? `${API_BASE}/override_requests`
-        : `${API_BASE}/override_requests/my_requests`;
-
-      // Fetch reports and transactions
-      const [reportsRes, transactionsRes, overridesRes] = await Promise.all([
-        axios.get(`${API_BASE}/reports`, { headers }).catch(() => ({ data: [] })),
-        axios.get(`${API_BASE}/transactions`, { headers }).catch(() => ({ data: [] })),
-        axios.get(overridesEndpoint, { headers }).catch(() => ({ data: [] }))
-      ]);
-
-      setReports(reportsRes.data || []);
-      setTransactions(transactionsRes.data || []);
-      const overridesData = overridesRes?.data || [];
-      setOverrideRequests(overridesData);
-      setOverrideStats({
-        total: overridesData.length,
-        pending: overridesData.filter(req => req.status === 'pending').length,
-        approved: overridesData.filter(req => req.status === 'approved').length,
-        rejected: overridesData.filter(req => req.status === 'rejected').length
-      });
-      
-      // Calculate stats
-      const reportData = reportsRes.data || [];
+  // Update stats when reports change
+  useEffect(() => {
+    if (reports && reports.length > 0) {
       setStats({
-        totalReports: reportData.length,
-        dailyReports: reportData.filter(r => r.report_type === 'daily').length,
-        monthlyReports: reportData.filter(r => r.report_type === 'monthly').length,
-        yearlyReports: reportData.filter(r => r.report_type === 'yearly').length
+        totalReports: reports.length,
+        dailyReports: reports.filter(r => r.report_type === 'daily').length,
+        monthlyReports: reports.filter(r => r.report_type === 'monthly').length,
+        yearlyReports: reports.filter(r => r.report_type === 'yearly').length
       });
-
-    } catch (err) {
-      console.error('Generate reports error:', err);
-      if (showLoadingSpinner) {
-        setError(err.response?.data?.message || err.message || 'Failed to load data');
-      }
-    } finally {
-      if (showLoadingSpinner) {
-        setLoading(false);
-      }
     }
-  };
+  }, [reports]);
+  
+  // Update override stats when overrides change
+  useEffect(() => {
+    if (overrideRequests && overrideRequests.length > 0) {
+      setOverrideStats({
+        total: overrideRequests.length,
+        pending: overrideRequests.filter(req => req.status === 'pending').length,
+        approved: overrideRequests.filter(req => req.status === 'approved').length,
+        rejected: overrideRequests.filter(req => req.status === 'rejected').length
+      });
+    }
+  }, [overrideRequests]);
 
   const applyFilters = () => {
     let filtered = [...reports];
@@ -279,11 +300,7 @@ const GenerateReports = ({ user }) => {
   };
 
   const confirmGenerateReport = async () => {
-    setLoading(true);
-
     try {
-      const headers = { Authorization: `Bearer ${token}` };
-
       const payload = {
         report_type: reportForm.reportType,
         date_from: reportForm.dateFrom || null,
@@ -295,20 +312,18 @@ const GenerateReports = ({ user }) => {
         format: reportForm.format
       };
 
-      const response = await axios.post(`${API_BASE}/reports`, payload, { headers });
+      const response = await createReportMutation.mutateAsync(payload);
 
       setReportResult({
-        id: response.data.id || response.data.data?.id,
+        id: response.id || response.data?.id,
         reportType: reportForm.reportType,
         format: reportForm.format,
-        filePath: response.data.file_path || response.data.data?.file_path,
+        filePath: response.file_path || response.data?.file_path,
         generatedAt: new Date().toISOString()
       });
 
       setShowGenerateModal(false);
-
       showMessage("Report generated successfully!");
-      fetchInitialData(); // Refresh data
 
     } catch (err) {
       console.error("Error generating report:", err);
@@ -320,8 +335,6 @@ const GenerateReports = ({ user }) => {
       } else {
         showMessage(err.response?.data?.message || "Failed to generate report.", 'error');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -341,13 +354,10 @@ const GenerateReports = ({ user }) => {
     if (!reportToDelete) return;
 
     try {
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.delete(`${API_BASE}/reports/${reportToDelete.id}`, { headers });
-      
+      await deleteReportMutation.mutateAsync(reportToDelete.id);
       showMessage('Report deleted successfully!', 'success');
       setShowDeleteModal(false);
       setReportToDelete(null);
-      fetchInitialData(); // Refresh data
     } catch (err) {
       console.error('Error deleting report:', err);
       showMessage(err?.response?.data?.message || 'Failed to delete report.', 'error');
@@ -374,6 +384,37 @@ const GenerateReports = ({ user }) => {
 
   const filteredTransactions = useMemo(() => {
     let filtered = transactions.filter(transaction => {
+      // Filter by creator for collecting officers
+      // NOTE: This filtering is disabled until backend API includes creator_id in transaction response
+      // if (filterTransactionsByCreator && effectiveUserId) {
+      //   // Check multiple possible creator ID fields
+      //   const creatorId = transaction.creator_id || 
+      //                    transaction.created_by?.id ||
+      //                    transaction.created_by || 
+      //                    transaction.user_id ||
+      //                    transaction.user?.id ||
+      //                    transaction.created_by_id ||
+      //                    transaction.creator?.id ||
+      //                    transaction.issuing_officer_id ||
+      //                    transaction.disbursing_officer_id ||
+      //                    transaction.collecting_officer_id ||
+      //                    transaction.issued_by_id ||
+      //                    transaction.issued_by?.id;
+      //   
+      //   const creatorObjectId = transaction.creator?.id || transaction.created_by?.id || transaction.user?.id || transaction.issued_by?.id;
+      //   const effectiveUserIdStr = String(effectiveUserId);
+      //   const creatorIdStr = String(creatorId);
+      //   const creatorObjectIdStr = creatorObjectId ? String(creatorObjectId) : null;
+      //   
+      //   const isCreator = (creatorIdStr === effectiveUserIdStr) || 
+      //                    (creatorObjectIdStr === effectiveUserIdStr) ||
+      //                    (parseInt(creatorId) === parseInt(effectiveUserId));
+      //   
+      //   if (!isCreator) {
+      //     return false;
+      //   }
+      // }
+
       // Type filter
       if (transactionFilters.type !== "all" && transaction.type !== transactionFilters.type) {
         return false;
@@ -418,7 +459,7 @@ const GenerateReports = ({ user }) => {
     }
 
     return filtered;
-  }, [transactions, transactionFilters]);
+  }, [transactions, transactionFilters, filterTransactionsByCreator, effectiveUserId]);
 
   const handleTransactionFilterChange = (key, value) => {
     setTransactionFilters(prev => ({
@@ -436,79 +477,6 @@ const GenerateReports = ({ user }) => {
       activeFilter: "all",
       showFilterDropdown: false
     });
-  };
-
-  const exportTransactionsToCSV = () => {
-    const filename = `transactions_${new Date().toISOString().split('T')[0]}.csv`;
-    const headers = ['ID', 'Type', 'Amount', 'Recipient/Payer', 'Date', 'Description'];
-    
-    const csvContent = [
-      headers.map(h => `"${h}"`).join(','),
-      ...filteredTransactions.map(transaction => {
-        const displayType = getTransactionDisplayType(transaction);
-        const amountValue = parseFloat(transaction.amount || 0);
-        const amountPrefix = amountValue >= 0 ? '' : '-';
-        
-        return [
-          transaction.id,
-          displayType,
-          `${amountPrefix}₱${Math.abs(amountValue).toLocaleString()}`,
-          transaction.recipient || 'N/A',
-          new Date(transaction.created_at).toLocaleDateString(),
-          transaction.description || ''
-        ].map(cell => `"${cell}"`).join(',');
-      })
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-  };
-
-  const exportTransactionsToExcel = () => {
-    const filename = `transactions_${new Date().toISOString().split('T')[0]}.xls`;
-    const tableHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Type</th>
-            <th>Amount</th>
-            <th>Recipient/Payer</th>
-            <th>Date</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filteredTransactions
-            .map(transaction => {
-              const displayType = getTransactionDisplayType(transaction);
-              const amountValue = parseFloat(transaction.amount || 0);
-              const amountPrefix = amountValue >= 0 ? '' : '-';
-              
-              return `
-              <tr>
-                <td>${transaction.id}</td>
-                <td>${displayType}</td>
-                <td>${amountPrefix}₱${Math.abs(amountValue).toLocaleString()}</td>
-                <td>${transaction.recipient || 'N/A'}</td>
-                <td>${new Date(transaction.created_at).toLocaleDateString()}</td>
-                <td>${transaction.description || ''}</td>
-              </tr>
-            `;
-            })
-            .join('')}
-        </tbody>
-      </table>
-    `;
-
-    const blob = new Blob([tableHTML], { type: 'application/vnd.ms-excel' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
   };
 
   const exportTransactionsToPDF = () => {
@@ -573,15 +541,26 @@ const GenerateReports = ({ user }) => {
       const displayType = getTransactionDisplayType(transaction);
       const amountValue = parseFloat(transaction.amount || 0);
       const amountPrefix = amountValue >= 0 ? '' : '-';
-      const creatorName = transaction.created_by?.name || transaction.user?.name || 'System';
+      
+      // Try multiple possible fields for creator name
+      const creatorName = 
+        transaction.created_by?.name || 
+        transaction.user?.name || 
+        transaction.creator?.name ||
+        transaction.created_by_name ||
+        transaction.creator_name ||
+        transaction.issuing_officer_name ||
+        transaction.disbursing_officer_name ||
+        transaction.collecting_officer_name ||
+        'System';
       
       return [
         transaction.id,
         displayType,
         `${amountPrefix}PHP ${Math.abs(amountValue).toLocaleString()}`,
         transaction.recipient || 'N/A',
+        transaction.payee_id || transaction.recipient_id || 'N/A',
         creatorName,
-        new Date(transaction.created_at).toLocaleDateString(),
         transaction.description || 'N/A'
       ];
     });
@@ -589,7 +568,7 @@ const GenerateReports = ({ user }) => {
     // Add table
     autoTable(doc, {
       startY: 103,
-      head: [['ID', 'Type', 'Amount', 'Recipient/Payer', 'Created By', 'Date', 'Description']],
+      head: [['ID', 'Type', 'Amount', 'Recipient/Payer', 'Payee ID', 'Created By', 'Description']],
       body: tableData,
       headStyles: {
         fillColor: [0, 0, 0],
@@ -610,9 +589,9 @@ const GenerateReports = ({ user }) => {
         0: { halign: 'center', cellWidth: 12 },
         1: { halign: 'center', cellWidth: 20 },
         2: { halign: 'right', cellWidth: 25 },
-        3: { halign: 'left', cellWidth: 30 },
-        4: { halign: 'left', cellWidth: 28 },
-        5: { halign: 'center', cellWidth: 25 },
+        3: { halign: 'left', cellWidth: 28 },
+        4: { halign: 'center', cellWidth: 20 },
+        5: { halign: 'left', cellWidth: 25 },
         6: { halign: 'left', cellWidth: 30 }
       }
     });
@@ -627,18 +606,337 @@ const GenerateReports = ({ user }) => {
       doc.text('IGCFMS - Integrated Government Collections and Funds Management System', 105, 290, { align: 'center' });
     }
     
-    doc.save(filename);
+    // Generate PDF blob and create preview URL
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    setPdfPreviewUrl(pdfUrl);
+    setPdfFileName(filename);
+    setShowPDFPreview(true);
   };
 
-  const [showTransactionExportDropdown, setShowTransactionExportDropdown] = useState(false);
+  const downloadPDFFromPreview = () => {
+    if (pdfPreviewUrl && pdfFileName) {
+      const link = document.createElement('a');
+      link.href = pdfPreviewUrl;
+      link.download = pdfFileName;
+      link.click();
+    }
+  };
+
+  const closePDFPreview = () => {
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl);
+    }
+    setShowPDFPreview(false);
+    setPdfPreviewUrl(null);
+    setPdfFileName(null);
+  };
+
+  const exportCollectionReportPDF = () => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 15;
+
+    // Add generated timestamp at top right
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 15, yPosition, { align: 'right' });
+    yPosition += 8;
+
+    // Add main title
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Integrated Government Cashiering and Financial Management System (IGCFMS)', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 6;
+
+    // Add report type
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    const reportTypeLabel = selectedReportType === 'collection-or-fee-details' ? 'Collection Reportby O.R Fee Details' :
+                           selectedReportType === 'collection-or-fee-summary' ? 'Collection Reportby O.R Fee Summary' :
+                           selectedReportType === 'collection-or-details' ? 'Collection Reportby O.R Details' :
+                           'Collection Reportby O.R Summary';
+    doc.text(reportTypeLabel, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 6;
+
+    // Add date range
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    if (collectionReportFilters.dateFrom || collectionReportFilters.dateTo) {
+      const dateRange = `${collectionReportFilters.dateFrom || 'N/A'} to ${collectionReportFilters.dateTo || 'N/A'}`;
+      doc.text(dateRange, pageWidth / 2, yPosition, { align: 'center' });
+    } else {
+      doc.text('All Dates', pageWidth / 2, yPosition, { align: 'center' });
+    }
+    yPosition += 10;
+
+    // Prepare table data based on selected report type
+    let tableData = [];
+    let headers = [];
+
+    if (selectedReportType === 'collection-or-fee-details') {
+      // Fee details format - grouped by funds account with collections and totals
+      headers = ['Funds Account Code', 'Funds Account Name', 'O.R #', 'Amount Paid'];
+      tableData = [];
+      
+      // Group items by fund account
+      const groupedByFund = {};
+      groupedCollectionsByReceipt.forEach((collection) => {
+        if (collection.items && Array.isArray(collection.items)) {
+          collection.items.forEach((item) => {
+            const fundKey = item.fund_account?.code || 'N/A';
+            if (!groupedByFund[fundKey]) {
+              groupedByFund[fundKey] = {
+                code: item.fund_account?.code || 'N/A',
+                name: item.fund_account?.name || item.fundAccountName || 'N/A',
+                collections: []
+              };
+            }
+            groupedByFund[fundKey].collections.push({
+              receipt_no: collection.receipt_no,
+              amount: item.amount
+            });
+          });
+        }
+      });
+      
+      // Build table data with grouping
+      Object.values(groupedByFund).forEach((fund) => {
+        const totalAmount = fund.collections.reduce((sum, col) => sum + parseFloat(col.amount || 0), 0);
+        fund.collections.forEach((col, idx) => {
+          // First item - show fund code and name
+          if (idx === 0) {
+            tableData.push([
+              fund.code,
+              fund.name,
+              col.receipt_no || 'N/A',
+              `PHP ${parseFloat(col.amount || 0).toLocaleString()}`
+            ]);
+          } else {
+            // Other items - empty fund code and name
+            tableData.push([
+              '',
+              '',
+              col.receipt_no || 'N/A',
+              `PHP ${parseFloat(col.amount || 0).toLocaleString()}`
+            ]);
+          }
+        });
+        // Total row
+        tableData.push([
+          '',
+          '',
+          'Total:',
+          `PHP ${totalAmount.toLocaleString()}`
+        ]);
+      });
+    } else if (selectedReportType === 'collection-or-fee-summary') {
+      // Fee summary format - only funds account code, name, and amount
+      headers = ['Funds Account Code', 'Funds Account Name', 'Amount'];
+      tableData = [];
+      groupedCollectionsByReceipt.forEach((collection) => {
+        if (collection.items && Array.isArray(collection.items) && collection.items.length > 0) {
+          collection.items.forEach((item) => {
+            tableData.push([
+              item.fund_account?.code || 'N/A',
+              item.fund_account?.name || item.fundAccountName || 'N/A',
+              `PHP ${parseFloat(item.amount || 0).toLocaleString()}`
+            ]);
+          });
+        }
+      });
+    } else if (selectedReportType === 'collection-or-details') {
+      // Grouped funds accounts format
+      headers = ['O.R Number', 'Payee ID', 'Payee', 'Funds Accounts & Amount Paid'];
+      tableData = groupedCollectionsByReceipt.map(collection => [
+        collection.receipt_no || 'N/A',
+        collection.payee_id || 'N/A',
+        collection.recipient || 'N/A',
+        collection.items?.map(item => `${item.fund_account?.name || item.fundAccountName || 'N/A'}: PHP ${parseFloat(item.amount || 0).toLocaleString()}`).join('\n') + `\nTOTAL: PHP ${parseFloat(collection.totalAmount || 0).toLocaleString()}` || 'N/A'
+      ]);
+    } else {
+      // Summary format
+      headers = ['O.R Number', 'Payee ID', 'Payee', 'Total Amount'];
+      tableData = groupedCollectionsByReceipt.map(collection => [
+        collection.receipt_no || 'N/A',
+        collection.payee_id || 'N/A',
+        collection.recipient || 'N/A',
+        `PHP ${parseFloat(collection.totalAmount || 0).toLocaleString()}`
+      ]);
+    }
+
+    // Add table with matching format
+    autoTable(doc, {
+      head: [headers],
+      body: tableData,
+      startY: yPosition,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 11,
+        halign: 'center',
+        valign: 'middle',
+        cellPadding: 4
+      },
+      bodyStyles: {
+        textColor: [0, 0, 0],
+        fontSize: 10,
+        halign: 'left',
+        valign: 'top',
+        cellPadding: 4
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 250]
+      },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: 'auto' },
+        1: { halign: 'left', cellWidth: 'auto' },
+        2: { halign: 'left', cellWidth: 'auto' },
+        3: { halign: 'left', cellWidth: 'auto' }
+      },
+      margin: { top: 10, right: 10, bottom: 20, left: 10 },
+      didDrawPage: (data) => {
+        // Footer
+        const pageCount = doc.getNumberOfPages();
+        doc.setFontSize(9);
+        doc.setTextColor(128, 128, 128);
+        doc.text(`Page ${data.pageNumber} of ${pageCount}`, pageWidth - 15, pageHeight - 8, { align: 'right' });
+        doc.text('IGCFMS - Integrated Government Collections and Funds Management System', pageWidth / 2, pageHeight - 8, { align: 'center' });
+      }
+    });
+
+    // Generate filename
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `Collection_Report_${reportTypeLabel.replace(/\s+/g, '_')}_${dateStr}.pdf`;
+
+    // Generate PDF blob and create preview URL
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    setPdfPreviewUrl(pdfUrl);
+    setPdfFileName(filename);
+    setShowPDFPreview(true);
+  };
+
+  const groupedCollectionsByReceipt = useMemo(() => {
+    let collections = transactions.filter(tx => tx.type === 'Collection');
+    
+    // Apply date filters
+    if (collectionReportFilters.dateFrom) {
+      const dateFrom = new Date(collectionReportFilters.dateFrom);
+      collections = collections.filter(tx => new Date(tx.created_at) >= dateFrom);
+    }
+    if (collectionReportFilters.dateTo) {
+      const dateTo = new Date(collectionReportFilters.dateTo);
+      dateTo.setHours(23, 59, 59, 999); // Include entire day
+      collections = collections.filter(tx => new Date(tx.created_at) <= dateTo);
+    }
+    
+    // Apply search filter
+    if (collectionReportFilters.searchTerm) {
+      const searchLower = collectionReportFilters.searchTerm.toLowerCase();
+      collections = collections.filter(tx => 
+        (tx.receipt_no && tx.receipt_no.toLowerCase().includes(searchLower)) ||
+        (tx.recipient && tx.recipient.toLowerCase().includes(searchLower)) ||
+        (tx.payee_id && tx.payee_id.toString().includes(searchLower))
+      );
+    }
+    
+    const grouped = {};
+    
+    collections.forEach(collection => {
+      const receiptNo = collection.receipt_no || `TXN-${collection.id}`;
+      if (!grouped[receiptNo]) {
+        grouped[receiptNo] = {
+          receipt_no: receiptNo,
+          recipient: collection.recipient,
+          payee_id: null, // Will be set to the first non-null value
+          created_at: collection.created_at,
+          items: []
+        };
+      }
+      
+      // Set payee_id to the first non-null value found
+      if (!grouped[receiptNo].payee_id) {
+        grouped[receiptNo].payee_id = collection.recipientAccount?.id || collection.recipient_account_id || collection.payee_id || collection.recipient_id || null;
+      }
+      
+      grouped[receiptNo].items.push({
+        id: collection.id,
+        amount: collection.amount,
+        fund_account: collection.fundAccount || collection.fund_account,
+        fundAccountName: collection.fundAccount?.name || collection.fund_account?.name
+      });
+    });
+    
+    return Object.values(grouped).map(group => ({
+      ...group,
+      payee_id: group.payee_id || 'N/A',
+      totalAmount: group.items.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
+    }));
+  }, [transactions, collectionReportFilters]);
 
   const recentOverrideRequests = useMemo(() => {
     if (!overrideRequests || overrideRequests.length === 0) return [];
 
-    return [...overrideRequests]
-      .sort((a, b) => new Date(b.created_at || b.reviewed_at || 0) - new Date(a.created_at || a.reviewed_at || 0))
-      .slice(0, 5);
-  }, [overrideRequests]);
+    let filtered = [...overrideRequests];
+
+    // Status filter
+    if (overrideFilters.status !== "all") {
+      filtered = filtered.filter(req => req.status === overrideFilters.status);
+    }
+
+    // Search term filter
+    if (overrideFilters.searchTerm) {
+      const searchLower = overrideFilters.searchTerm.toLowerCase();
+      filtered = filtered.filter(req => 
+        req.id?.toString().includes(searchLower) ||
+        req.transaction_id?.toString().includes(searchLower) ||
+        req.requested_by?.name?.toLowerCase().includes(searchLower) ||
+        req.reviewed_by?.name?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Sort by latest first
+    const sorted = filtered.sort((a, b) => new Date(b.created_at || b.reviewed_at || 0) - new Date(a.created_at || a.reviewed_at || 0));
+    
+    const startIndex = (overrideRequestsPage - 1) * OVERRIDE_REQUESTS_PER_PAGE;
+    const endIndex = startIndex + OVERRIDE_REQUESTS_PER_PAGE;
+    
+    return sorted.slice(startIndex, endIndex);
+  }, [overrideRequests, overrideRequestsPage, overrideFilters]);
+
+  const filteredOverrideRequests = useMemo(() => {
+    if (!overrideRequests || overrideRequests.length === 0) return [];
+
+    let filtered = [...overrideRequests];
+
+    // Status filter
+    if (overrideFilters.status !== "all") {
+      filtered = filtered.filter(req => req.status === overrideFilters.status);
+    }
+
+    // Search term filter
+    if (overrideFilters.searchTerm) {
+      const searchLower = overrideFilters.searchTerm.toLowerCase();
+      filtered = filtered.filter(req => 
+        req.id?.toString().includes(searchLower) ||
+        req.transaction_id?.toString().includes(searchLower) ||
+        req.requested_by?.name?.toLowerCase().includes(searchLower) ||
+        req.reviewed_by?.name?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return filtered;
+  }, [overrideRequests, overrideFilters]);
+
+  const totalOverridePages = useMemo(() => {
+    if (!filteredOverrideRequests || filteredOverrideRequests.length === 0) return 1;
+    return Math.ceil(filteredOverrideRequests.length / OVERRIDE_REQUESTS_PER_PAGE);
+  }, [filteredOverrideRequests]);
 
   const overridesForSelectedReport = useMemo(() => {
     if (!selectedReport) return [];
@@ -733,22 +1031,39 @@ const GenerateReports = ({ user }) => {
           <i className="fas fa-chart-column"></i>
           Reports KPI
         </button>
-        <button
-          type="button"
-          className={`gr-activity-tab ${activityTab === 'transactions' ? 'active' : ''}`}
-          onClick={() => setActivityTab('transactions')}
-        >
-          <i className="fas fa-exchange-alt"></i>
-          Transaction Activity
-        </button>
-        <button
-          type="button"
-          className={`gr-activity-tab ${activityTab === 'overrides' ? 'active' : ''}`}
-          onClick={() => setActivityTab('overrides')}
-        >
-          <i className="fas fa-history"></i>
-          Override Activity
-        </button>
+        
+        {!hideTransactionTab && (
+          <button
+            type="button"
+            className={`gr-activity-tab ${activityTab === 'transactions' ? 'active' : ''}`}
+            onClick={() => setActivityTab('transactions')}
+          >
+            <i className="fas fa-exchange-alt"></i>
+            Transaction Activity
+          </button>
+        )}
+        
+        {!hideOverrideTab && (
+          <button
+            type="button"
+            className={`gr-activity-tab ${activityTab === 'overrides' ? 'active' : ''}`}
+            onClick={() => setActivityTab('overrides')}
+          >
+            <i className="fas fa-history"></i>
+            Override Activity
+          </button>
+        )}
+        
+        {!hideCollectionReportTab && (
+          <button
+            type="button"
+            className={`gr-activity-tab ${activityTab === 'collection-report' ? 'active' : ''}`}
+            onClick={() => setActivityTab('collection-report')}
+          >
+            <i className="fas fa-file-invoice-dollar"></i>
+            Collection Report
+          </button>
+        )}
       </div>
 
       {error && (
@@ -843,7 +1158,14 @@ const GenerateReports = ({ user }) => {
         </div>
       )}
 
-      {activityTab === 'transactions' && (
+      {activityTab === 'transactions' && transactionsLoading && (
+        <div className="gr-loading-placeholder">
+          <div className="gr-loading-spinner"></div>
+          <p>Loading transactions...</p>
+        </div>
+      )}
+      
+      {activityTab === 'transactions' && !transactionsLoading && (
         <div className="gr-transactions-section">
           <div className="gr-transactions-header">
             <div className="gr-section-title-group">
@@ -854,52 +1176,15 @@ const GenerateReports = ({ user }) => {
               </h3>
             </div>
             <div className="gr-header-controls">
-              <div className="gr-export-dropdown-container">
-                <button
-                  className="gr-export-btn"
-                  onClick={() => setShowTransactionExportDropdown(!showTransactionExportDropdown)}
-                  disabled={filteredTransactions.length === 0}
-                  title="Export Transactions"
-                >
-                  <i className="fas fa-download"></i>
-                  Export
-                </button>
-                
-                {showTransactionExportDropdown && (
-                  <div className="gr-export-dropdown-menu">
-                    <button
-                      className="gr-export-option"
-                      onClick={() => {
-                        exportTransactionsToCSV();
-                        setShowTransactionExportDropdown(false);
-                      }}
-                    >
-                      <i className="fas fa-file-csv"></i>
-                      <span>Export as CSV</span>
-                    </button>
-                    <button
-                      className="gr-export-option"
-                      onClick={() => {
-                        exportTransactionsToExcel();
-                        setShowTransactionExportDropdown(false);
-                      }}
-                    >
-                      <i className="fas fa-file-excel"></i>
-                      <span>Export as Excel</span>
-                    </button>
-                    <button
-                      className="gr-export-option"
-                      onClick={() => {
-                        exportTransactionsToPDF();
-                        setShowTransactionExportDropdown(false);
-                      }}
-                    >
-                      <i className="fas fa-file-pdf"></i>
-                      <span>Export as PDF</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button
+                className="gr-export-btn"
+                onClick={exportTransactionsToPDF}
+                disabled={filteredTransactions.length === 0}
+                title="Export Transactions as PDF"
+              >
+                <i className="fas fa-file-pdf"></i>
+                Export as PDF
+              </button>
             </div>
             <div className="gr-header-controls">
               <div className="gr-search-filter-container">
@@ -1027,8 +1312,10 @@ const GenerateReports = ({ user }) => {
                     <th><i className="fas fa-tag"></i> TYPE</th>
                     <th><i className="fas fa-money-bill"></i> AMOUNT</th>
                     <th><i className="fas fa-user"></i> RECIPIENT/PAYER</th>
-                    <th><i className="fas fa-calendar"></i> DATE</th>
-                    <th><i className="fas fa-cog"></i> ACTIONS</th>
+                    <th><i className="fas fa-id-card"></i> PAYEE ID</th>
+                    {!hideTransactionActions && (
+                      <th><i className="fas fa-cog"></i> ACTIONS</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -1067,29 +1354,29 @@ const GenerateReports = ({ user }) => {
                           </td>
                           <td>
                             <div className="gr-cell-content">
-                              <span className="issue-date">
-                                {new Date(transaction.created_at).toLocaleDateString()}
-                              </span>
+                              <span className="payee-id">{transaction.payee_id || transaction.recipient_id || 'N/A'}</span>
                             </div>
                           </td>
-                          <td className="action-cell">
-                            <div className="gr-cell-content">
-                              <div className="action-buttons-group">
-                                <button 
-                                  className="action-btn-icon"
-                                  title="View Details"
-                                >
-                                  <i className="fas fa-eye"></i>
-                                </button>
+                          {!hideTransactionActions && (
+                            <td className="action-cell">
+                              <div className="gr-cell-content">
+                                <div className="action-buttons-group">
+                                  <button 
+                                    className="action-btn-icon"
+                                    title="View Details"
+                                  >
+                                    <i className="fas fa-eye"></i>
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          </td>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan="6" className="gr-no-data">
+                      <td colSpan={hideTransactionActions ? "5" : "6"} className="gr-no-data">
                         <div className="gr-no-data-content">
                           <i className="fas fa-inbox"></i>
                           <p>No transactions found matching your criteria.</p>
@@ -1104,25 +1391,104 @@ const GenerateReports = ({ user }) => {
         </div>
       )}
 
-      {activityTab === 'overrides' && (
-        <div className="gr-overrides-section">
-          <div className="gr-section-title-group" style={{ marginBottom: '12px' }}>
-            <h3>
-              <i className="fas fa-history"></i>
-              Override Activity Snapshot
-              <span className="gr-section-count">({overrideRequests.length})</span>
-            </h3>
+      {!hideOverrideTab && activityTab === 'overrides' && overridesLoading && (
+        <div className="gr-loading-placeholder">
+          <div className="gr-loading-spinner"></div>
+          <p>Loading override requests...</p>
+        </div>
+      )}
+      
+      {!hideOverrideTab && activityTab === 'overrides' && !overridesLoading && (
+        <div>
+          <div className="section-header">
+            <div className="section-title-group">
+              <h3>
+                <i className="fas fa-exchange-alt"></i>
+                Override Requests
+                <span className="section-count">({filteredOverrideRequests.length})</span>
+              </h3>
+            </div>
+            <div className="header-controls">
+              <div className="search-filter-container">
+                <div className="account-search-container">
+                  <input
+                    type="text"
+                    placeholder="Search requests..."
+                    value={overrideFilters.searchTerm}
+                    onChange={(e) => setOverrideFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                    className="account-search-input"
+                  />
+                  <i className="fas fa-search account-search-icon"></i>
+                </div>
+                
+                <div className="filter-dropdown-container">
+                  <button
+                    className="filter-dropdown-btn"
+                    onClick={() => setOverrideFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
+                    title="Filter requests"
+                  >
+                    <i className="fas fa-filter"></i>
+                    <span className="filter-label">
+                      {overrideFilters.status === 'all' ? 'All Status' :
+                       overrideFilters.status === 'pending' ? 'Pending' : 
+                       overrideFilters.status === 'approved' ? 'Approved' : 
+                       'Rejected'}
+                    </span>
+                    <i className={`fas fa-chevron-${overrideFilters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
+                  </button>
+                  
+                  {overrideFilters.showFilterDropdown && (
+                    <div className="filter-dropdown-menu">
+                      <button
+                        className={`filter-option ${overrideFilters.status === 'all' ? 'active' : ''}`}
+                        onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'all', showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-list"></i>
+                        <span>All Status</span>
+                        {overrideFilters.status === 'all' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                      <button
+                        className={`filter-option ${overrideFilters.status === 'pending' ? 'active' : ''}`}
+                        onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'pending', showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-clock"></i>
+                        <span>Pending</span>
+                        {overrideFilters.status === 'pending' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                      <button
+                        className={`filter-option ${overrideFilters.status === 'approved' ? 'active' : ''}`}
+                        onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'approved', showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-check-circle"></i>
+                        <span>Approved</span>
+                        {overrideFilters.status === 'approved' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                      <button
+                        className={`filter-option ${overrideFilters.status === 'rejected' ? 'active' : ''}`}
+                        onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'rejected', showFilterDropdown: false })); }}
+                      >
+                        <i className="fas fa-times-circle"></i>
+                        <span>Rejected</span>
+                        {overrideFilters.status === 'rejected' && <i className="fas fa-check filter-check"></i>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="gr-table-container">
-            <table className="gr-table">
+
+          <div className="ot-requests-section">
+            <div className="requests-table-container">
+            <table className="requests-table">
               <thead>
                 <tr>
-                  <th><i className="fas fa-hashtag"></i> REQUEST ID</th>
-                  <th><i className="fas fa-exchange-alt"></i> TRANSACTION</th>
-                  <th><i className="fas fa-user"></i> REQUESTED BY</th>
-                  <th><i className="fas fa-user-shield"></i> REVIEWED BY</th>
-                  <th><i className="fas fa-flag"></i> STATUS</th>
-                  <th><i className="fas fa-calendar"></i> DATE</th>
+                  <th><i className="fas fa-hashtag"></i> ID</th>
+                  <th><i className="fas fa-exchange-alt"></i> Transaction</th>
+                  <th><i className="fas fa-user"></i> Requested By</th>
+                  <th><i className="fas fa-user-shield"></i> Reviewed By</th>
+                  <th><i className="fas fa-flag"></i> Status</th>
+                  <th><i className="fas fa-calendar"></i> Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -1133,37 +1499,37 @@ const GenerateReports = ({ user }) => {
                     const displayDate = request.reviewed_at || request.created_at;
 
                     return (
-                      <tr key={request.id}>
+                      <tr key={request.id} className="table-row">
                         <td>
-                          <div className="gr-cell-content">
-                            <span className="gr-report-id">#{request.id}</span>
+                          <div className="cell-content">
+                            <span className="request-id">#{request.id}</span>
                           </div>
                         </td>
                         <td>
-                          <div className="gr-cell-content">
-                            <span className="gr-report-type">#{request.transaction_id}</span>
+                          <div className="cell-content">
+                            <span className="transaction-ref">#{request.transaction_id}</span>
                           </div>
                         </td>
                         <td>
-                          <div className="gr-cell-content">
-                            <span className="gr-generated-by">{requester?.name || 'N/A'}</span>
+                          <div className="cell-content">
+                            <span className="requester-name">{requester?.name || 'N/A'}</span>
                           </div>
                         </td>
                         <td>
-                          <div className="gr-cell-content">
-                            <span className="gr-generated-role">{reviewer?.name || 'Pending'}</span>
+                          <div className="cell-content">
+                            <span className="reviewer-name">{reviewer?.name || 'Pending'}</span>
                           </div>
                         </td>
                         <td>
-                          <div className="gr-cell-content">
+                          <div className="cell-content">
                             <span className={`status-badge ${request.status || 'pending'}`}>
                               {(request.status || 'pending').toUpperCase()}
                             </span>
                           </div>
                         </td>
                         <td>
-                          <div className="gr-cell-content">
-                            <span className="gr-generated-at">{displayDate ? new Date(displayDate).toLocaleString() : 'N/A'}</span>
+                          <div className="cell-content">
+                            <span className="request-date">{displayDate ? new Date(displayDate).toLocaleDateString() : 'N/A'}</span>
                           </div>
                         </td>
                       </tr>
@@ -1171,17 +1537,173 @@ const GenerateReports = ({ user }) => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="6" className="gr-no-data">
-                      <div className="gr-no-data-content">
-                        <i className="fas fa-inbox"></i>
-                        <p>No override activity recorded yet.</p>
-                      </div>
+                    <td colSpan="6" className="no-data">
+                      <i className="fas fa-inbox"></i>
+                      <p>No override activity recorded yet.</p>
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+          {totalOverridePages > 1 && (
+            <div className="ot-table-pagination">
+              <div className="ot-pagination-info">
+                Showing {((overrideRequestsPage - 1) * OVERRIDE_REQUESTS_PER_PAGE) + 1}-{Math.min(overrideRequestsPage * OVERRIDE_REQUESTS_PER_PAGE, overrideRequests.length)} of {overrideRequests.length} requests
+              </div>
+              <div className="ot-pagination-controls">
+                <button
+                  type="button"
+                  className="ot-pagination-button"
+                  onClick={() => setOverrideRequestsPage(prev => Math.max(1, prev - 1))}
+                  disabled={overrideRequestsPage === 1}
+                >
+                  <i className="fas fa-chevron-left"></i> Previous
+                </button>
+                <span className="ot-pagination-page-info">
+                  Page {overrideRequestsPage} of {totalOverridePages}
+                </span>
+                <button
+                  type="button"
+                  className="ot-pagination-button"
+                  onClick={() => setOverrideRequestsPage(prev => Math.min(totalOverridePages, prev + 1))}
+                  disabled={overrideRequestsPage === totalOverridePages}
+                >
+                  Next <i className="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        </div>
+      )}
+
+      {!hideCollectionReportTab && activityTab === 'collection-report' && (
+        <div className="gr-collection-report-section">
+          <div className="gr-collection-report-header">
+            <div className="gr-section-title-group">
+              <h3>
+                <i className="fas fa-file-invoice-dollar"></i>
+                Collection Report
+                <span className="gr-section-count">({transactions.filter(tx => tx.type === 'Collection').length})</span>
+              </h3>
+            </div>
+            <div className="gr-header-controls">
+              <div className="gr-report-type-dropdown-container">
+                <button
+                  className="gr-report-type-btn"
+                  onClick={() => setShowReportTypeDropdown(!showReportTypeDropdown)}
+                  title="Select Report Type"
+                >
+                  <i className="fas fa-file-alt"></i>
+                  <span className="gr-report-type-label">
+                    {selectedReportType === 'collection-or-fee-details' ? 'O.R Fee Details' :
+                     selectedReportType === 'collection-or-fee-summary' ? 'O.R Fee Summary' :
+                     selectedReportType === 'collection-or-details' ? 'O.R Details' :
+                     'O.R Summary'}
+                  </span>
+                  <i className={`fas fa-chevron-${showReportTypeDropdown ? 'up' : 'down'}`}></i>
+                </button>
+                
+                {showReportTypeDropdown && (
+                  <div className="gr-report-type-dropdown-menu">
+                    <button
+                      className={`gr-report-type-option ${selectedReportType === 'collection-or-fee-details' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSelectedReportType('collection-or-fee-details');
+                        setShowReportTypeDropdown(false);
+                      }}
+                    >
+                      <i className="fas fa-receipt"></i>
+                      <span>O.R Fee Details</span>
+                      {selectedReportType === 'collection-or-fee-details' && <i className="fas fa-check"></i>}
+                    </button>
+                    <button
+                      className={`gr-report-type-option ${selectedReportType === 'collection-or-fee-summary' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSelectedReportType('collection-or-fee-summary');
+                        setShowReportTypeDropdown(false);
+                      }}
+                    >
+                      <i className="fas fa-list"></i>
+                      <span>O.R Fee Summary</span>
+                      {selectedReportType === 'collection-or-fee-summary' && <i className="fas fa-check"></i>}
+                    </button>
+                    <button
+                      className={`gr-report-type-option ${selectedReportType === 'collection-or-details' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSelectedReportType('collection-or-details');
+                        setShowReportTypeDropdown(false);
+                      }}
+                    >
+                      <i className="fas fa-file-invoice"></i>
+                      <span>O.R Details</span>
+                      {selectedReportType === 'collection-or-details' && <i className="fas fa-check"></i>}
+                    </button>
+                    <button
+                      className={`gr-report-type-option ${selectedReportType === 'collection-or-summary' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSelectedReportType('collection-or-summary');
+                        setShowReportTypeDropdown(false);
+                      }}
+                    >
+                      <i className="fas fa-chart-bar"></i>
+                      <span>O.R Summary</span>
+                      {selectedReportType === 'collection-or-summary' && <i className="fas fa-check"></i>}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="gr-header-controls">
+              <div className="gr-search-filter-container">
+                <div className="gr-date-filter-group">
+                  <label>Date From</label>
+                  <input 
+                    type="date" 
+                    className="gr-date-input"
+                    value={collectionReportFilters.dateFrom}
+                    onChange={(e) => setCollectionReportFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                  />
+                </div>
+                
+                <div className="gr-date-filter-group">
+                  <label>Date To</label>
+                  <input 
+                    type="date" 
+                    className="gr-date-input"
+                    value={collectionReportFilters.dateTo}
+                    onChange={(e) => setCollectionReportFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                  />
+                </div>
+
+                <div className="gr-account-search-container">
+                  <input
+                    type="text"
+                    placeholder="Search collections..."
+                    className="gr-account-search-input"
+                    value={collectionReportFilters.searchTerm}
+                    onChange={(e) => setCollectionReportFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                  />
+                  <i className="fas fa-search gr-account-search-icon"></i>
+                </div>
+
+                <button 
+                  className="gr-export-btn"
+                  onClick={exportCollectionReportPDF}
+                  title="Export to PDF"
+                >
+                  <i className="fas fa-download"></i>
+                  <span>Export PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <CollectionReportTab 
+            selectedReportType={selectedReportType}
+            groupedCollectionsByReceipt={groupedCollectionsByReceipt}
+          />
         </div>
       )}
 
@@ -1826,10 +2348,9 @@ const GenerateReports = ({ user }) => {
           </div>
         </div>
       )}
-    </div>
 
-    {/* Generate Report Form Modal - Rendered outside main container */}
-    {showGenerateFormModal && (
+      {/* Generate Report Form Modal - Rendered outside main container */}
+      {showGenerateFormModal && (
       <div className="modal-overlay" onClick={() => setShowGenerateFormModal(false)}>
         <div className="modal-content generate-report-modal" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
@@ -1842,7 +2363,7 @@ const GenerateReports = ({ user }) => {
             <div className="report-form">
               <div className="form-row">
                 <div className="form-group">
-                  <label>Report Type *</label>
+                  <label>Collection Report by *</label>
                   <select
                     value={reportForm.reportType}
                     onChange={(e) => handleFormChange('reportType', e.target.value)}
@@ -1976,6 +2497,47 @@ const GenerateReports = ({ user }) => {
         </div>
       </div>
     )}
+
+    {/* PDF Preview Modal */}
+    {showPDFPreview && pdfPreviewUrl && (
+      <div className="pdf-preview-modal-overlay" onClick={closePDFPreview}>
+        <div className="pdf-preview-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="pdf-preview-header">
+            <h2>
+              <i className="fas fa-file-pdf"></i>
+              {activityTab === 'collection-reports' ? 'Collection Report Preview' : 'Transaction Report Preview'}
+            </h2>
+            <div className="pdf-preview-header-actions">
+              <button 
+                className="pdf-download-btn"
+                onClick={downloadPDFFromPreview}
+                title="Download PDF"
+              >
+                <i className="fas fa-download"></i>
+                Download PDF
+              </button>
+              <button 
+                className="pdf-preview-close-btn"
+                onClick={closePDFPreview}
+                title="Close Preview"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div className="pdf-preview-container">
+            <iframe 
+              src={pdfPreviewUrl} 
+              type="application/pdf"
+              className="pdf-preview-iframe"
+              title="PDF Preview"
+            />
+          </div>
+        </div>
+      </div>
+    )}
+    </div>
     </>
   );
 };

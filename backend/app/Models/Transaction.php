@@ -29,6 +29,11 @@ class Transaction extends Model
         return $this->belongsTo(FundAccount::class, 'fund_account_id');
     }
 
+    public function recipientAccount()
+    {
+        return $this->belongsTo(RecipientAccount::class, 'recipient_account_id');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

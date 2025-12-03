@@ -16,7 +16,7 @@ class TransactionController extends Controller
 
     public function index(Request $request)
     {
-        $query = Transaction::query()->with(['fundAccount', 'creator']);
+        $query = Transaction::query()->with(['fundAccount', 'recipientAccount', 'creator']);
 
         // Optional filter by comma-separated fund account IDs
         if ($request->filled('accountIds')) {

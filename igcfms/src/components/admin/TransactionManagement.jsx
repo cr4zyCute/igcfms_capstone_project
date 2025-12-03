@@ -3,6 +3,7 @@ import axios from "axios";
 import API_BASE_URL from "../../config/api";
 import "./css/transactionmanagement.css";
 import "../analytics/TransactionAnalytics.jsx/css/transaction-kpis.css";
+import { generateTransactionManagementPDF } from "../reports/export/pdf/TransactionManagementExport";
 
 // Lazy load chart components for better performance
 const TrendChart = lazy(() => import('../analytics/TransactionAnalytics.jsx/TrendChart'));
@@ -13,7 +14,7 @@ const ChartSkeleton = () => (
   <div style={{ height: '250px', background: '#f5f5f5', borderRadius: '8px', animation: 'pulse 1.5s infinite' }}></div>
 );
 
-const TransactionManagement = () => {
+const TransactionManagement = ({ role = "Admin" }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -331,22 +332,15 @@ const TransactionManagement = () => {
             <i className="fas fa-exchange-alt"></i> Transaction Management
           </h1>
           <div className="tm-header-actions">
-            <button 
-              className="tm-btn-export"
-              onClick={() => {/* Add export functionality */}}
-              title="Export Transactions"
-            >
-              <i className="fas fa-download"></i>
-              Export Report
-            </button>
-            <button 
+           
+            {/* <button 
               className="tm-btn-refresh"
               onClick={() => fetchTransactionData()}
               title="Refresh Data"
             >
               <i className="fas fa-sync-alt"></i>
               Refresh
-            </button>
+            </button> */}
           </div>
         </div>
       </div>
@@ -369,8 +363,8 @@ const TransactionManagement = () => {
       <div className="tm-main-layout">
         {/* Left Content */}
         <div className="tm-left-content">
-          {/* Trend Charts Section - At the Very Top */}
-          {showCharts && (
+          {/* Trend Charts Section - At the Very Top - Admin Only */}
+          {showCharts && role === "Admin" && (
             <div className="tm-trends-section">
               <div className="trends-header">
                 <h3><i className="fas fa-chart-line"></i> Trends & Analysis (Last 30 Days)</h3>
@@ -588,6 +582,28 @@ const TransactionManagement = () => {
                   )}
                 </div>
               </div>
+              <button 
+                className="tm-btn-export-records"
+                onClick={() => {
+                  generateTransactionManagementPDF({
+                    filters: {
+                      'Type': filters.type !== 'all' ? filters.type : 'All',
+                      'Department': filters.department !== 'all' ? filters.department : 'All',
+                      'Date From': filters.dateFrom || 'Any',
+                      'Date To': filters.dateTo || 'Any',
+                      'Search Term': filters.searchTerm || 'None',
+                    },
+                    transactions: filteredTransactions,
+                    stats: stats,
+                    generatedBy: localStorage.getItem('user_name') || 'System',
+                    reportTitle: 'Transaction Management Report',
+                  });
+                }}
+                title="Export Transaction Records as PDF"
+              >
+                <i className="fas fa-download"></i>
+                Export Report
+              </button>
             </div>
           </div>
 

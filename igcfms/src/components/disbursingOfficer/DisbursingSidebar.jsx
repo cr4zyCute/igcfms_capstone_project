@@ -20,23 +20,17 @@ const DisbursingSidebar = ({ activeTab, setActiveTab }) => {
       title: 'Disbursement',
       icon: 'fas fa-hand-holding-usd',
       items: [
-        { id: 'issue-money', label: 'Disburese', icon: <i className="fas fa-hand-holding-usd"></i> },
-        { id: 'issue-cheque', label: 'Issue Cheque', icon: <i className="fas fa-money-check-alt"></i> }
+        { id: 'issue-money', label: 'Disburse', icon: <i className="fas fa-hand-holding-usd"></i> },
+        { id: 'issue-cheque', label: 'Cheque', icon: <i className="fas fa-money-check-alt"></i> },
+        { id: 'override-transactions', label: 'Override Transactions', icon: <i className="fas fa-edit"></i> }
       ]
     },
-    {
-      title: 'Transactions',
-      icon: 'fas fa-file-invoice-dollar',
-      items: [
-        { id: 'view-transactions', label: 'View Transactions', icon: <i className="fas fa-list"></i> }
-      ]
-    },
+   
     {
       title: 'Reports',
       icon: 'fas fa-chart-line',
       items: [
-        { id: 'generate-reports', label: 'Generate Reports', icon: <i className="fas fa-chart-line"></i> },
-        { id: 'daily-summary', label: 'Daily Summary', icon: <i className="fas fa-calendar-day"></i> }
+        { id: 'generate-reports', label: 'Generate Reports', icon: <i className="fas fa-chart-line"></i> }
       ]
     }
   ];

@@ -1,49 +1,62 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import API_BASE_URL from '../../config/api';
+import React, { useState, useMemo } from 'react';
 import './css/activitydashboard.css';
+import { useRecentActivities, useActivityStatistics } from '../../hooks/useActivityDashboard';
 
 const ActivityDashboard = () => {
-  const [activities, setActivities] = useState([]);
-  const [statistics, setStatistics] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [filters, setFilters] = useState({
     period: '7',
     role: 'all',
     type: 'all'
   });
+  const [activeStatFilter, setActiveStatFilter] = useState(null);
 
-  const API_BASE = API_BASE_URL;
-  const token = localStorage.getItem("token");
+  // TanStack Query hooks
+  const { 
+    data: activities = [], 
+    isLoading: activitiesLoading, 
+    error: activitiesError,
+    refetch: refetchActivities
+  } = useRecentActivities({ filters, refetchInterval: 30000 });
 
-  useEffect(() => {
-    fetchData();
- 
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [filters]);
+  const { 
+    data: statistics = {}, 
+    isLoading: statisticsLoading, 
+    error: statisticsError,
+    refetch: refetchStatistics
+  } = useActivityStatistics({ filters, refetchInterval: 30000 });
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const headers = { Authorization: `Bearer ${token}` };
+  const loading = activitiesLoading || statisticsLoading;
+  const error = activitiesError?.message || statisticsError?.message || '';
 
-      const [activitiesRes, statsRes] = await Promise.all([
-        axios.get(`${API_BASE}/activity-logs/recent?limit=20`, { headers }),
-        axios.get(`${API_BASE}/activity-logs/statistics?period=${filters.period}`, { headers })
-      ]);
-
-      setActivities(activitiesRes.data);
-      setStatistics(statsRes.data);
-      setError('');
-    } catch (err) {
-      console.error('Error fetching activity data:', err);
-      setError('Failed to load activity data');
-    } finally {
-      setLoading(false);
-    }
+  // Manual refresh function
+  const handleRefresh = () => {
+    refetchActivities();
+    refetchStatistics();
   };
+
+  // Filter activities based on active stat filter
+  const filteredActivities = useMemo(() => {
+    if (activeStatFilter === null) {
+      return activities;
+    }
+    
+    return activities.filter(activity => {
+      switch(activeStatFilter) {
+        case 'login':
+          return activity.activity_type === 'login';
+        case 'login_failed':
+          return activity.activity_type === 'login_failed';
+        case 'collection_created':
+        case 'disbursement_created':
+        case 'receipt_issued':
+          return ['collection_created', 'disbursement_created', 'receipt_issued'].includes(activity.activity_type);
+        case 'override_requested':
+          return activity.activity_type === 'override_requested';
+        default:
+          return true;
+      }
+    });
+  }, [activeStatFilter, activities]);
 
   const getActivityIcon = (type) => {
     const icons = {
@@ -136,7 +149,7 @@ const ActivityDashboard = () => {
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
           </select>
-          <button onClick={fetchData} className="refresh-btn">
+          <button onClick={handleRefresh} className="refresh-btn" disabled={loading}>
             <i className="fas fa-sync-alt"></i> Refresh
           </button>
         </div>
@@ -151,7 +164,11 @@ const ActivityDashboard = () => {
 
       {/* Statistics Cards */}
       <div className="stats-grid">
-        <div className="stat-card primary">
+        <div 
+          className={`stat-card primary ${activeStatFilter === null ? 'active' : ''}`}
+          onClick={() => setActiveStatFilter(null)}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="stat-icon">
             <i className="fas fa-chart-bar"></i>
           </div>
@@ -161,7 +178,11 @@ const ActivityDashboard = () => {
           </div>
         </div>
 
-        <div className="stat-card success">
+        <div 
+          className={`stat-card success ${activeStatFilter === 'login' ? 'active' : ''}`}
+          onClick={() => setActiveStatFilter('login')}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="stat-icon">
             <i className="fas fa-sign-in-alt"></i>
           </div>
@@ -171,7 +192,11 @@ const ActivityDashboard = () => {
           </div>
         </div>
 
-        <div className="stat-card danger">
+        <div 
+          className={`stat-card danger ${activeStatFilter === 'login_failed' ? 'active' : ''}`}
+          onClick={() => setActiveStatFilter('login_failed')}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="stat-icon">
             <i className="fas fa-exclamation-triangle"></i>
           </div>
@@ -181,7 +206,11 @@ const ActivityDashboard = () => {
           </div>
         </div>
 
-        <div className="stat-card warning">
+        <div 
+          className={`stat-card warning ${activeStatFilter === 'collection_created' ? 'active' : ''}`}
+          onClick={() => setActiveStatFilter('collection_created')}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="stat-icon">
             <i className="fas fa-money-bill-wave"></i>
           </div>
@@ -191,7 +220,11 @@ const ActivityDashboard = () => {
           </div>
         </div>
 
-        <div className="stat-card info">
+        <div 
+          className={`stat-card info ${activeStatFilter === 'override_requested' ? 'active' : ''}`}
+          onClick={() => setActiveStatFilter('override_requested')}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="stat-icon">
             <i className="fas fa-edit"></i>
           </div>
@@ -208,18 +241,23 @@ const ActivityDashboard = () => {
           <h3>
             <i className="fas fa-history"></i>
             Recent Activities
+            {activeStatFilter && (
+              <span className="filter-badge">
+                <i className="fas fa-filter"></i> Filtered
+              </span>
+            )}
           </h3>
-          <span className="activity-count">{activities.length} activities</span>
+          <span className="activity-count">{filteredActivities.length} activities</span>
         </div>
 
         <div className="activities-list">
-          {activities.length === 0 ? (
+          {filteredActivities.length === 0 ? (
             <div className="no-activities">
               <i className="fas fa-inbox"></i>
-              <p>No recent activities found</p>
+              <p>{activeStatFilter ? 'No activities found for this filter' : 'No recent activities found'}</p>
             </div>
           ) : (
-            activities.map((activity) => (
+            filteredActivities.map((activity) => (
               <div key={activity.id} className={`activity-item ${getActivityColor(activity.activity_type)}`}>
                 <div className="activity-icon">
                   <i className={getActivityIcon(activity.activity_type)}></i>

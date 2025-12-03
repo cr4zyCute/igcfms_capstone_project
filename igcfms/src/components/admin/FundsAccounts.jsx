@@ -688,10 +688,6 @@ const FundsAccounts = () => {
             <form onSubmit={handleAddAccount} className="enhanced-form">
               {/* Account Information Section */}
               <div className="form-section">
-                <div className="section-header">
-                  <h5><i className="fas fa-info-circle"></i> Account Information</h5>
-                </div>
-                
                 {/* Two Column Layout: Account Name | Account Code */}
                 <div className="form-row">
                   <div className="form-group">

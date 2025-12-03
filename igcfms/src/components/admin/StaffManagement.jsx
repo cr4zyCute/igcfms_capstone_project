@@ -1,12 +1,17 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import "./css/staffmanagement.css";
 import Chart from "chart.js/auto";
-
-import { getUsers, createUser, updateUser, toggleUserStatus as toggleUserStatusApi, deleteUser as deleteUserApi } from "../../services/api";
+import {
+  useStaffMembers,
+  useCreateStaff,
+  useUpdateStaff,
+  useToggleStaffStatus,
+  useDeleteStaff,
+} from "../../hooks/useStaffManagement";
 
 const StaffManagement = () => {
-  const [staffMembers, setStaffMembers] = useState([]);
   const chartRefs = useRef({ pie: null, newUsers: null, activeTrend: null });
 
   // Modal States
@@ -33,9 +38,23 @@ const StaffManagement = () => {
     title: "",
     message: "",
   });
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
+
+  // TanStack Query hooks
+  const { 
+    data: rawStaffData = [], 
+    isLoading: staffLoading, 
+    error: staffError 
+  } = useStaffMembers();
+
+  const createStaffMutation = useCreateStaff();
+  const updateStaffMutation = useUpdateStaff();
+  const toggleStatusMutation = useToggleStaffStatus();
+  const deleteStaffMutation = useDeleteStaff();
+
+  const loading = staffLoading || createStaffMutation.isPending || updateStaffMutation.isPending || 
+                  toggleStatusMutation.isPending || deleteStaffMutation.isPending;
 
   // Data loading
   const mapUserToStaff = (u, idx) => {
@@ -59,6 +78,12 @@ const StaffManagement = () => {
     };
   };
 
+  // Map raw staff data
+  const staffMembers = useMemo(() => {
+    const list = Array.isArray(rawStaffData) ? rawStaffData : rawStaffData?.data || [];
+    return list.map(mapUserToStaff);
+  }, [rawStaffData]);
+
   const getInitials = (value = "") => {
     const initials = value
       .split(" ")
@@ -73,26 +98,6 @@ const StaffManagement = () => {
     event.stopPropagation();
     setOpenActionMenuId((prev) => (prev === staffId ? null : staffId));
   };
-
-  const loadStaff = async () => {
-    setLoading(true);
-    try {
-      const users = await getUsers();
-      const list = Array.isArray(users) ? users : users?.data || [];
-      setStaffMembers(list.map(mapUserToStaff));
-    } catch (e) {
-      console.error("Failed to load staff", e);
-      // Non-blocking notification; UI remains usable
-      setShowNotificationModal(true);
-      setNotification({ type: "error", title: "Load Failed", message: "Unable to fetch staff list." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadStaff();
-  }, []);
 
   useEffect(() => {
     if (openActionMenuId === null) return;
@@ -110,6 +115,19 @@ const StaffManagement = () => {
       document.removeEventListener("keydown", handleKeydown);
     };
   }, [openActionMenuId]);
+
+  // Add modal-open class to body when any modal is open
+  useEffect(() => {
+    if (showAddModal || showEditModal || showDeleteModal || showNotificationModal) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showAddModal, showEditModal, showDeleteModal, showNotificationModal]);
 
   // Utility Functions
   const showNotification = (type, title, message) => {
@@ -147,7 +165,6 @@ const StaffManagement = () => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setLoading(true);
     try {
       const payload = {
         name: formData.name,
@@ -157,16 +174,13 @@ const StaffManagement = () => {
         phone: formData.phone,
         department: formData.department,
       };
-      await createUser(payload);
-      await loadStaff();
+      await createStaffMutation.mutateAsync(payload);
       setShowAddModal(false);
       resetForm();
       showNotification("success", "Staff Added", `${formData.name} has been successfully added to the system.`);
     } catch (err) {
       console.error("Add staff error", err);
       showNotification("error", "Add Failed", "Unable to add staff. Please try again.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -174,7 +188,6 @@ const StaffManagement = () => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setLoading(true);
     try {
       const payload = {
         name: formData.name,
@@ -186,8 +199,7 @@ const StaffManagement = () => {
       if (formData.password && formData.password.trim()) {
         payload.password = formData.password;
       }
-      await updateUser(editingStaff.id, payload);
-      await loadStaff();
+      await updateStaffMutation.mutateAsync({ id: editingStaff.id, data: payload });
       setShowEditModal(false);
       setEditingStaff(null);
       resetForm();
@@ -195,34 +207,26 @@ const StaffManagement = () => {
     } catch (err) {
       console.error("Edit staff error", err);
       showNotification("error", "Update Failed", "Unable to update staff. Please try again.");
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleDeleteStaff = async () => {
-    setLoading(true);
     const name = deletingStaff?.name || "Staff";
     try {
-      await deleteUserApi(deletingStaff.id);
-      await loadStaff();
+      await deleteStaffMutation.mutateAsync(deletingStaff.id);
       setShowDeleteModal(false);
       setDeletingStaff(null);
       showNotification("success", "Staff Deleted", `${name} has been removed from the system.`);
     } catch (err) {
       console.error("Delete staff error", err);
       showNotification("error", "Delete Failed", `Unable to delete ${name}. Please try again.`);
-    } finally {
-      setLoading(false);
     }
   };
 
   const toggleStaffStatus = async (staff) => {
     const newStatus = staff.status === "active" ? "inactive" : "active";
-    setLoading(true);
     try {
-      await toggleUserStatusApi(staff.id);
-      await loadStaff();
+      await toggleStatusMutation.mutateAsync(staff.id);
       showNotification(
         "success",
         "Status Updated",
@@ -231,8 +235,6 @@ const StaffManagement = () => {
     } catch (err) {
       console.error("Toggle status error", err);
       showNotification("error", "Update Failed", `Unable to update status for ${staff.name}.`);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -794,9 +796,13 @@ const StaffManagement = () => {
       </div>
 
       {/* Add Staff Modal */}
-      {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      {showAddModal && createPortal(
+        (
+          <div
+            className="modal-overlay sm-blur-overlay"
+            onClick={() => setShowAddModal(false)}
+          >
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">
                 <i className="fas fa-user-plus"></i> Add New Staff Member
@@ -893,11 +899,17 @@ const StaffManagement = () => {
             </form>
           </div>
         </div>
+        ),
+        document.body
       )}
 
       {/* Edit Staff Modal */}
       {showEditModal && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+        <div
+          className="modal-overlay"
+          style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none', background: 'transparent' }}
+          onClick={() => setShowEditModal(false)}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">
@@ -998,7 +1010,11 @@ const StaffManagement = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && deletingStaff && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+        <div
+          className="modal-overlay"
+          style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none', background: 'transparent' }}
+          onClick={() => setShowDeleteModal(false)}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">
@@ -1029,7 +1045,11 @@ const StaffManagement = () => {
 
       {/* Notification Modal */}
       {showNotificationModal && (
-        <div className="modal-overlay" onClick={() => setShowNotificationModal(false)}>
+        <div
+          className="modal-overlay"
+          style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none', background: 'transparent' }}
+          onClick={() => setShowNotificationModal(false)}
+        >
           <div className="notification-modal" onClick={(e) => e.stopPropagation()}>
             <div className="notification-header">
               <div className={`notification-icon ${notification.type}`}>
