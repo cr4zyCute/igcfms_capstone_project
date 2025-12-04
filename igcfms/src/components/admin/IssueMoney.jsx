@@ -14,8 +14,8 @@ import {
   useRecipientAccountsForDisbursement,
   useCreateDisbursement 
 } from '../../hooks/useDisbursements';
-import { printCompleteCheque } from '../pages/print/chequeSimplePrint';
-import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
+import { printCompleteCheque } from '../pages/print/chequeSimplePrint.jsx';
+import { getReceiptPrintHTML } from '../pages/print/recieptPrint.jsx';
 
 const CHEQUE_FIELD_LABELS = {
   dateIssued: "Date Issued",

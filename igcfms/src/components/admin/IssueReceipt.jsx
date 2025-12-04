@@ -5,7 +5,7 @@ import DisbursementTrends from '../analytics/disbursementAnalytics';
 import ReceiptCountAnalytics from '../analytics/receiptCountAnalytics';
 import PayerDistributionAnalytics from '../analytics/payerDistributionAnalytics';
 import IssueReceiptSkeleton from '../ui/issuerecieptLoading';
-import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
+import { getReceiptPrintHTML } from '../pages/print/recieptPrint.jsx';
 import { useAuth } from "../../contexts/AuthContext";
 import {
   useReceipts,
@@ -16,7 +16,7 @@ import {
 
 // Chart.js
 import Chart from 'chart.js/auto';
-import { generateIssuedReceiptsPDF } from '../reports/export/pdf/IssuedReceiptExport';
+import { generateIssuedReceiptsPDF } from '../reports/export/pdf/IssuedReceiptExport.jsx';
 
 // Helper function to convert numbers to words
 const numberToWords = (num) => {

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import './css/activitydashboard.css';
-import { useRecentActivities, useActivityStatistics } from '../../hooks/useActivityDashboard';
+import { useRecentActivities, useActivityStatistics } from '../../hooks/useActivityDashboard.js';
 
 const ActivityDashboard = () => {
   const [filters, setFilters] = useState({

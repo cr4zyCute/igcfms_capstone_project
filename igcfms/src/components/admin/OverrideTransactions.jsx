@@ -15,7 +15,7 @@ import {
   useReviewOverrideRequest
 } from "../../hooks/useOverrideTransactions";
 import { useCreateReceipt } from "../../hooks/useReceipts";
-import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
+import { getReceiptPrintHTML } from '../pages/print/recieptPrint.jsx';
 import { useAuth } from "../../contexts/AuthContext";
 import "./css/overridetransactions.css";
 

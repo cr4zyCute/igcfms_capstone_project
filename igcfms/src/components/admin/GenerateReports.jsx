@@ -4,11 +4,11 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useQueryClient } from "@tanstack/react-query";
 import "./css/generatereports.css";
-import DailyKPI from "../analytics/ReportAnalysis/dailyKPI";
-import MonthlyKPI from "../analytics/ReportAnalysis/monthlyKPI";
-import YearlyKPI from "../analytics/ReportAnalysis/yearlyKPI";
-import ReportPageSkeleton from "../ui/ReportPageSL";
-import CollectionReportTab from "../reports/reportsTab/CollectionReportTab";
+import DailyKPI from "../analytics/ReportAnalysis/dailyKPI.jsx";
+import MonthlyKPI from "../analytics/ReportAnalysis/monthlyKPI.jsx";
+import YearlyKPI from "../analytics/ReportAnalysis/yearlyKPI.jsx";
+import ReportPageSkeleton from "../ui/ReportPageSL.jsx";
+import CollectionReportTab from "../reports/reportsTab/CollectionReportTab.jsx";
 import { 
   useReports, 
   useTransactions, 
@@ -16,7 +16,7 @@ import {
   useCreateReport, 
   useDeleteReport,
   REPORT_KEYS 
-} from "../../hooks/useReports";
+} from "../../hooks/useReports.js";
 
 const API_BASE = require('../../config/api').default;
 const REPORTS_PER_PAGE = 10;

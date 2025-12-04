@@ -4,8 +4,8 @@ import { useDisbursements } from "../../hooks/useDisbursements";
 import { useFundAccounts } from "../../hooks/useFundAccounts";
 import IssueChequeSkeleton from "../ui/chequeSL";
 import { ErrorModal, SuccessModal } from "../common/Modals/IssueChequeModals";
-import { printCompleteCheque } from "../pages/print/chequeSimplePrint";
-import { generateIssueChequesPDF } from "../reports/export/pdf/IssueChequeExport";
+import { printCompleteCheque } from "../pages/print/chequeSimplePrint.jsx";
+import { generateIssueChequesPDF } from "../reports/export/pdf/IssueChequeExport.jsx";
 import "./css/issuecheque.css";
 import "./css/cheque-styles.css";
 
