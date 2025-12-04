@@ -483,7 +483,7 @@ const DashboardHome = () => {
       <section className="area-charts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px', marginBottom: '0' }}>
         
         {/* Collections vs Disbursements Trend */}
-        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+        {/* <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
           <div className="section-header">
             <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '0', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <i className="fas fa-chart-area"></i> Collections vs Disbursements
@@ -524,10 +524,10 @@ const DashboardHome = () => {
               </ComposedChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </div> */}
 
         {/* Fund Distribution by Account Type */}
-        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+        {/* <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-chart-pie"></i> Fund Distribution by Account Type
           </h3>
@@ -575,10 +575,10 @@ const DashboardHome = () => {
               </span>
             ))}
           </div>
-        </div>
+        </div> */}
 
         {/* Monthly Revenue Trend */}
-        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+        {/* <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-chart-line"></i> Cash Flow Trend (30 Days)
           </h3>
@@ -611,10 +611,10 @@ const DashboardHome = () => {
               </LineChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </div> */}
 
         {/* Department Performance */}
-        <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
+        {/* <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#000000', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <i className="fas fa-building"></i> Department Transaction Volume
           </h3>
@@ -648,7 +648,7 @@ const DashboardHome = () => {
             </ResponsiveContainer>
           )}
           
-        </div>
+        </div> */}
 
         {/* Transaction Volume Heatmap */}
         <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
@@ -865,7 +865,7 @@ const DashboardHome = () => {
       </section>
 
       {/* Bottom Analytics Row */}
-      <section className="area-analytics">
+      {/* <section className="area-analytics">
         <div className="analytics-grid">
           <div className="chart-container" style={{ border: '2px solid #f0f0f0' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: 8 }}><i className="fas fa-coins"></i> Revenue Analysis</h3>
@@ -902,7 +902,7 @@ const DashboardHome = () => {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       </div>
 

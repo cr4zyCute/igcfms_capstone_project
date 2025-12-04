@@ -213,11 +213,23 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
     applyFilters();
   }, [filters, receipts, transactions, isCollectingOfficer, effectiveUserId]);
 
+  // Create a deep dependency key for receipts to detect data changes
+  const receiptDataKey = useMemo(() => {
+    return JSON.stringify(receipts.map(r => ({ 
+      id: r.id, 
+      payer_name: r.payer_name,
+      amount: r.amount,
+      issued_at: r.issued_at,
+      created_at: r.created_at,
+      transaction_id: r.transaction_id
+    })));
+  }, [receipts]);
+
   useEffect(() => {
     if (receipts.length > 0 && transactions.length > 0) {
       generateAnalyticsData();
     }
-  }, [receipts, transactions, trendPeriod]);
+  }, [receipts, transactions, trendPeriod, receiptDataKey]);
 
   useEffect(() => {
     initializeCharts();

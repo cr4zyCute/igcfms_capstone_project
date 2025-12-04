@@ -1050,7 +1050,6 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
             <thead>
               <tr>
                 <th><i className="fas fa-user"></i> PAYEE NAME</th>
-                <th><i className="fas fa-university"></i> BANK</th>
                 <th><i className="fas fa-money-bill"></i> AMOUNT</th>
                 <th><i className="fas fa-calendar"></i> ISSUE DATE</th>
                 <th><i className="fas fa-info-circle"></i> STATUS</th>
@@ -1074,11 +1073,6 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
                         <div className="payer-info">
                           <span className="payer-name">{cheque.payee_name}</span>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cell-content">
-                        <span className="bank-name">{cheque.bank_name}</span>
                       </div>
                     </td>
                     <td>
@@ -1218,7 +1212,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
                 ))
               ) : (
                 <tr>
-                  <td colSpan="8" className="no-data">
+                  <td colSpan="5" className="no-data">
                     <i className="fas fa-inbox"></i>
                     <p>No cheques found matching your criteria.</p>
                   </td>

@@ -717,7 +717,6 @@ const CollectingOfficerOverrideTransactions = () => {
                 <th className="ot-col-changes">PROPOSED CHANGES</th>
                 <th className="ot-col-status">STATUS</th>
                 <th className="ot-col-date">DATE</th>
-                <th className="ot-col-actions">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -742,20 +741,11 @@ const CollectingOfficerOverrideTransactions = () => {
                         day: '2-digit'
                       })}
                     </td>
-                    <td className="ot-col-actions">
-                      <button
-                        className="ot-action-btn"
-                        onClick={() => openReviewModal(request)}
-                        title="View details"
-                      >
-                        <i className="fas fa-eye"></i>
-                      </button>
-                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="ot-empty-message">
+                  <td colSpan="6" className="ot-empty-message">
                     No override requests found
                   </td>
                 </tr>
