@@ -63,7 +63,7 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
         description: point.description || point.type || '',
       };
     });
-  }, [data]);
+  }, [data, globalMaxAmount]);
 
   if (processedData.length === 0) {
     return <div className="graph-placeholder">No transaction data available.</div>;
@@ -169,7 +169,7 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
         onWheel={handleWheel}
       >
         {/* Bar Chart - Fixed dimensions instead of ResponsiveContainer */}
-        <div style={{ width: containerWidth, minHeight: '100px' }}>
+        <div style={{ width: containerWidth, minHeight: '100px', position: 'relative', zIndex: 2 }}>
           <BarChart 
             width={containerWidth}
             height={80}
@@ -192,9 +192,12 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
               dataKey="barValue"
               minPointSize={6}
               radius={[3, 3, 0, 0]}
+              barSize={minBarWidth}
+              fillOpacity={1}
+              isAnimationActive={false}
             >
               {processedData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
+                <Cell key={`cell-${index}`} fill={entry.color} stroke="#111827" strokeWidth={0.8} />
               ))}
             </Bar>
           </BarChart>
@@ -204,6 +207,8 @@ const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
               gap: `${barSpacing}px`,
               marginTop: '12px',
               paddingRight: needsScroll ? '10px' : 0,
+              position: 'relative',
+              zIndex: 1
             }}
           >
             {processedData.map((entry, index) => (

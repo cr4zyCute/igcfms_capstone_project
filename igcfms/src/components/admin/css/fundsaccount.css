@@ -2008,7 +2008,8 @@ textarea {
 
 .card-graph .recharts-wrapper {
   width: 100% !important;
-  height: 100% !important;
+  /* Force a fixed height so the SVG is visible regardless of parent flow */
+  height: 80px !important;
 }
 
 .graph-placeholder {
@@ -2028,6 +2029,18 @@ textarea {
   padding: 20px;
   color: #999999;
   font-size: 12px;
+}
+
+/* Ensure Recharts bars are visible in funds account cards */
+.card-graph svg .recharts-rectangle,
+.card-graph svg rect {
+  opacity: 1 !important;
+  fill-opacity: 1 !important;
+  mix-blend-mode: normal !important;
+}
+
+.card-graph svg {
+  overflow: visible;
 }
 
 .custom-tooltip {

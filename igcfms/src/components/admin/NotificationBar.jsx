@@ -6,7 +6,15 @@ const NotificationBar = () => {
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [filter, setFilter] = useState("all");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [showPreviewMenu, setShowPreviewMenu] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [viewArchived, setViewArchived] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [localReadMap, setLocalReadMap] = useState({}); // overlay read/unread per id
+  const [deletedIds, setDeletedIds] = useState({}); // locally removed notifications
+  const [archivedMap, setArchivedMap] = useState({}); // locally archived notifications
   const filterDropdownRef = useRef(null);
+  const previewMenuRef = useRef(null);
   const hasProcessedLocalStorage = useRef(false); // Track if we've processed localStorage
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -74,11 +82,11 @@ const NotificationBar = () => {
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
-      if (
-        filterDropdownRef.current &&
-        !filterDropdownRef.current.contains(event.target)
-      ) {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
         setShowFilterDropdown(false);
+      }
+      if (previewMenuRef.current && !previewMenuRef.current.contains(event.target)) {
+        setShowPreviewMenu(false);
       }
     };
 
@@ -114,8 +122,10 @@ const NotificationBar = () => {
         localStorage.removeItem('igcfms_selectedNotificationId');
         
         // Mark the notification as read if it's unread
-        if (!clickedNotification.is_read && !clickedNotification.read) {
+        const isRead = localReadMap[clickedNotification.id] !== undefined ? localReadMap[clickedNotification.id] : (clickedNotification.is_read || clickedNotification.read);
+        if (!isRead) {
           markNotificationAsRead(clickedNotification.id);
+          setLocalReadMap(prev => ({ ...prev, [clickedNotification.id]: true }));
         }
         
         // Scroll to the notification in the list after a short delay
@@ -146,12 +156,13 @@ const NotificationBar = () => {
   ];
 
   const getFilteredNotifications = () => {
-    let filtered = notifications;
+    const baseList = viewArchived ? Object.values(archivedMap) : notifications;
+    let filtered = baseList;
 
     // Apply filter
     switch (filter) {
       case "logins":
-        filtered = notifications.filter(n => 
+        filtered = baseList.filter(n => 
           n.type === "login" || 
           n.type === "logout" || 
           n.title?.toLowerCase().includes("log") ||
@@ -159,7 +170,7 @@ const NotificationBar = () => {
         );
         break;
       case "transactions":
-        filtered = notifications.filter(n => 
+        filtered = baseList.filter(n => 
           n.type === "transaction" || 
           n.type === "receipt" || 
           n.type === "disbursement" ||
@@ -169,7 +180,7 @@ const NotificationBar = () => {
         );
         break;
       case "override":
-        filtered = notifications.filter(n => 
+        filtered = baseList.filter(n => 
           n.type === "override" || 
           n.type === "override_request" ||
           n.title?.toLowerCase().includes("override") ||
@@ -177,7 +188,14 @@ const NotificationBar = () => {
         );
         break;
       default:
-        filtered = notifications;
+        filtered = baseList;
+    }
+
+    // Remove locally deleted items (apply to both views)
+    filtered = filtered.filter(n => !deletedIds[n.id]);
+    // In active view, exclude archived items; in archived view, we already used archived list
+    if (!viewArchived) {
+      filtered = filtered.filter(n => !archivedMap[n.id]);
     }
 
     // Apply search filter
@@ -203,9 +221,12 @@ const NotificationBar = () => {
 
   const handleNotificationClick = (notification) => {
     setSelectedNotification(notification);
-    if (!notification.read && !notification.is_read) {
+    const isRead = localReadMap[notification.id] !== undefined ? localReadMap[notification.id] : (notification.read || notification.is_read);
+    if (!isRead) {
       markNotificationAsRead(notification.id);
+      setLocalReadMap(prev => ({ ...prev, [notification.id]: true }));
     }
+    setShowPreviewMenu(false);
   };
 
   const getTimeAgo = (timestamp) => {
@@ -295,11 +316,94 @@ const NotificationBar = () => {
     setShowFilterDropdown(false);
   };
 
-  const selectedFilterLabel = filterOptions.find(option => option.value === filter)?.label || "Filter notifications";
+  const selectedFilterLabel = viewArchived ? 'Archived' : (filterOptions.find(option => option.value === filter)?.label || "Filter notifications");
+  const filteredNotifications = getFilteredNotifications();
+
+  const handlePreviewAction = async (action) => {
+    if (!selectedNotification) return;
+
+    switch (action) {
+      case 'markRead': {
+        const id = selectedNotification.id;
+        const isRead = (localReadMap[id] !== undefined ? localReadMap[id] : (selectedNotification.read || selectedNotification.is_read));
+        if (isRead) {
+          // Mark as unread (local only)
+          setLocalReadMap(prev => ({ ...prev, [id]: false }));
+          setSelectedNotification(prev => prev ? { ...prev, read: false, is_read: false } : prev);
+        } else {
+          // Mark as read (call API + local overlay)
+          await markNotificationAsRead(id);
+          setLocalReadMap(prev => ({ ...prev, [id]: true }));
+          setSelectedNotification(prev => prev ? { ...prev, read: true, is_read: true } : prev);
+        }
+        break;
+      }
+      case 'delete':
+        setShowDeleteModal(true);
+        break;
+      case 'archive':
+        // Toggle archive/unarchive based on current state
+        if (archivedMap[selectedNotification.id]) {
+          handleUnarchive(selectedNotification.id);
+        } else {
+          handleArchiveNotification(selectedNotification);
+        }
+        break;
+      default:
+        break;
+    }
+
+    setShowPreviewMenu(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedNotification) return;
+    setDeleteLoading(true);
+    try {
+      const id = selectedNotification.id;
+      // Local removal from list
+      setDeletedIds(prev => ({ ...prev, [id]: true }));
+      setSelectedNotification(null);
+    } finally {
+      setDeleteLoading(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  const handleArchiveNotification = (notification) => {
+    if (!notification) return;
+    setArchivedMap(prev => ({ ...prev, [notification.id]: notification }));
+    setSelectedNotification(null);
+    setViewArchived(true);
+  };
+
+  const handleUnarchive = (notificationId) => {
+    setArchivedMap(prev => {
+      const updated = { ...prev };
+      delete updated[notificationId];
+      return updated;
+    });
+  };
+
+  const toggleArchiveView = () => {
+    setViewArchived(prev => !prev);
+  };
+
+  // When switching viewArchived, ensure a valid selection
+  useEffect(() => {
+    const currentList = getFilteredNotifications();
+    if (currentList.length === 0) {
+      setSelectedNotification(null);
+      return;
+    }
+    if (!selectedNotification || !currentList.some(n => n.id === selectedNotification.id)) {
+      setSelectedNotification(currentList[0]);
+    }
+  }, [viewArchived, archivedMap, deletedIds, notifications, filter, searchTerm]);
 
   return (
     <div className="notification-bar-page">
-      <div className="notification-header">
+      {/* <div className="notification-header">
         <h2 className="page-title">
           <i className="fas fa-bell"></i>
           Notifications
@@ -310,15 +414,11 @@ const NotificationBar = () => {
           )}
         </h2>
         <div className="header-actions">
-          <button className="mark-all-read-btn">
-            <i className="fas fa-check-double"></i>
-            Mark all as read
-          </button>
           <button className="settings-btn">
             <i className="fas fa-cog"></i>
           </button>
         </div>
-      </div>
+      </div> */}
 
       <div className="notification-content">
         {/* Left Sidebar - Notification List */}
@@ -328,7 +428,7 @@ const NotificationBar = () => {
               <div className="search-input-container">
                 <input
                   type="text"
-                  placeholder="Search notifications..."
+                  placeholder={viewArchived ? "Search archived notifications..." : "Search notifications..."}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="search-input"
@@ -360,10 +460,31 @@ const NotificationBar = () => {
                   </div>
                 )}
               </div>
+              <div className="search-archive-group">
+                <button
+                  type="button"
+                  className={`archive-btn ${viewArchived ? "active" : ""}`}
+                  onClick={toggleArchiveView}
+                  title={viewArchived ? 'Show active notifications' : 'Show archived notifications'}
+                >
+                  <i className={`fas ${viewArchived ? 'fa-bell' : 'fa-box-archive'}`}></i>
+                </button>
+              </div>
             </div>
-
+                
             <div className="list-header">
               <h3> {selectedFilterLabel}</h3>
+              {notificationsFetching && notifications.length > 0 && (
+            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#64748b' }}>
+              <i className="fas fa-sync fa-spin" style={{ fontSize: '10px' }}></i> Updating...
+            </span>
+          )}
+              {!viewArchived && (
+                <button className="mark-all-read-btn">
+                  <i className="fas fa-check-double"></i>
+                  Mark all as read
+                </button>
+              )}
             </div>
 
             <div className="notification-items">
@@ -372,14 +493,14 @@ const NotificationBar = () => {
                   <i className="fas fa-spinner fa-spin"></i>
                   <p>Loading notifications...</p>
                 </div>
-              ) : getFilteredNotifications().length > 0 ? (
-                getFilteredNotifications().map((notification) => (
+              ) : filteredNotifications.length > 0 ? (
+                filteredNotifications.map((notification) => (
                   <div
                     key={notification.id}
                     data-notification-id={notification.id}
                     className={`notification-item ${
                       selectedNotification?.id === notification.id ? "selected" : ""
-                    } ${!(notification.is_read || notification.read) ? "unread" : ""}`}
+                    } ${!(localReadMap[notification.id] !== undefined ? localReadMap[notification.id] : (notification.is_read || notification.read)) ? "unread" : ""}`}
                     onClick={() => handleNotificationClick(notification)}
                   >
                     <div className="notification-item-content">
@@ -393,7 +514,12 @@ const NotificationBar = () => {
                           <span className="notification-time">
                             {getTimeAgo(notification.created_at || notification.timestamp)}
                           </span>
-                          {!(notification.is_read || notification.read) && <div className="unread-dot"></div>}
+                          {!
+                            ((localReadMap[notification.id] !== undefined
+                              ? localReadMap[notification.id]
+                              : (notification.is_read || notification.read)))
+                            && <div className="unread-dot"></div>
+                          }
                         </div>
                       </div>
                       <h4 className="notification-title">{renderWithIcons(notification.title || notification.type)}</h4>
@@ -407,8 +533,8 @@ const NotificationBar = () => {
                 ))
               ) : (
                 <div className="no-notifications">
-                  <i className="fas fa-inbox"></i>
-                  <p>No notifications found.</p>
+                  <i className={`fas ${viewArchived ? 'fa-box-open' : 'fa-inbox'}`}></i>
+                  <p>{viewArchived ? 'No archived notifications found.' : 'No notifications found.'}</p>
                 </div>
               )}
             </div>
@@ -437,21 +563,43 @@ const NotificationBar = () => {
                     <span className="preview-category">• {selectedNotification.category || selectedNotification.type || 'System'}</span>
                   </div>
                 </div>
-                <div className="preview-actions">
-                  <button className="action-btn">
-                    <i className="fas fa-bookmark"></i>
+                <div className="preview-actions" ref={previewMenuRef}>
+                  <button
+                    className={`action-btn preview-menu-btn ${showPreviewMenu ? "active" : ""}`}
+                    onClick={() => setShowPreviewMenu(prev => !prev)}
+                  >
+                    <i className="fas fa-ellipsis-v"></i>
                   </button>
-                  <button className="action-btn">
-                    <i className="fas fa-trash"></i>
-                  </button>
-                  <button className="action-btn">
-                    <i className="fas fa-ellipsis-h"></i>
-                  </button>
+                  {showPreviewMenu && (
+                    <div className="preview-menu-dropdown">
+                      <button
+                        className="preview-menu-option"
+                        onClick={() => handlePreviewAction('markRead')}
+                      >
+                        <i className="fas fa-check"></i>
+                        <span>{(selectedNotification && ((localReadMap[selectedNotification.id] !== undefined ? localReadMap[selectedNotification.id] : (selectedNotification.read || selectedNotification.is_read)))) ? 'Mark as Unread' : 'Mark as read'}</span>
+                      </button>
+                      <button
+                        className="preview-menu-option"
+                        onClick={() => handlePreviewAction('delete')}
+                      >
+                        <i className="fas fa-trash"></i>
+                        <span>Delete</span>
+                      </button>
+                      <button
+                        className="preview-menu-option"
+                        onClick={() => handlePreviewAction('archive')}
+                      >
+                        <i className="fas fa-archive"></i>
+                        <span>{archivedMap[selectedNotification.id] ? 'Unarchive' : 'Archive'}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="preview-body">
-                <div className="notification-highlight">
+                {/* <div className="notification-highlight">
                   <div className="highlight-icon">
                     <i className={getNotificationIcon(selectedNotification.type)}></i>
                   </div>
@@ -459,7 +607,7 @@ const NotificationBar = () => {
                     <h3>System Notification</h3>
                     <p>{renderWithIcons(selectedNotification.message || selectedNotification.data)}</p>
                   </div>
-                </div>
+                </div> */}
 
                 <div className="notification-details">
                   <h4>Details</h4>
@@ -506,24 +654,87 @@ const NotificationBar = () => {
           ) : (
             <div className="empty-preview">
               <div className="empty-icon">
-                <i className="fas fa-bell-slash"></i>
+                <i className={`fas ${viewArchived ? 'fa-box-open' : 'fa-bell-slash'}`}></i>
               </div>
-              <h3>No notification selected</h3>
-              <p>Choose a notification from the list to view its details and take actions.</p>
+              <h3>{viewArchived ? 'No archived notification selected' : 'No notification selected'}</h3>
+              <p>{viewArchived ? 'Choose an archived notification from the list to view its details and take actions.' : 'Choose a notification from the list to view its details and take actions.'}</p>
               <div className="empty-suggestions">
                 <div className="suggestion-item">
                   <i className="fas fa-search"></i>
-                  <span>Use the search bar to find specific notifications</span>
+                  <span>{viewArchived ? 'Use the search bar to find specific archived notifications' : 'Use the search bar to find specific notifications'}</span>
                 </div>
                 <div className="suggestion-item">
                   <i className="fas fa-filter"></i>
-                  <span>Filter by type to narrow down results</span>
+                  <span>{viewArchived ? 'Filter by type to narrow down archived results' : 'Filter by type to narrow down results'}</span>
                 </div>
               </div>
             </div>
           )}
         </div>
       </div>
+      {/* Notification delete confirmation modal (own classnames) */}
+      {showDeleteModal && (
+        <div className="notif-delete-modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="notif-delete-modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="notif-delete-modal-header">
+              <i className="fas fa-exclamation-triangle notif-delete-warning-icon"></i>
+              <h3 className="notif-delete-modal-title">Delete Notification</h3>
+            </div>
+
+            <div className="notif-delete-modal-body">
+              <p className="notif-delete-confirmation-text">
+                Are you sure you want to delete this notification? This action cannot be undone.
+              </p>
+
+              {selectedNotification && (
+                <div className="notif-receipt-details-summary">
+                  <div className="notif-detail-row">
+                    <span className="notif-detail-label">ID:</span>
+                    <span className="notif-detail-value">{selectedNotification.id}</span>
+                  </div>
+                  <div className="notif-detail-row">
+                    <span className="notif-detail-label">Title:</span>
+                    <span className="notif-detail-value">{selectedNotification.title || selectedNotification.type}</span>
+                  </div>
+                  <div className="notif-detail-row">
+                    <span className="notif-detail-label">Date:</span>
+                    <span className="notif-detail-value">{(selectedNotification.created_at || selectedNotification.timestamp) ? new Date(selectedNotification.created_at || selectedNotification.timestamp).toLocaleString() : 'N/A'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="notif-delete-modal-footer">
+              <button
+                type="button"
+                className="notif-delete-btn notif-delete-btn-cancel"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleteLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="notif-delete-btn notif-delete-btn-confirm"
+                onClick={handleConfirmDelete}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-trash"></i>
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
