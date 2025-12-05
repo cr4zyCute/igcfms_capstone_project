@@ -510,6 +510,10 @@ const NotificationBar = () => {
                             className={getNotificationIcon(notification.type)}
                           ></i>
                         </div>
+                        <div className="notification-tags">
+                        <span className="category-tag">{notification.category || notification.type}</span>
+                        {notification.type === 'login' && <span className="status-tag successful">Successful</span>}
+                      </div>
                         <div className="notification-meta">
                           <span className="notification-time">
                             {getTimeAgo(notification.created_at || notification.timestamp)}

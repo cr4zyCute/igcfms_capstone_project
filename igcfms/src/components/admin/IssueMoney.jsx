@@ -15,7 +15,6 @@ import {
   useCreateDisbursement 
 } from '../../hooks/useDisbursements';
 import { printCompleteCheque } from '../pages/print/chequeSimplePrint.jsx';
-import { getReceiptPrintHTML } from '../pages/print/recieptPrint.jsx';
 
 const CHEQUE_FIELD_LABELS = {
   dateIssued: "Date Issued",
@@ -112,7 +111,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
     fundAccountId: "",
     modeOfPayment: "Cash",
     chequeNumber: "",
-    receiptNumber: "", // Receipt number for printing
     description: ""
   });
 
@@ -152,10 +150,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
   const [dragState, setDragState] = useState(null);
   const [chequeDateFormatIndex, setChequeDateFormatIndex] = useState(0);
   
-  // Receipt number modal state
-  const [showReceiptNumberModal, setShowReceiptNumberModal] = useState(false);
-  const [receiptNumber, setReceiptNumber] = useState("");
-  const [receiptNumberError, setReceiptNumberError] = useState("");
 
   const API_BASE = API_BASE_URL;
   const token = localStorage.getItem("token");
@@ -791,65 +785,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
     setChequePreviewPositions(cloneDefaultChequeLayout());
   };
 
-  const handlePrintReceiptClick = () => {
-    // Use receipt number from disbursementResult if available
-    const receiptNum = disbursementResult?.receiptNumber || "";
-    
-    if (!receiptNum.trim()) {
-      showMessage("Receipt number is required. Please enter it in the form.", 'error');
-      return;
-    }
-
-    handlePrintReceiptWithNumber(receiptNum.trim());
-  };
-
-  const handlePrintReceiptWithNumber = (receiptNum) => {
-    // Get the receipt print area element
-    const receiptElement = document.getElementById('disbursementReceiptPrint');
-    if (!receiptElement) {
-      console.error('Receipt print area not found.');
-      return;
-    }
-
-    // Create a new window for printing - Receipt size (4 x 8.6 inches)
-    const printWindow = window.open('', '_blank', 'width=384,height=825');
-    if (!printWindow) {
-      console.error('Unable to open print window.');
-      return;
-    }
-
-    // Get the print HTML template from the imported function
-    printWindow.document.write(getReceiptPrintHTML());
-
-    // Clone the receipt content and update receipt number
-    const clonedReceipt = receiptElement.cloneNode(true);
-    
-    // Update the receipt number in the cloned element
-    const receiptNumberElement = clonedReceipt.querySelector('.receipt-number');
-    if (receiptNumberElement) {
-      receiptNumberElement.textContent = receiptNum;
-    }
-    
-    printWindow.document.write(clonedReceipt.outerHTML);
-
-    // Close the document
-    printWindow.document.write(`
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-
-    // Wait for content to load then print
-    printWindow.onload = function() {
-      setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
-      }, 250);
-    };
-
-    setReceiptNumber("");
-  };
 
   const sanitizeForHtml = (value) => (value || '').toString()
     .replace(/&/g, '&amp;')
@@ -1134,8 +1069,7 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
         mode_of_payment: formData.modeOfPayment,
         cheque_number: formData.modeOfPayment === "Cheque" ? formData.chequeNumber.trim() : null,
         issued_by: parseInt(userId),
-        receipt_no: formData.referenceNo.trim(), // Use reference number as receipt number
-        reference_no: formData.referenceNo.trim(), // Same as reference number for consistency
+        reference_no: formData.referenceNo.trim(),
         audit_trail: {
           action: "MONEY_ISSUED",
           fund_account: selectedFund?.name || `Fund #${formData.fundAccountId}`,
@@ -1286,7 +1220,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
         referenceNo: formData.referenceNo,
         modeOfPayment: formData.modeOfPayment,
         chequeNumber: formData.chequeNumber,
-        receiptNumber: formData.receiptNumber,
         fundAccount: selectedFund?.name || 'Unknown Fund',
         issuedAt: new Date().toISOString()
       });
@@ -1317,7 +1250,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
         description: "",
         modeOfPayment: "Cash",
         chequeNumber: "",
-        receiptNumber: "",
       });
 
       setShowFormModal(false);
@@ -1582,20 +1514,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
             onChange={(e) => handleInputChange('description', e.target.value)}
             rows="2"
           />
-        </div>
-        <div className="form-group">
-          <label>Receipt Number *</label>
-          <input
-            type="text"
-            placeholder="Enter receipt number"
-            value={formData.receiptNumber || ''}
-            onChange={(e) => handleInputChange('receiptNumber', e.target.value.toUpperCase())}
-            required
-          />
-          <small className="field-hint">
-            <i className="fas fa-info-circle"></i>
-            Receipt number for printing.
-          </small>
         </div>
       </div>
 
@@ -2403,76 +2321,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
               </button>
             </div>
             <div className="modal-body">
-              {/* Receipt Display Area - Visible in modal */}
-              <div className="receipt-print-area" id="disbursementReceiptPrint">
-                <div className="official-receipt-header">
-                  <div className="receipt-title-section">
-                    <div className="receipt-logos">
-                      <div className="logo-image left-logo" aria-hidden="true"></div>
-                      <div className="receipt-title-content" aria-hidden="true"></div>
-                      <div className="logo-image right-logo" aria-hidden="true"></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="official-receipt-body">
-                  <div className="receipt-center-logos" aria-hidden="true">
-                    <div className="center-logo-container"></div>
-                  </div>
-
-                  <div className="receipt-payer-info">
-                    <p>
-                      <strong>ISSUED TO:</strong> {disbursementResult?.recipientName || 'N/A'}
-                    </p>
-                    <p>
-                      <strong>DATE:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                  </div>
-
-                  <div className="receipt-fund-info">
-                    <p className="fund-label">FUND ACCOUNTS USED:</p>
-                    <div className="fund-items-grid single-column">
-                      <div className="fund-item-row">
-                        <span className="fund-name">{disbursementResult?.fundAccount || 'N/A'}</span>
-                        <span className="fund-amount">
-                          ₱{disbursementResult?.amount ? parseFloat(disbursementResult.amount).toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          }) : '0.00'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="receipt-body-spacer"></div>
-
-                  <div className="receipt-total-right">
-                    <span className="total-label-bold">TOTAL:</span>
-                    <span className="total-amount-bold">PHP{disbursementResult?.amount ? parseFloat(disbursementResult.amount).toFixed(2) : '0.00'}</span>
-                  </div>
-
-                  <div className="amount-words-bold">
-                    {disbursementResult?.amount ? numberToWords(parseFloat(disbursementResult.amount)) : 'ZERO'} PESOS ONLY
-                  </div>
-
-                  {disbursementResult?.description && (
-                    <div className="receipt-description-box">
-                      <p className="description-label-receipt">Description:</p>
-                      <p className="description-text-receipt">{disbursementResult.description}</p>
-                    </div>
-                  )}
-
-                  {(user?.name || user?.role) && (
-                    <div className="receipt-issued-by">
-                      <p className="issued-by-name">
-                        {user?.name || 'N/A'}
-                        {user?.role ? ` • ${user.role}` : ''}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               <div className="success-details">
                 <div className="result-details">
                   <div className="detail-item">
@@ -2573,13 +2421,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
                   <i className="fas fa-print"></i> Print Cheque
                 </button>
               )}
-              <button
-                type="button"
-                className="print-btn"
-                onClick={handlePrintReceiptClick}
-              >
-                <i className="fas fa-receipt"></i> Print Receipt
-              </button>
             </div>
           </div>
         </div>

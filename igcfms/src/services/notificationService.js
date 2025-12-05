@@ -112,7 +112,7 @@ class NotificationService {
     switch (type) {
       case 'MONEY_RECEIVED':
         return await this.createNotification({
-          title: '💰 Money Received',
+          title: 'Money Received',
           message: `₱${parseFloat(data.amount).toLocaleString()} received from ${data.payer} into ${data.fund_account}`,
           type: 'success',
           transaction_id: data.transaction_id,
@@ -123,7 +123,7 @@ class NotificationService {
 
       case 'MONEY_ISSUED':
         return await this.createNotification({
-          title: '💸 Money Issued',
+          title: 'Money Issued',
           message: `₱${parseFloat(data.amount).toLocaleString()} disbursed to ${data.recipient} from ${data.fund_account}`,
           type: 'warning',
           transaction_id: data.transaction_id,
@@ -134,7 +134,7 @@ class NotificationService {
 
       case 'CHEQUE_ISSUED':
         return await this.createNotification({
-          title: '📝 Cheque Issued',
+          title: 'Cheque Issued',
           message: `Cheque #${data.cheque_number} for ₱${parseFloat(data.amount).toLocaleString()} issued to ${data.recipient}`,
           type: 'info',
           transaction_id: data.transaction_id,
@@ -146,7 +146,7 @@ class NotificationService {
 
       case 'FUND_ACCOUNT_CREATED':
         return await this.createNotification({
-          title: '🏦 Fund Account Created',
+          title: 'Fund Account Created',
           message: `New fund account "${data.name}" created with initial balance ₱${parseFloat(data.balance).toLocaleString()}`,
           type: 'info',
           fund_account_id: data.fund_account_id,
@@ -156,7 +156,7 @@ class NotificationService {
 
       case 'RECIPIENT_ACCOUNT_CREATED':
         return await this.createNotification({
-          title: '👤 Recipient Account Created',
+          title: 'Recipient Account Created',
           message: `New recipient account "${data.name}" created and linked to ${data.fund_account}`,
           type: 'info',
           fund_account_id: data.fund_account_id,
@@ -175,7 +175,7 @@ class NotificationService {
 
       case 'TRANSACTION_OVERRIDE':
         return await this.createNotification({
-          title: '🔄 Transaction Override',
+          title: 'Transaction Override',
           message: `Transaction #${data.transaction_id} was overridden by admin. Reason: ${data.reason}`,
           type: 'error',
           transaction_id: data.transaction_id,
