@@ -219,6 +219,21 @@ const NotificationBar = () => {
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllAsReadMutation.mutateAsync();
+      // Update local state to mark all notifications as read
+      const newReadMap = {};
+      filteredNotifications.forEach(notification => {
+        newReadMap[notification.id] = true;
+      });
+      setLocalReadMap(prev => ({ ...prev, ...newReadMap }));
+      console.log('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
   const handleNotificationClick = (notification) => {
     setSelectedNotification(notification);
     const isRead = localReadMap[notification.id] !== undefined ? localReadMap[notification.id] : (notification.read || notification.is_read);
@@ -475,12 +490,12 @@ const NotificationBar = () => {
             <div className="list-header">
               <h3> {selectedFilterLabel}</h3>
               {notificationsFetching && notifications.length > 0 && (
-            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#64748b' }}>
-              <i className="fas fa-sync fa-spin" style={{ fontSize: '10px' }}></i> Updating...
-            </span>
-          )}
+                <span style={{ marginLeft: '10px', fontSize: '12px', color: '#64748b' }}>
+                  <i className="fas fa-sync fa-spin" style={{ fontSize: '10px' }}></i> Updating...
+                </span>
+              )}
               {!viewArchived && (
-                <button className="mark-all-read-btn">
+                <button className="mark-all-read-btn" onClick={handleMarkAllAsRead}>
                   <i className="fas fa-check-double"></i>
                   Mark all as read
                 </button>
