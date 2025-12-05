@@ -293,7 +293,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
   // Show helpful message if no disbursements exist
   useEffect(() => {
     if (!disbursementsLoading && disbursements.length === 0) {
-      setErrorMessage("No disbursement transactions found. Please create disbursement transactions using 'Disburese' first before issuing cheques.");
+      setErrorMessage("No disbursement transactions found. Please create disbursement transactions using 'Disburse' first before issuing cheques.");
     }
   }, [disbursements, disbursementsLoading]);
 

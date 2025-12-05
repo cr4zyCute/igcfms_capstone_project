@@ -48,7 +48,7 @@ const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab }) =
       'notifications': 'Notifications',
       'receive-money': 'Collection',
       'issue-receipt': 'Receipt',
-      'issue-money': 'Disburese',
+      'issue-money': 'Disburse',
       'issue-check': 'Issue Cheque',
       'override-transactions': 'Override Transactions',
       'transaction-management': 'Transaction Management',

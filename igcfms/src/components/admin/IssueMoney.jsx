@@ -15,6 +15,8 @@ import {
   useCreateDisbursement 
 } from '../../hooks/useDisbursements';
 import { printCompleteCheque } from '../pages/print/chequeSimplePrint.jsx';
+import * as XLSX from 'xlsx';
+import { generateDisbursementPDF } from '../reports/export/pdf/disbursementExport.jsx';
 
 const CHEQUE_FIELD_LABELS = {
   dateIssued: "Date Issued",
@@ -91,8 +93,15 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
   const [filters, setFilters] = useState({
     activeFilter: "all",
     searchTerm: "",
-    showFilterDropdown: false
+    showFilterDropdown: false,
+    startDate: "",
+    endDate: "",
+    showDateFilter: false
   });
+  // PDF preview state
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState("");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const exportDropdownRef = useRef(null);
   const dpoChartRef = useRef(null);
@@ -100,7 +109,39 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
   const miniGraphRef = useRef(null);
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 15;
+  // Derived pagination values
+  const totalPages = useMemo(() => {
+    const total = filteredDisbursements.length;
+    return Math.max(1, Math.ceil(total / itemsPerPage));
+  }, [filteredDisbursements, itemsPerPage]);
+
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredDisbursements.slice(startIndex, endIndex);
+  }, [filteredDisbursements, currentPage, itemsPerPage]);
+
+  // Keep current page within bounds when data size changes
+  useEffect(() => {
+    setCurrentPage(prev => Math.min(Math.max(prev, 1), totalPages));
+  }, [totalPages]);
+
+  const goPrevPage = useCallback(() => {
+    setCurrentPage(prev => {
+      const nextVal = Math.max(1, prev - 1);
+      console.debug('[Pagination] Prev click:', { prev, nextVal, totalPages });
+      return nextVal;
+    });
+  }, [totalPages]);
+
+  const goNextPage = useCallback(() => {
+    setCurrentPage(prev => {
+      const nextVal = Math.min(totalPages, prev + 1);
+      console.debug('[Pagination] Next click:', { prev, nextVal, totalPages });
+      return nextVal;
+    });
+  }, [totalPages]);
   
   // Form states
   const [formData, setFormData] = useState({
@@ -370,6 +411,24 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       });
     }
 
+    // Apply date filter
+    if (filters.startDate || filters.endDate) {
+      data = data.filter((disbursement) => {
+        const disbursementDate = new Date(disbursement.created_at || disbursement.updated_at);
+        const startDate = filters.startDate ? new Date(filters.startDate) : null;
+        const endDate = filters.endDate ? new Date(filters.endDate) : null;
+
+        if (startDate && endDate) {
+          return disbursementDate >= startDate && disbursementDate <= endDate;
+        } else if (startDate) {
+          return disbursementDate >= startDate;
+        } else if (endDate) {
+          return disbursementDate <= endDate;
+        }
+        return true;
+      });
+    }
+
     if (filters.activeFilter === 'latest') {
       data.sort((a, b) => new Date(b.created_at || b.updated_at) - new Date(a.created_at || a.updated_at));
     } else if (filters.activeFilter === 'oldest') {
@@ -385,7 +444,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
 
   useEffect(() => {
     applyFilters();
-    setCurrentPage(1); // Reset to first page when filters change
   }, [applyFilters]);
 
   useEffect(() => {
@@ -708,11 +766,13 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       ...prev,
       [key]: value
     }));
+    // When filters change, go back to page 1
+    setCurrentPage(1);
   };
 
   const formatCurrency = (value) => {
     const normalized = parseAmountValue(value);
-    return `₱${Math.abs(normalized).toLocaleString()}`;
+    return `PHP ${Math.abs(normalized).toLocaleString()}`;
   };
 
   const exportFilters = useMemo(() => ({
@@ -944,79 +1004,92 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       setShowExportDropdown(false);
       return;
     }
+    try {
+      const { blob, filename } = generateDisbursementPDF({
+        disbursementsForExport,
+        disbursementSummary,
+        filters: { startDate: filters.startDate, endDate: filters.endDate },
+        formatCurrency
+      });
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+      setPdfFileName(filename);
+      setShowPDFPreview(true);
+      setShowExportDropdown(false);
+    } catch (e) {
+      console.error('Error generating PDF:', e);
+      showMessage('Error generating PDF. Please try again.', 'error');
+    }
+  };
 
-    if (typeof window === 'undefined') {
+  const downloadPDFFromPreview = () => {
+    if (!pdfPreviewUrl) return;
+    const link = document.createElement('a');
+    link.href = pdfPreviewUrl;
+    link.download = pdfFileName || 'Disbursements.pdf';
+    link.click();
+  };
+
+  const closePDFPreview = () => {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setShowPDFPreview(false);
+    setPdfPreviewUrl(null);
+    setPdfFileName('');
+  };
+
+  const handleExportExcel = () => {
+    if (!filteredDisbursements.length) {
+      setShowExportDropdown(false);
       return;
     }
 
-    const pdfWindow = window.open('', '_blank');
-    if (!pdfWindow) {
-      return;
-    }
+    // Prepare data for Excel
+    const excelData = disbursementsForExport.map((item) => ({
+      'Disbursement ID': `#${item.id}`,
+      'Reference': item.reference,
+      'Recipient': item.recipient,
+      'Amount': item.amount,
+      'Payment Mode': item.mode_of_payment,
+      'Date': item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'
+    }));
 
-    const generatedBy = (typeof window !== 'undefined' && localStorage.getItem('user_name')) || 'System';
-    const summaryRows = `
-      <p><strong>Total Disbursements:</strong> ${disbursementSummary.totalCount}</p>
-      <p><strong>Total Amount:</strong> ${formatCurrency(disbursementSummary.totalAmount)}</p>
-      <p><strong>Average Amount:</strong> ${formatCurrency(disbursementSummary.averageAmount)}</p>
-    `;
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Disbursements');
 
-    const rows = disbursementsForExport.map((item) => `
-      <tr>
-        <td>#${item.id}</td>
-        <td>${item.reference}</td>
-        <td>${item.recipient}</td>
-        <td>${formatCurrency(item.amount)}</td>
-        <td>${item.mode_of_payment}</td>
-        <td>${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}</td>
-      </tr>
-    `).join('');
+    // Add summary sheet
+    const summaryData = [
+      { 'Metric': 'Total Disbursements', 'Value': disbursementSummary.totalCount },
+      { 'Metric': 'Total Amount', 'Value': formatCurrency(disbursementSummary.totalAmount) },
+      { 'Metric': 'Average Amount', 'Value': formatCurrency(disbursementSummary.averageAmount) },
+      { 'Metric': 'Generated', 'Value': new Date().toLocaleString() },
+      { 'Metric': 'Sorting', 'Value': exportFilters.Sorting },
+      { 'Metric': 'Search', 'Value': exportFilters.Search }
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
-    pdfWindow.document.write(`
-      <html>
-        <head>
-          <title>Recent Disbursements Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
-            h1 { font-size: 24px; margin-bottom: 8px; }
-            h2 { font-size: 18px; margin-top: 24px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-            th, td { border: 1px solid #d1d5db; padding: 8px 12px; text-align: left; }
-            th { background: #111827; color: #ffffff; text-transform: uppercase; font-size: 12px; }
-            td { font-size: 13px; }
-          </style>
-        </head>
-        <body>
-          <h1>Recent Disbursements Report</h1>
-          <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-          <p><strong>Generated By:</strong> ${generatedBy}</p>
-          <h2>Filters</h2>
-          <p><strong>Sorting:</strong> ${exportFilters.Sorting}</p>
-          <p><strong>Search:</strong> ${exportFilters.Search}</p>
-          <h2>Summary</h2>
-          ${summaryRows}
-          <h2>Disbursements</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Disbursement ID</th>
-                <th>Reference</th>
-                <th>Recipient</th>
-                <th>Amount</th>
-                <th>Payment Mode</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `);
-    pdfWindow.document.close();
-    pdfWindow.focus();
-    pdfWindow.print();
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 }
+    ];
+
+    wsSummary['!cols'] = [
+      { wch: 20 },
+      { wch: 30 }
+    ];
+
+    // Generate filename with date
+    const fileName = `disbursements_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Write file
+    XLSX.writeFile(wb, fileName);
     setShowExportDropdown(false);
   };
 
@@ -2004,36 +2077,81 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       )}
       {/* Recent Disbursements */}
       <div className="recent-disbursements-section">
-        <div className="section-header">
-          <div className="section-title-group">
-            <h3>
+        <div className="section-header" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px 16px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb', flexWrap: 'nowrap', width: '100%' }}>
+          <div className="section-title-group" style={{ whiteSpace: 'nowrap' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
               <i className="fas fa-history"></i>
-              Recent Disbursements
-              <span className="section-count">({filteredDisbursements.length})</span>
+              Disbursements
+              <span className="section-count" style={{ marginLeft: '8px', color: '#9ca3af', fontSize: '10px', fontWeight: '500' }}>({filteredDisbursements.length})</span>
             </h3>
           </div>
-          <div className="header-controls">
-            <div className="search-filter-container">
-              <div className="account-search-container">
-                <input
-                  type="text"
-                  placeholder="Search disbursements..."
-                  value={filters.searchTerm}
-                  onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-                  className="account-search-input"
-                />
-                <i className="fas fa-search account-search-icon"></i>
-              </div>
 
-              <div className="filter-dropdown-container">
+          <div className="account-search-container" style={{ flex: '1 1 420px', minWidth: '280px', maxWidth: '560px' }}>
+            <input
+              type="text"
+              placeholder="Search receipts..."
+              value={filters.searchTerm}
+              onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+              className="account-search-input"
+              style={{ height: '34px', lineHeight: '34px' }}
+            />
+            <i className="fas fa-search account-search-icon"></i>
+          </div>
+
+          <div className="date-filter-container" style={{ display: 'flex', gap: '12px', alignItems: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '140px' }}>
+              <label style={{ fontSize: '10px', fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date From</label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                placeholder="dd/mm/yyyy"
+                style={{
+                  padding: '5px 8px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  backgroundColor: '#ffffff',
+                  color: '#374151',
+                  fontFamily: 'monospace',
+                  height: '34px',
+                  width: '140px'
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '140px' }}>
+              <label style={{ fontSize: '10px', fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date To</label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                placeholder="dd/mm/yyyy"
+                style={{
+                  padding: '5px 8px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  backgroundColor: '#ffffff',
+                  color: '#374151',
+                  fontFamily: 'monospace',
+                  height: '34px',
+                  width: '140px'
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="header-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+            <div className="filter-dropdown-container" style={{ flexShrink: 0 }}>
                 <button
                   className="filter-dropdown-btn"
                   onClick={() => handleFilterChange('showFilterDropdown', !filters.showFilterDropdown)}
                   title="Filter disbursements"
                   type="button"
+                  style={{ height: '34px', padding: '6px 10px' }}
                 >
                   <i className="fas fa-filter"></i>
-                  <span className="filter-label">
+                  <span className="filter-label" style={{ textTransform: 'uppercase', fontSize: '12px', fontWeight: 700 }}>
                     {filters.activeFilter === 'all' ? 'All Disbursements' :
                      filters.activeFilter === 'latest' ? 'Latest First' :
                      filters.activeFilter === 'oldest' ? 'Oldest First' :
@@ -2093,13 +2211,13 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="action-buttons" ref={exportDropdownRef}>
+              <div className="action-buttons" ref={exportDropdownRef} style={{ flexShrink: 0 }}>
               <button
                 className="btn-icon export-btn"
                 title="Export Disbursements"
                 type="button"
+                style={{ height: '34px', width: '34px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 onClick={() => setShowExportDropdown(prev => !prev)}
               >
                 <i className="fas fa-download"></i>
@@ -2110,16 +2228,19 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
                     <i className="fas fa-file-pdf"></i>
                     <span>Download PDF</span>
                   </button>
-              
+                  <button type="button" className="export-option" onClick={handleExportExcel}>
+                    <i className="fas fa-file-excel"></i>
+                    <span>Download Excel</span>
+                  </button>
                 </div>
               )}
+              </div>
             </div>
-          </div>
         </div>
 
         <div className="disbursements-table-section">
           <div className="disbursements-table-container">
-            <table className="disbursements-table receipts-table">
+            <table className="disbursements-table receipts-table" key={`page-${currentPage}`}>
               <thead>
                 <tr>
                   <th><i className="fas fa-hashtag"></i> DISBURSEMENT ID</th>
@@ -2131,15 +2252,8 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
                 </tr>
               </thead>
               <tbody>
-                {(() => {
-                  // Calculate pagination
-                  const totalPages = Math.ceil(filteredDisbursements.length / itemsPerPage);
-                  const startIndex = (currentPage - 1) * itemsPerPage;
-                  const endIndex = startIndex + itemsPerPage;
-                  const paginatedData = filteredDisbursements.slice(startIndex, endIndex);
-                  
-                  return paginatedData.length > 0 ? (
-                    paginatedData.map((disbursement) => {
+                {paginatedData.length > 0 ? (
+                  paginatedData.map((disbursement) => {
                     const rawAmount = Number.parseFloat(disbursement.amount ?? 0);
                     const amountValue = Number.isFinite(rawAmount) ? rawAmount : 0;
                     const amountClass = amountValue < 0 ? "amount-negative" : "amount-positive";
@@ -2191,46 +2305,47 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
                       <p>No recent disbursements found.</p>
                     </td>
                   </tr>
-                );
-                })()}
+                )}
               </tbody>
             </table>
           </div>
           
           {/* Pagination Controls */}
-          {filteredDisbursements.length > 0 && (() => {
-            const totalItems = filteredDisbursements.length;
-            const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-            const displayStart = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-            const displayEnd = Math.min(currentPage * itemsPerPage, totalItems);
-            
-            return (
-              <div className="table-pagination">
-                <div className="pagination-info">
-                  Showing {displayStart}-{displayEnd} of {totalItems} disbursements
-                </div>
-                <div className="pagination-controls">
-                  <button
-                    type="button"
-                    className="pagination-button"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </button>
-                  <span className="pagination-info">Page {currentPage} of {totalPages}</span>
-                  <button
-                    type="button"
-                    className="pagination-button"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage >= totalPages}
-                  >
-                    Next
-                  </button>
-                </div>
+          {filteredDisbursements.length > 0 && (
+            <div className="table-pagination" onMouseDown={(e) => e.stopPropagation()}>
+              <div className="pagination-info">
+                {(() => {
+                  const totalItems = filteredDisbursements.length;
+                  const displayStart = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+                  const displayEnd = Math.min(currentPage * itemsPerPage, totalItems);
+                  return (
+                    <>Showing {displayStart}-{displayEnd} of {totalItems} disbursements</>
+                  );
+                })()}
               </div>
-            );
-          })()}
+              <div className="pagination-controls">
+                <button
+                  type="button"
+                  className="pagination-button"
+                  onMouseDown={(e) => { e.stopPropagation(); goPrevPage(); }}
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </button>
+                <span className="pagination-info">Page {currentPage} of {totalPages}</span>
+                <button
+                  type="button"
+                  className="pagination-button"
+                  onMouseDown={(e) => { e.stopPropagation(); goNextPage(); }}
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={currentPage >= totalPages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2421,6 +2536,60 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
                   <i className="fas fa-print"></i> Print Cheque
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {showPDFPreview && pdfPreviewUrl && (
+        <div 
+          className="pdf-preview-modal-overlay" 
+          onClick={closePDFPreview}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000
+          }}
+        >
+          <div 
+            className="pdf-preview-modal" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '80vw', height: '85vh', background: '#fff', borderRadius: '10px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            <div 
+              className="pdf-preview-header" 
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                       padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}
+            >
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                Disbursements PDF Preview
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button 
+                  type="button" 
+                  onClick={downloadPDFFromPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #111827', borderRadius: 6, background: '#111827', color: '#fff', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-download"></i> Download
+                </button>
+                <button 
+                  type="button" 
+                  onClick={closePDFPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', color: '#111827', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-times"></i> Close
+                </button>
+              </div>
+            </div>
+            <div className="pdf-preview-body" style={{ flex: 1, background: '#11182710' }}>
+              <iframe
+                title="Disbursements PDF Preview"
+                src={pdfPreviewUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
             </div>
           </div>
         </div>

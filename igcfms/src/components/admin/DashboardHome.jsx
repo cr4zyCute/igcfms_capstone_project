@@ -578,8 +578,8 @@ const formatPeso = (num) => new Intl.NumberFormat('en-PH', { style: 'currency', 
             <MetricCard label="Active Fund Accounts" value={stats.activeFunds} trend={{ pct: 0, dir: 'up' }} />
             <MetricCard label="Total Collections" value={formatPeso(stats.totalCollections)} trend={collectionsTrend} />
             <MetricCard label="Total Disbursements" value={formatPeso(stats.totalDisbursements)} trend={disbTrend} />
-            <MetricCard label="Net Balance" value={formatPeso(stats.netBalance)} trend={netTrend} />
-            <MetricCard label="System Health" value={wsConnected ? 'Operational' : 'Degraded'} health={wsConnected ? 'ok' : 'warn'} />
+            {/* <MetricCard label="Net Balance" value={formatPeso(stats.netBalance)} trend={netTrend} /> */}
+            {/* <MetricCard label="System Health" value={wsConnected ? 'Operational' : 'Degraded'} health={wsConnected ? 'ok' : 'warn'} /> */}
           </div>
         </>
       )}

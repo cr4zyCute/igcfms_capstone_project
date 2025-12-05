@@ -13,23 +13,28 @@ export const DISBURSEMENTS_KEYS = {
   detail: (id) => [...DISBURSEMENTS_KEYS.details(), id],
 };
 
-// Fetch disbursements from transactions
+// Fetch disbursements by filtering transactions (ensures older records are included)
 const fetchDisbursements = async () => {
   const token = localStorage.getItem('token');
   if (!token) throw new Error('No authentication token found');
 
   const headers = { Authorization: `Bearer ${token}` };
-  
-  // Fetch all transactions
   const response = await axios.get(`${API_BASE}/transactions`, { headers });
-  const allTransactions = response.data || [];
-  
-  // Filter only disbursements and sort by date
-  const disbursements = allTransactions
-    .filter(tx => tx.type === 'Disbursement')
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  
-  return disbursements;
+  const txs = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+
+  const mapped = txs
+    .filter((tx) => (tx?.type || '').toLowerCase() === 'disbursement')
+    .map((tx) => ({
+      id: tx.id,
+      reference: tx.reference || tx.reference_no || tx.receipt_no || '',
+      recipient: tx.recipient || 'N/A',
+      amount: Math.abs(Number(tx.amount) || 0),
+      mode_of_payment: tx.mode_of_payment || 'N/A',
+      created_at: tx.created_at || tx.updated_at
+    }))
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+  return mapped;
 };
 
 // Fetch fund accounts
@@ -72,9 +77,10 @@ export const useDisbursements = (options = {}) => {
     queryFn: fetchDisbursements,
     enabled,
     refetchInterval,
-    staleTime: 5 * 60 * 1000, // 5 minutes - increased for better performance
-    cacheTime: 10 * 60 * 1000, // 10 minutes
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    staleTime: 10 * 60 * 1000, // 10 minutes to avoid frequent refetches
+    cacheTime: 15 * 60 * 1000, // 15 minutes cache
+    refetchOnWindowFocus: false, // Do not refetch on focus to reduce load
+    keepPreviousData: true,
   });
 };
 

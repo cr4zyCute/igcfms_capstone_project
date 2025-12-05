@@ -4,6 +4,7 @@ import "./css/receivemoney.css";
 import axios from "axios";
 import notificationService from '../../services/notificationService';
 import balanceService from '../../services/balanceService';
+import { getTransactions, getReceipts } from '../../services/api';
 import { broadcastFundTransaction } from '../../services/fundTransactionChannel';
 import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
 import { printCompleteCheque } from '../pages/print/chequeSimplePrint';
@@ -26,6 +27,29 @@ const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => 
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [createdTransactions, setCreatedTransactions] = useState([]);
   const [receiptDescription, setReceiptDescription] = useState("");
+  const [lastReceiptNo, setLastReceiptNo] = useState("");
+  const [receiptInputRef, setReceiptInputRef] = useState(null);
+  // Accept broad uppercase alphanumeric-with-hyphen receipt formats
+  const RECEIPT_PATTERN = /^[A-Z0-9-]{5,50}$/;
+  const [receiptSuffix, setReceiptSuffix] = useState("");
+
+  // Simple cookie helpers for persistence across logout/refresh
+  const getCookie = (name) => {
+    try {
+      const parts = (document.cookie || '').split('; ');
+      for (const part of parts) {
+        const [k, ...rest] = part.split('=');
+        if (k === name) return decodeURIComponent(rest.join('='));
+      }
+      return null;
+    } catch { return null; }
+  };
+  const setLastReceiptPersistent = (val) => {
+    if (!val) return;
+    const v = String(val).toUpperCase();
+    try { localStorage.setItem('lastReceiptNo', v); } catch {}
+    try { document.cookie = `igcfms_last_receipt=${encodeURIComponent(v)}; path=/; max-age=${60*60*24*180}; SameSite=Lax`; } catch {}
+  };
 
   // Function to convert number to words
   const numberToWords = (num) => {
@@ -102,6 +126,82 @@ const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => 
       console.error('Error fetching accounts:', fundAccountsError || recipientAccountsError);
     }
   }, [fundAccountsError, recipientAccountsError]);
+
+  // Load last used receipt number – read saved first so it persists across refresh/logout,
+  // then try to refresh from server if available
+  useEffect(() => {
+    const parseDate = (d) => {
+      if (!d) return 0;
+      const t = Date.parse(d);
+      return Number.isNaN(t) ? 0 : t;
+    };
+
+    const isValidReceiptFormat = (val) => {
+      if (!val || typeof val !== 'string') return false;
+      const v = val.trim().toUpperCase();
+      return RECEIPT_PATTERN.test(v);
+    };
+
+    const load = async () => {
+      // 1) Read cookie first so it persists even if logout clears localStorage
+      try {
+        const cookieVal = getCookie('igcfms_last_receipt');
+        if (isValidReceiptFormat(cookieVal)) {
+          setLastReceiptNo(cookieVal.toUpperCase());
+        }
+      } catch {}
+      // 2) Then check localStorage
+      try {
+        const saved = localStorage.getItem('lastReceiptNo');
+        if (isValidReceiptFormat(saved)) {
+          setLastReceiptNo(saved.toUpperCase());
+        }
+      } catch {}
+
+      // 3) Try to fetch a fresher last value from the server
+      let serverLast = null;
+      try {
+        const rcResp = await getReceipts();
+        const receipts = Array.isArray(rcResp) ? rcResp : (rcResp?.data || rcResp?.receipts || []);
+        const latestR = (receipts || []).reduce((acc, r) => {
+          const no = r?.receipt_number || r?.receipt_no;
+          const date = parseDate(r?.issued_at || r?.created_at);
+          if (!no) return acc;
+          if (!acc || date > acc.date) return { no, date };
+          return acc;
+        }, null);
+        if (latestR && isValidReceiptFormat(latestR.no)) serverLast = latestR.no.toUpperCase();
+      } catch (e) {
+        // ignore
+      }
+
+      try {
+        const txResp = await getTransactions();
+        const txList = Array.isArray(txResp) ? txResp : (txResp?.data || txResp?.transactions || []);
+        const latestTx = (txList || [])
+          .filter(t => (t?.type || '').toString().toLowerCase() === 'collection')
+          .reduce((acc, t) => {
+            const no = t?.receipt_no;
+            const date = parseDate(t?.created_at);
+            if (!no) return acc;
+            if (!acc || date > acc.date) return { no, date };
+            return acc;
+          }, null);
+        if (latestTx && isValidReceiptFormat(latestTx.no)) {
+          if (!serverLast) serverLast = latestTx.no.toUpperCase();
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      if (serverLast && isValidReceiptFormat(serverLast)) {
+        setLastReceiptNo(serverLast);
+        setLastReceiptPersistent(serverLast);
+      }
+    };
+
+    load();
+  }, []);
 
   const handlePrintReceipt = () => {
     // Get the receipt print area element
@@ -331,6 +431,138 @@ const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => 
     ? payerName
     : payerSearch || payerName;
 
+  // Locked prefix derived from last used receipt (exclude its last character)
+  const lockedPrefix = RECEIPT_PATTERN.test((lastReceiptNo || '').toUpperCase())
+    ? lastReceiptNo.slice(0, -1).toUpperCase()
+    : '';
+
+  // Handle receipt number input focus - auto type last used (except last digit)
+  const handleReceiptNoFocus = () => {
+    const isValidLast = !!lockedPrefix;
+    if (isValidLast && !receiptNo) {
+      const prefix = lockedPrefix;
+      setReceiptNo(prefix);
+      setReceiptSuffix('');
+      // place caret at the end of the auto-typed prefix
+      setTimeout(() => {
+        if (receiptInputRef) {
+          receiptInputRef.focus();
+          try { receiptInputRef.setSelectionRange(prefix.length, prefix.length); } catch {}
+        }
+      }, 0);
+    }
+  };
+
+  // Handle receipt number input change
+  const handleReceiptNoChange = (e) => {
+    const value = e.target.value.toUpperCase();
+    // allow only A-Z, 0-9 and hyphen
+    const sanitized = value.replace(/[^A-Z0-9-]/g, '');
+
+    if (lockedPrefix) {
+      // Extract typed suffix (characters after locked prefix)
+      const afterPrefix = sanitized.startsWith(lockedPrefix)
+        ? sanitized.slice(lockedPrefix.length)
+        : sanitized;
+      const onlyAN = afterPrefix.replace(/[^A-Z0-9]/g, '');
+      const lastChar = onlyAN.slice(-1); // allow only the final character
+      setReceiptSuffix(lastChar);
+      setReceiptNo(lockedPrefix + lastChar);
+      // Keep caret at end
+      requestAnimationFrame(() => {
+        if (receiptInputRef) {
+          const pos = (lockedPrefix + lastChar).length;
+          try { receiptInputRef.setSelectionRange(pos, pos); } catch {}
+        }
+      });
+    } else {
+      setReceiptNo(sanitized);
+    }
+    clearError('receiptNo');
+  };
+
+  const handleReceiptNoKeyDown = (e) => {
+    if (!lockedPrefix || !receiptInputRef) return;
+    const input = receiptInputRef;
+    const prefixLen = lockedPrefix.length;
+    const selStart = input.selectionStart ?? 0;
+    // Prevent moving caret into the locked prefix or deleting it
+    if (
+      (e.key === 'Backspace' && selStart <= prefixLen) ||
+      (e.key === 'Delete' && selStart < prefixLen) ||
+      (e.key.length === 1 && selStart < prefixLen) ||
+      (e.key === 'ArrowLeft' && selStart <= prefixLen)
+    ) {
+      e.preventDefault();
+      try { input.setSelectionRange(prefixLen, prefixLen); } catch {}
+    }
+  };
+
+  const handleReceiptNoPaste = (e) => {
+    if (!lockedPrefix) return; // allow normal paste when no locked prefix
+    e.preventDefault();
+    const text = (e.clipboardData.getData('text') || '').toUpperCase();
+    const onlyAN = text.replace(/[^A-Z0-9]/g, '');
+    const lastChar = onlyAN.slice(-1);
+    setReceiptSuffix(lastChar);
+    const combined = lockedPrefix + lastChar;
+    setReceiptNo(combined);
+    requestAnimationFrame(() => {
+      if (receiptInputRef) {
+        const pos = combined.length;
+        try { receiptInputRef.setSelectionRange(pos, pos); } catch {}
+      }
+    });
+  };
+
+  // Handle receipt number blur - only validate (do not overwrite last used)
+  const handleReceiptNoBlur = async () => {
+    const current = receiptNo.trim();
+    if (!current) return;
+    const unique = await checkReceiptNoUnique(current);
+    if (!unique) {
+      setErrors(prev => ({ ...prev, receiptNo: 'Receipt number already exists. Please enter a unique number.' }));
+    }
+  };
+
+  // Check if a receipt number is unique against receipts and transactions (client-side filter)
+  const checkReceiptNoUnique = async (no) => {
+    const target = (no || '').trim().toUpperCase();
+    if (!target) return true;
+
+    // 1) Check receipts table
+    try {
+      const rcResp = await getReceipts();
+      const receipts = Array.isArray(rcResp) ? rcResp : (rcResp?.data || rcResp?.receipts || []);
+      const existsInReceipts = (receipts || []).some(r => (
+        (r?.receipt_number || r?.receipt_no || '')
+          .toString()
+          .trim()
+          .toUpperCase() === target
+      ));
+      if (existsInReceipts) return false;
+    } catch (e) {
+      console.warn('Receipt uniqueness check (receipts) failed:', e?.message || e);
+    }
+
+    // 2) Check transactions list
+    try {
+      const txResp = await getTransactions();
+      const txList = Array.isArray(txResp) ? txResp : (txResp?.data || txResp?.transactions || []);
+      const existsInTx = (txList || []).some(t => (
+        (t?.receipt_no || '')
+          .toString()
+          .trim()
+          .toUpperCase() === target
+      ));
+      if (existsInTx) return false;
+    } catch (e) {
+      console.warn('Receipt uniqueness check (transactions) failed:', e?.message || e);
+    }
+
+    return true;
+  };
+
   // Reset form
   const resetForm = () => {
     setPayerName("");
@@ -360,6 +592,15 @@ const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => 
     setLoading(true);
     setMessage("");
     setSuccessMessage("");
+    
+    // Ensure unique receipt number before proceeding
+    const isUnique = await checkReceiptNoUnique(receiptNo.trim());
+    if (!isUnique) {
+      setErrors(prev => ({ ...prev, receiptNo: 'Receipt number already exists. Please enter a unique number.' }));
+      setMessage('Receipt number already exists. Please enter a unique number.');
+      setLoading(false);
+      return;
+    }
     
     // Use the payer name entered by user
     const finalPayerName = payerName.trim();
@@ -473,6 +714,12 @@ const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => 
       // Store created transactions and description for receipt
       setCreatedTransactions(transactionResults);
       setReceiptDescription(description); // Save description before modal opens
+      // Persist last used receipt number (cookie + localStorage)
+      try {
+        const formatted = receiptNo.trim().toUpperCase();
+        setLastReceiptNo(formatted);
+        setLastReceiptPersistent(formatted);
+      } catch {}
       
       // Show receipt modal
       setShowReceiptModal(true);
@@ -542,16 +789,29 @@ const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => 
             <div className="form-row">
               <div className="form-group">
                 <label>Receipt Number</label>
-                <input
-                  type="text"
-                  value={receiptNo}
-                  onChange={(e) => {
-                    setReceiptNo(e.target.value.toUpperCase());
-                    clearError('receiptNo');
-                  }}
-                  placeholder="Enter receipt number"
-                  className={errors.receiptNo ? "error" : ""}
-                />
+                <div className="receipt-input-wrapper">
+                  <input
+                    ref={(ref) => setReceiptInputRef(ref)}
+                    type="text"
+                    value={receiptNo}
+                    onChange={handleReceiptNoChange}
+                    onFocus={handleReceiptNoFocus}
+                    onBlur={handleReceiptNoBlur}
+                    placeholder={RECEIPT_PATTERN.test((lastReceiptNo||'').toUpperCase()) ? ` ${lastReceiptNo}` : "Enter receipt number"}
+                    pattern="[A-Z0-9-]{5,50}"
+                    title="Format: RCPT-YYYYMMDD-#### (e.g., RCPT-20251206-0001)"
+                    autoComplete="off"
+                    onKeyDown={handleReceiptNoKeyDown}
+                    onPaste={handleReceiptNoPaste}
+                    className={errors.receiptNo ? "error" : ""}
+                  />
+                  {(RECEIPT_PATTERN.test((lastReceiptNo||'').toUpperCase()) && (receiptNo === '' || receiptNo === lastReceiptNo.slice(0, -1))) && (
+                    <span className="receipt-autocomplete-hint">
+                      <span className="hint-text">{receiptNo || lastReceiptNo.slice(0, -1)}</span>
+                      <span className="gray-char">{lastReceiptNo.slice(-1)}</span>
+                    </span>
+                  )}
+                </div>
                 {errors.receiptNo && <span className="error-text">{errors.receiptNo}</span>}
                 
               </div>
@@ -851,7 +1111,7 @@ const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => 
                       <div className="rm-account-balance">
                         <span className="rm-balance-label">BALANCE:</span>
                         <span className="rm-balance-value">
-                          ₱{parseFloat(account.balance || account.current_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₱{parseFloat(account.current_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     </div>

@@ -412,7 +412,7 @@ const TransactionManagement = ({ role = "Admin" }) => {
               </div>
             </div>
             
-            <div className={`kpi-card large net-balance ${stats.netBalance >= 0 ? 'positive' : 'negative'}`}>
+            {/* <div className={`kpi-card large net-balance ${stats.netBalance >= 0 ? 'positive' : 'negative'}`}>
               <div className="kpi-header">
                 <div className="kpi-icon">
                   <i className="fas fa-balance-scale"></i>
@@ -425,7 +425,7 @@ const TransactionManagement = ({ role = "Admin" }) => {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Second Row - Performance Metrics */}

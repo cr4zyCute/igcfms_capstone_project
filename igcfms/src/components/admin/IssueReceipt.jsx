@@ -1094,7 +1094,7 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
                   )}
                 </div>
                 
-                <div className="minimal-stat-card">
+                {/* <div className="minimal-stat-card">
                   {analyticsData.isLoading ? (
                     <div className="loading-indicator">
                     </div>
@@ -1108,7 +1108,7 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
                       </div>
                     </>
                   )}
-                </div>
+                </div> */}
               </div>
 
               {/* Box 1: Disbursement Trends Component */}
