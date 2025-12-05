@@ -38,9 +38,15 @@ const DashboardHome = () => {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [viewMode, setViewMode] = useState('daily'); // daily | weekly
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [streaming, setStreaming] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef(null);
+
+    const [showYearEndModal, setShowYearEndModal] = useState(false);
+  const [yearEndLoading, setYearEndLoading] = useState(false);
+  const [yearEndError, setYearEndError] = useState(null);
+  const [yearEndSuccess, setYearEndSuccess] = useState(null);
 
   const API_BASE = API_BASE_URL;
 
@@ -96,11 +102,12 @@ const DashboardHome = () => {
           new Date(tx.created_at).toDateString() === today
         ).length;
 
-        const totalCollections = transactions
+        const yearTransactions = filterTransactionsByYear(transactions, selectedYear);
+        const totalCollections = yearTransactions
           .filter(tx => tx.type === 'Collection')
           .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
 
-        const totalDisbursements = transactions
+        const totalDisbursements = yearTransactions
           .filter(tx => tx.type === 'Disbursement')
           .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
 
@@ -131,14 +138,15 @@ const DashboardHome = () => {
         // Stats are loaded
         setLoading(prev => ({ ...prev, stats: false }));
 
-        // Generate daily revenue data (last 7 days)
+        // Generate daily revenue data (last 7 days) - filtered by selected year
+        const yearTransactionsForChart = filterTransactionsByYear(transactions, selectedYear);
         const last7Days = [];
         for (let i = 6; i >= 0; i--) {
           const date = new Date();
           date.setDate(date.getDate() - i);
           const dateStr = date.toDateString();
           
-          const dayCollections = transactions
+          const dayCollections = yearTransactionsForChart
             .filter(tx => tx.type === 'Collection' && new Date(tx.created_at).toDateString() === dateStr)
             .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
           
@@ -146,7 +154,7 @@ const DashboardHome = () => {
             date: date.toLocaleDateString(),
             amount: dayCollections,
             collections: dayCollections,
-            disbursements: transactions
+            disbursements: yearTransactionsForChart
               .filter(tx => tx.type === 'Disbursement' && new Date(tx.created_at).toDateString() === dateStr)
               .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0)
           });
@@ -189,7 +197,7 @@ const DashboardHome = () => {
         }).sort((a, b) => b.total - a.total);
         setDepartmentStats(deptStats);
 
-        // Monthly revenue trend (last 6 months)
+        // Monthly revenue trend (last 6 months) - filtered by selected year
         const monthlyData = [];
         for (let i = 5; i >= 0; i--) {
           const date = new Date();
@@ -197,7 +205,7 @@ const DashboardHome = () => {
           const month = date.getMonth();
           const year = date.getFullYear();
           
-          const monthTransactions = transactions.filter(tx => {
+          const monthTransactions = yearTransactionsForChart.filter(tx => {
             const txDate = new Date(tx.created_at);
             return txDate.getMonth() === month && txDate.getFullYear() === year;
           });
@@ -241,8 +249,9 @@ const DashboardHome = () => {
         }).sort((a, b) => b.transactions - a.transactions);
         setUserActivity(userStats);
 
-        // Set other data
-        setRecentTransactions(transactions.slice(0, 10));
+        // Set other data - filtered by selected year
+        const yearTransactionsRecent = filterTransactionsByYear(transactions, selectedYear);
+        setRecentTransactions(yearTransactionsRecent.slice(0, 10));
         setTopAccounts(funds
           .sort((a, b) => parseFloat(b.current_balance || 0) - parseFloat(a.current_balance || 0))
           .slice(0, 5)
@@ -263,11 +272,6 @@ const DashboardHome = () => {
     };
 
     fetchDashboardData();
-
-    // Auto-refresh every 30s
-    const intervalId = setInterval(() => {
-      fetchDashboardData();
-    }, 30000);
 
     // WebSocket streaming (best-effort)
     try {
@@ -295,29 +299,96 @@ const DashboardHome = () => {
               }
               return copy;
             });
+            // Update KPI stats in real-time
+            setStats(prev => {
+              const amt = parseFloat(msg.data.amount || 0) || 0;
+              const isToday = new Date(msg.data.created_at).toDateString() === new Date().toDateString();
+              if (msg.data.type === 'Collection') {
+                return { ...prev, totalCollections: prev.totalCollections + amt, netBalance: prev.netBalance + amt, todayTransactions: prev.todayTransactions + (isToday ? 1 : 0) };
+              }
+              if (msg.data.type === 'Disbursement') {
+                return { ...prev, totalDisbursements: prev.totalDisbursements + amt, netBalance: prev.netBalance - amt, todayTransactions: prev.todayTransactions + (isToday ? 1 : 0) };
+              }
+              return prev;
+            });
             setLastUpdated(new Date());
             setTimeout(() => setStreaming(false), 1500);
           }
           if (msg.type === 'override' && msg.data) {
             setOverrideRequests(prev => [msg.data, ...prev].slice(0, 5));
           }
+            if (msg.type === 'stats' && msg.data) {
+              setStats(prev => ({ ...prev, ...msg.data }));
+              setLastUpdated(new Date());
+            }
         } catch {}
       };
     } catch {}
 
     return () => {
-      clearInterval(intervalId);
       if (wsRef.current) {
         try { wsRef.current.close(); } catch {}
       }
     };
-  }, []);
+  }, [selectedYear]);
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AA00FF", "#FF4444"];
   const GRAYS = ["#111111", "#333333", "#555555", "#777777", "#999999", "#BBBBBB"];
 
   // Helpers for trends
-  const formatPeso = (num) => `₱${(num || 0).toLocaleString()}`;
+const formatPeso = (num) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num || 0);
+  // Filter transactions by selected year
+  const filterTransactionsByYear = (transactions, year) => {
+    return transactions.filter(tx => {
+      const txYear = new Date(tx.created_at).getFullYear();
+      return txYear === year;
+    });
+  };
+  const handleYearEndClosing = async () => {
+  setYearEndLoading(true);
+  setYearEndError(null);
+  setYearEndSuccess(null);
+  try {
+    const token = localStorage.getItem('token');
+    const authHeader = `Bearer ${token}`;
+    const headers = { 'Authorization': authHeader, 'Content-Type': 'application/json' };
+    const url = `${API_BASE}/year-end-closing`;
+    const archivePayload = {
+      year: new Date().getFullYear(),
+      stats: stats,
+      transactions: recentTransactions,
+      monthlyData: monthlyRevenue,
+      departmentStats: departmentStats,
+      auditLogs: auditLogs,
+      archivedAt: new Date().toISOString()
+    };
+    const response = await axios.post(url, archivePayload, { headers });
+    const successMsg = `Year-End Closing completed. Data for year ${new Date().getFullYear() - 1} archived to reports.`;
+    setYearEndSuccess(successMsg);
+    setStats({
+      totalUsers: 0,
+      activeFunds: 0,
+      totalRevenue: 0,
+      totalExpense: 0,
+      todayTransactions: 0,
+      pendingOverrides: 0,
+      totalCollections: 0,
+      totalDisbursements: 0,
+      netBalance: 0,
+    });
+    setDailyRevenue([]);
+    setMonthlyRevenue([]);
+    setRecentTransactions([]);
+    setDepartmentStats([]);
+    setAuditLogs([]);
+    setShowYearEndModal(false);
+    setTimeout(() => window.location.reload(), 2000);
+  } catch (err) {
+    setYearEndError(err.response?.data?.message || err.message || 'Year-End Closing failed');
+  } finally {
+    setYearEndLoading(false);
+  }
+};
   const computeChange = (current, previous) => {
     const prev = previous || 0;
     if (prev === 0) return { pct: current ? 100 : 0, dir: current >= 0 ? 'up' : 'down' };
@@ -415,15 +486,50 @@ const DashboardHome = () => {
           <i className="fas fa-chart-line"></i> IGCFMS Admin Dashboard
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <p style={{ fontSize: '14px', color: '#666666', margin: 0 }}>
-            Comprehensive financial management system overview and analytics
-          </p>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            style={{
+              padding: '8px 12px',
+              background: '#ffffff',
+              color: '#000000',
+              border: '2px solid #e5e7eb',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              marginRight: '12px'
+            }}
+          >
+            {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2, new Date().getFullYear() - 3].map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+
+          <button
+            onClick={() => setShowYearEndModal(true)}
+            style={{
+              padding: '8px 16px',
+              background: '#dc2626',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <i className="fas fa-calendar-check"></i> Year-End Closing
+          </button>
           <div className="realtime-indicator">
-            <span className="realtime-dot"></span>
+            {/* <span className="realtime-dot"></span>
             {wsConnected ? 'Live' : ''}
             <span className="last-updated" style={{ marginLeft: 8 }}>
               {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : ''}
-            </span>
+            </span> */}
           </div>
         </div>
       </div>
@@ -472,8 +578,8 @@ const DashboardHome = () => {
             <MetricCard label="Active Fund Accounts" value={stats.activeFunds} trend={{ pct: 0, dir: 'up' }} />
             <MetricCard label="Total Collections" value={formatPeso(stats.totalCollections)} trend={collectionsTrend} />
             <MetricCard label="Total Disbursements" value={formatPeso(stats.totalDisbursements)} trend={disbTrend} />
-            <MetricCard label="Net Balance" value={formatPeso(stats.netBalance)} trend={netTrend} />
-            <MetricCard label="System Health" value={wsConnected ? 'Operational' : 'Degraded'} health={wsConnected ? 'ok' : 'warn'} />
+            {/* <MetricCard label="Net Balance" value={formatPeso(stats.netBalance)} trend={netTrend} /> */}
+            {/* <MetricCard label="System Health" value={wsConnected ? 'Operational' : 'Degraded'} health={wsConnected ? 'ok' : 'warn'} /> */}
           </div>
         </>
       )}
@@ -772,7 +878,7 @@ const DashboardHome = () => {
                   </div>
                   <div>
                     <div style={{ fontWeight: '600', color: '#000000', fontSize: '14px' }}>{account.name}</div>
-                    <div style={{ fontSize: '11px', color: '#666666' }}>{account.code} • {account.account_type}</div>
+                    <div style={{ fontSize: '11px', color: '#666666' }}>{account.code} €¢ {account.account_type}</div>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -976,7 +1082,7 @@ const StatCard = ({ label, value, icon, color = 'primary' }) => {
 const MetricCard = ({ label, value, trend, health, streaming }) => {
   const trendDir = trend?.dir === 'down' ? 'down' : 'up';
   const trendColor = trendDir === 'up' ? '#16a34a' : '#dc2626';
-  const trendArrow = trendDir === 'up' ? '↑' : '↓';
+  const trendArrow = trendDir === 'up' ? '†‘' : '†“';
   const healthText = health === 'ok' ? 'Operational' : health === 'warn' ? 'Degraded' : '';
   const healthColor = health === 'ok' ? '#16a34a' : '#f59e0b';
 
@@ -997,8 +1103,22 @@ const MetricCard = ({ label, value, trend, health, streaming }) => {
       {healthText ? (
         <div className="metric-trend" style={{ color: healthColor }}>{healthText}</div>
       ) : null}
-    </div>
-  );
-};
+      </div>
+    );
+  };
 
 export default DashboardHome;
+
+
+
+
+
+
+
+
+
+
+
+
+
+

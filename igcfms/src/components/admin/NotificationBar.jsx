@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import "./css/notificationbar.css";
 import { useNotifications, useMarkAsRead, useMarkAllAsRead } from '../../hooks/useNotifications';
+import { useFundAccounts } from '../../hooks/useFundAccounts';
 
 const NotificationBar = () => {
   const [selectedNotification, setSelectedNotification] = useState(null);
@@ -36,8 +37,207 @@ const NotificationBar = () => {
   const markAsReadMutation = useMarkAsRead();
   const markAllAsReadMutation = useMarkAllAsRead();
 
+  // Fund accounts for resolving fund account names in preview
+  const { data: fundAccountsPayload } = useFundAccounts({ page: 1, limit: 1000, enabled: !!token });
+  const fundAccountsList = (fundAccountsPayload && fundAccountsPayload.data) ? fundAccountsPayload.data : [];
+  const fundNameById = useMemo(() => {
+    const map = {};
+    for (const acc of fundAccountsList) {
+      map[String(acc.id)] = acc.name || acc.code || `Account #${acc.id}`;
+    }
+    return map;
+  }, [fundAccountsList]);
+
   // Track the last processed notification ID to avoid re-processing
   const lastProcessedIdRef = useRef(null);
+
+  // Helpers to suppress redundant notifications
+  const parseTime = (t) => {
+    try { return new Date(t).getTime(); } catch (e) { return 0; }
+  };
+  // Robust numeric parser that accepts strings like "₱1,234.56" or "1,234.56"
+  const parseAmount = (value) => {
+    if (value == null) return NaN;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/[^0-9.-]/g, '');
+      const n = Number.parseFloat(cleaned);
+      return Number.isFinite(n) ? n : NaN;
+    }
+    return NaN;
+  };
+  const extractAmountFromText = (text) => {
+    if (!text || typeof text !== 'string') return NaN;
+    const match = text.match(/₱?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/);
+    if (!match) return NaN;
+    return parseAmount(match[0]);
+  };
+  const getNotificationAmount = (n) => {
+    const d = (n?.data && typeof n.data === 'object') ? n.data : (typeof n?.data === 'string' ? (() => { try { return JSON.parse(n.data); } catch { return {}; } })() : {});
+    let v = parseAmount(d.amount);
+    if (!Number.isFinite(v)) v = parseAmount(n?.amount);
+    if (!Number.isFinite(v)) v = extractAmountFromText(n?.message || n?.details || '');
+    return v;
+  };
+
+  // Safely coerce notification "data" to an object when backend returns a JSON string
+  const asObject = (value) => {
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    if (typeof value === 'string') {
+      try { return JSON.parse(value); } catch { return {}; }
+    }
+    return {};
+  };
+
+  // Extract fund account name from a message like "... fund account: Building Renovation"
+  const extractFundAccountName = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    const m = text.match(/fund\s*account\s*:\s*([^\n\r]+)/i);
+    if (m && m[1]) {
+      return m[1].trim();
+    }
+    return null;
+  };
+
+  // Try to get fund account id and/or name from a notification
+  const getFundIdAndName = (n) => {
+    const d = asObject(n?.data);
+    const idRaw = (d && d.fund_account_id != null) ? d.fund_account_id : (n?.fund_account_id != null ? n.fund_account_id : null);
+    let id = idRaw != null ? String(idRaw) : null;
+    let name = null;
+    if (id && fundNameById[id]) {
+      name = fundNameById[id];
+    }
+    if (!name) {
+      const fromMsg = extractFundAccountName(n?.message || n?.details || '');
+      if (fromMsg) {
+        name = fromMsg;
+        // Try to map back to id by exact case-insensitive match
+        const match = Object.entries(fundNameById).find(([, v]) => (v || '').toLowerCase() === fromMsg.toLowerCase());
+        if (match) id = match[0];
+      }
+    }
+    // Fallback: infer from nearby System Activity that mentions fund account
+    if (!name) {
+      const targetTs = parseTime(n?.created_at || n?.timestamp || (d?.timestamp));
+      const targetUser = (d?.user_name || '').toLowerCase();
+      let best = null;
+      const scanList = [...notifications, ...Object.values(archivedMap || {})];
+      for (const m of scanList) {
+        const text = (m?.message || m?.details || '');
+        const md = asObject(m?.data);
+        const inferredFromId = md?.fund_account_id != null ? fundNameById[String(md.fund_account_id)] || null : null;
+        const inferredFromMsg = extractFundAccountName(text);
+        const inferred = inferredFromId || inferredFromMsg;
+        if (!inferred) continue;
+        const ts = parseTime(m?.created_at || m?.timestamp || md?.timestamp);
+        if (!Number.isFinite(ts) || !Number.isFinite(targetTs)) continue;
+        const diff = Math.abs(ts - targetTs);
+        // within 10 minutes window
+        if (diff <= 10 * 60 * 1000) {
+          const sameUser = (md?.user_name || '').toLowerCase() === targetUser;
+          const score = diff + (sameUser ? 0 : 60 * 1000); // prefer same user
+          if (!best || score < best.score) {
+            best = { name: inferred, score };
+          }
+        }
+      }
+      if (best) {
+        name = best.name;
+        const match = Object.entries(fundNameById).find(([, v]) => (v || '').toLowerCase() === best.name.toLowerCase());
+        if (match) id = match[0];
+      }
+    }
+    if (!name && id) {
+      name = `Account #${id}`;
+    }
+    return { id, name };
+  };
+
+  const getFundKeyFromNotification = (n) => {
+    const { id, name } = getFundIdAndName(n) || {};
+    if (id) return `id:${id}`;
+    if (name) return `name:${name.toLowerCase()}`;
+    return null;
+  };
+
+  // Resolve fund account names for a notification (single or grouped)
+  function getFundAccountNamesForNotification(notif) {
+    try {
+      const ids = Array.isArray(notif?._groupIds) && notif._groupIds.length > 0
+        ? notif._groupIds
+        : [notif?.id].filter(Boolean);
+      const namesSet = new Set();
+      ids.forEach((gid) => {
+        const item = notifications.find(n => n.id === gid) || archivedMap[gid];
+        if (!item) return;
+        const d = asObject(item.data);
+        const accId = d.fund_account_id != null ? d.fund_account_id : item.fund_account_id;
+        if (accId != null) {
+          const nm = fundNameById[String(accId)] || `Account #${accId}`;
+          namesSet.add(nm);
+        } else {
+          const { name: fallbackName } = getFundIdAndName(item) || {};
+          if (fallbackName) namesSet.add(fallbackName);
+        }
+      });
+      return Array.from(namesSet);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Memoized names for the currently selected notification
+  const selectedFundNames = useMemo(() => {
+    if (!selectedNotification) return [];
+    return getFundAccountNamesForNotification(selectedNotification);
+  }, [selectedNotification, notifications, archivedMap, fundNameById]);
+  const isFundUpdate = (n) => ((n?.title || '').toLowerCase().includes('fund account updated'));
+  const isCollectionOrDisbursement = (n) => {
+    const title = (n?.title || '').toLowerCase();
+    const type = (n?.type || '').toLowerCase();
+    return title.includes('collection') || title.includes('disbursement') || ['collection','disbursement','transaction','receipt'].includes(type);
+  };
+  const sameFundId = (a, b) => {
+    const da = (a?.data && typeof a.data === 'object') ? a.data : {};
+    const db = (b?.data && typeof b.data === 'object') ? b.data : {};
+    if (da.fund_account_id == null || db.fund_account_id == null) return false;
+    return String(da.fund_account_id) === String(db.fund_account_id);
+  };
+  // const suppressRedundantFundUpdates = (list, windowMs = 5 * 60 * 1000) => {
+  //   // Suppress "Fund Account Updated" notifications when a collection/disbursement exists
+  //   // on the same fund account within a time window (default 5 minutes)
+  //   // NOTE: Fund Account Updated notifications are now disabled at the source (ActivityTracker.php)
+  //   if (!Array.isArray(list) || list.length === 0) return list;
+  //   const txnItems = list.filter(isCollectionOrDisbursement);
+  //   return list.filter(item => {
+  //     if (!isFundUpdate(item)) return true;
+  //     const t0 = parseTime(item.created_at || item.timestamp || 0);
+  //     return !txnItems.some(tx => {
+  //       if (!sameFundId(item, tx)) return false;
+  //       const t1 = parseTime(tx.created_at || tx.timestamp || 0);
+  //       return Math.abs(t1 - t0) <= windowMs;
+  //     });
+  //   });
+  // };
+
+  // Collection helpers
+  function isCollectionNotification(n) {
+    if (!n) return false;
+    const t = (n?.type || '').toLowerCase();
+    const title = (n?.title || '').toLowerCase();
+    return t === 'collection' || title.includes('collection');
+  }
+  function isCollectionGroup(n) {
+    if (!n) return false;
+    if (isCollectionNotification(n)) return true;
+    const ids = Array.isArray(n?._groupIds) ? n._groupIds : [];
+    return ids.some((gid) => {
+      const item = notifications.find(x => x.id === gid) || archivedMap[gid];
+      return isCollectionNotification(item);
+    });
+  }
 
   // Process localStorage selection when notifications are loaded
   useEffect(() => {
@@ -155,6 +355,146 @@ const NotificationBar = () => {
     { value: "override", label: "Override Request", icon: "fas fa-edit" }
   ];
 
+  // Build a grouping key for notifications that belong to the same real-world activity
+  // Priority: data.reference_no -> data.receipt_no -> data.reference -> data.receipt
+  // Then: coalesce Fund Account Updated and Collection/Disbursement that hit the same fund account within the same hour
+  // Fallback for other transaction-like items: title/type + minute-bucket + name hint
+  const buildGroupKey = (n) => {
+    if (!n) return null;
+    const data = (n.data && typeof n.data === 'object') ? n.data : {};
+    const ref = data.reference_no || data.receipt_no || data.reference || data.receipt || data.transaction_group_id || data.transactionGroupId;
+    const base = (n.title || n.type || '').toString().toLowerCase();
+
+    // Only try to coalesce transaction-like notifications on a best-effort basis
+    const isTxnLike = (() => {
+      const t = (n.type || '').toString().toLowerCase();
+      const title = (n.title || '').toString().toLowerCase();
+      return (
+        ["transaction", "receipt", "disbursement", "collection", "fund", "user_activity"].includes(t) ||
+        title.includes("collection") || title.includes("disbursement") || title.includes("receipt") || title.includes("cheque") || title.includes("fund account")
+      );
+    })();
+    if (!isTxnLike) return null;
+
+    const createdAt = n.created_at || n.timestamp;
+    // 1) Merge by fund account + hour for fund updates and collections/disbursements
+    const fundKey = getFundKeyFromNotification(n);
+    let hourBucket = '';
+    try {
+      if (createdAt) hourBucket = new Date(createdAt).toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    } catch (e) { /* ignore */ }
+    if (fundKey && hourBucket) {
+      return `fund:${fundKey}|h:${hourBucket}`;
+    }
+
+    // If fund+hour didn't apply, fall back to reference-based grouping
+    if (ref) return `ref:${String(ref)}|${base}`;
+
+    // 2) Fallback: title/type + minute bucket + name hint
+    let minuteBucket = '';
+    try {
+      if (createdAt) minuteBucket = new Date(createdAt).toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+    } catch (e) { /* ignore */ }
+    const nameHint = (data.payer || data.user_name || data.recipient || '').toString().toLowerCase();
+    return minuteBucket ? `min:${minuteBucket}|${base}|${nameHint}` : null;
+  };
+
+  // Merge notifications that share the same group key. The merged item keeps the newest item as base
+  // and exposes _groupIds, _groupCount, and computed read state across the group.
+  const mergeSameTransactionNotifications = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return [];
+
+    const groups = new Map();
+    for (const n of list) {
+      const key = buildGroupKey(n) || `id:${n.id}`; // ensure every item lands in a group
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(n);
+    }
+
+    const merged = [];
+    for (const [key, items] of groups.entries()) {
+      if (!items || items.length === 0) continue;
+      // newest first by created_at, then by id
+      const sorted = items.slice().sort((a, b) => {
+        const aT = new Date(a.created_at || a.timestamp || 0).getTime();
+        const bT = new Date(b.created_at || b.timestamp || 0).getTime();
+        if (bT !== aT) return bT - aT;
+        return (b.id || 0) - (a.id || 0);
+      });
+
+      if (sorted.length === 1) {
+        merged.push(sorted[0]);
+        continue;
+      }
+
+      const base = { ...sorted[0] };
+      const ids = sorted.map(n => n.id);
+      const anyUnread = sorted.some(n => {
+        const local = localReadMap[n.id];
+        const effective = (local !== undefined ? local : (n.is_read || n.read));
+        return !effective;
+      });
+
+      // Sum available amounts if present (best-effort) using robust parser (handles ₱ and commas)
+      const sumAmount = sorted.reduce((acc, item) => {
+        const amt = getNotificationAmount(item);
+        return acc + (Number.isFinite(amt) ? amt : 0);
+      }, 0);
+      // Sum collections only and count them (used for display)
+      const sumCollectionAmount = sorted.reduce((acc, item) => {
+        const isCol = isCollectionNotification(item);
+        if (!isCol) return acc;
+        const amt = getNotificationAmount(item);
+        return acc + (Number.isFinite(amt) ? amt : 0);
+      }, 0);
+      const collectionCount = sorted.reduce((acc, item) => acc + (isCollectionNotification(item) ? 1 : 0), 0);
+
+      const count = sorted.length;
+      const refFromData = (() => {
+        const d = (base.data && typeof base.data === 'object') ? base.data : {};
+        return d.reference_no || d.receipt_no || d.reference || d.receipt || null;
+      })();
+
+      const niceTitle = `${base.title || base.type || 'Notification'} (${count})`;
+      const summaryParts = [];
+      if (refFromData) summaryParts.push(`Ref: ${refFromData}`);
+      if (sumCollectionAmount > 0) {
+        summaryParts.push(`Collections ₱${sumCollectionAmount.toLocaleString()}`);
+      } else if (sumAmount > 0) {
+        summaryParts.push(`Total ₱${sumAmount.toLocaleString()}`);
+      }
+      summaryParts.push(`${count} item${count > 1 ? 's' : ''}`);
+      const detailsText = `Merged ${summaryParts.join(' • ')}`;
+
+      const mergedObj = {
+        ...base,
+        // Keep the newest item's id for DOM anchoring, but expose all underlying ids
+        id: base.id,
+        title: niceTitle,
+        // Prefer keeping original message; add a concise group summary as details
+        details: detailsText,
+        is_read: !anyUnread,
+        _group: true,
+        _groupIds: ids,
+        _groupCount: count,
+        _groupSumAmount: sumAmount,
+        _groupCollectionSumAmount: sumCollectionAmount,
+        _groupCollectionCount: collectionCount,
+        _groupRef: refFromData,
+      };
+
+      merged.push(mergedObj);
+    }
+
+    // Keep the same overall ordering: newest group first
+    return merged.sort((a, b) => {
+      const aT = new Date(a.created_at || a.timestamp || 0).getTime();
+      const bT = new Date(b.created_at || b.timestamp || 0).getTime();
+      if (bT !== aT) return bT - aT;
+      return (b.id || 0) - (a.id || 0);
+    });
+  };
+
   const getFilteredNotifications = () => {
     const baseList = viewArchived ? Object.values(archivedMap) : notifications;
     let filtered = baseList;
@@ -198,16 +538,28 @@ const NotificationBar = () => {
       filtered = filtered.filter(n => !archivedMap[n.id]);
     }
 
+    // Suppress redundant Fund Account Updated notifications if a collection/disbursement
+    // occurred on the same fund account within a short time window
+    // NOTE: Fund Account Updated notifications are now disabled at the source (ActivityTracker.php)
+    // filtered = suppressRedundantFundUpdates(filtered);
+
     // Apply search filter
     if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
       filtered = filtered.filter(n => 
-        n.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        n.message?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        n.type?.toLowerCase().includes(searchTerm.toLowerCase())
+        n.title?.toLowerCase().includes(q) ||
+        n.message?.toLowerCase().includes(q) ||
+        (typeof n.details === 'string' && n.details.toLowerCase().includes(q)) ||
+        n.type?.toLowerCase().includes(q) ||
+        (n.data && typeof n.data === 'object' && (
+          String(n.data.reference_no || n.data.receipt_no || n.data.reference || '').toLowerCase().includes(q)
+        ))
       );
     }
 
-    return filtered;
+    // Merge notifications that belong to the same transaction
+    const merged = mergeSameTransactionNotifications(filtered);
+    return merged;
   };
 
   const markNotificationAsRead = async (notificationId) => {
@@ -219,14 +571,63 @@ const NotificationBar = () => {
     }
   };
 
-  const handleNotificationClick = (notification) => {
-    setSelectedNotification(notification);
-    const isRead = localReadMap[notification.id] !== undefined ? localReadMap[notification.id] : (notification.read || notification.is_read);
-    if (!isRead) {
-      markNotificationAsRead(notification.id);
-      setLocalReadMap(prev => ({ ...prev, [notification.id]: true }));
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllAsReadMutation.mutateAsync();
+      // Update local state to mark all notifications as read
+      const newReadMap = {};
+      filteredNotifications.forEach(notification => {
+        const ids = Array.isArray(notification._groupIds) && notification._groupIds.length > 0
+          ? notification._groupIds
+          : [notification.id];
+        ids.forEach(id => { newReadMap[id] = true; });
+      });
+      setLocalReadMap(prev => ({ ...prev, ...newReadMap }));
+      console.log('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
     }
+  };
+
+  const handleNotificationClick = async (notification) => {
+    setSelectedNotification(notification);
+    const ids = Array.isArray(notification._groupIds) && notification._groupIds.length > 0
+      ? notification._groupIds
+      : [notification.id];
+
+    try {
+      // Determine which ids are unread and mark them as read
+      const unreadIds = ids.filter(id => {
+        const original = notifications.find(n => n.id === id);
+        const isReadEffective = localReadMap[id] !== undefined ? localReadMap[id] : (original?.is_read || original?.read);
+        return !isReadEffective;
+      });
+      for (const id of unreadIds) {
+        await markNotificationAsRead(id);
+      }
+      // Overlay local map for all ids
+      setLocalReadMap(prev => {
+        const updated = { ...prev };
+        ids.forEach(id => { updated[id] = true; });
+        return updated;
+      });
+    } catch (e) {
+      // no-op; server state will refresh via react-query
+    }
+
     setShowPreviewMenu(false);
+  };
+
+  // Determine if all items in a notification (or its group) are read, considering local overlay
+  const isNotificationGroupAllRead = (notif) => {
+    if (!notif) return true;
+    const ids = Array.isArray(notif._groupIds) && notif._groupIds.length > 0
+      ? notif._groupIds
+      : [notif.id];
+    return ids.every(id => {
+      const original = notifications.find(n => n.id === id);
+      return (localReadMap[id] !== undefined ? localReadMap[id] : (original?.is_read || original?.read));
+    });
   };
 
   const getTimeAgo = (timestamp) => {
@@ -255,24 +656,51 @@ const NotificationBar = () => {
     }
   };
 
+  const formatCurrency = (value) => {
+    const n = Number.parseFloat(value);
+    if (!Number.isFinite(n)) return null;
+    return `₱${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   const emojiIconMap = {
     "🔒": "fas fa-lock",
     "🔔": "fas fa-bell",
     "🔐": "fas fa-lock",
     "💸": "fas fa-money-bill-wave",
     "⚠️": "fas fa-exclamation-triangle",
-    "⚠": "fas fa-exclamation-triangle"
+    "⚠": "fas fa-exclamation-triangle",
+    "🏦": "fas fa-building",
+    "💰": "fas fa-coins",
+    "💳": "fas fa-credit-card",
+    "📊": "fas fa-chart-bar",
+    "📈": "fas fa-chart-line",
+    "📉": "fas fa-chart-line",
+    "🔄": "fas fa-sync",
+    "✅": "fas fa-check-circle",
+    "❌": "fas fa-times-circle",
+    "⏰": "fas fa-clock",
+    "📝": "fas fa-file-alt",
+    "👤": "fas fa-user",
+    "👥": "fas fa-users",
+    "🎯": "fas fa-bullseye",
+    "📌": "fas fa-thumbtack",
+    "🔑": "fas fa-key",
+    "🚀": "fas fa-rocket",
+    "⭐": "fas fa-star",
+    "🎁": "fas fa-gift",
+    "📦": "fas fa-box"
   };
 
   const renderWithIcons = (text) => {
     if (!text || typeof text !== "string") return text;
 
-    const parts = text.split(/(🔒|🔔|🔐|💸|⚠️|⚠)/);
+    const emojiPattern = /(🔒|🔔|🔐|💸|⚠️|⚠|🏦|💰|💳|📊|📈|📉|🔄|✅|❌|⏰|📝|👤|👥|🎯|📌|🔑|🚀|⭐|🎁|📦)/g;
+    const parts = text.split(emojiPattern);
 
     return parts.filter(Boolean).map((part, index) => {
       const iconClass = emojiIconMap[part];
       if (iconClass) {
-        return <i key={`icon-${index}`} className={iconClass}></i>;
+        return <i key={`icon-${index}`} className={`${iconClass}`} style={{ marginRight: '4px', color: '#111827' }}></i>;
       }
       return <React.Fragment key={`text-${index}`}>{part}</React.Fragment>;
     });
@@ -324,16 +752,29 @@ const NotificationBar = () => {
 
     switch (action) {
       case 'markRead': {
-        const id = selectedNotification.id;
-        const isRead = (localReadMap[id] !== undefined ? localReadMap[id] : (selectedNotification.read || selectedNotification.is_read));
-        if (isRead) {
-          // Mark as unread (local only)
-          setLocalReadMap(prev => ({ ...prev, [id]: false }));
+        const ids = Array.isArray(selectedNotification._groupIds) && selectedNotification._groupIds.length > 0
+          ? selectedNotification._groupIds
+          : [selectedNotification.id];
+
+        // If every id is read, toggle to unread locally, else mark all as read
+        const allRead = ids.every(id => (localReadMap[id] !== undefined ? localReadMap[id] : (notifications.find(n => n.id === id)?.is_read || false)));
+        if (allRead) {
+          // local-only unread toggle
+          setLocalReadMap(prev => {
+            const updated = { ...prev };
+            ids.forEach(id => { updated[id] = false; });
+            return updated;
+          });
           setSelectedNotification(prev => prev ? { ...prev, read: false, is_read: false } : prev);
         } else {
-          // Mark as read (call API + local overlay)
-          await markNotificationAsRead(id);
-          setLocalReadMap(prev => ({ ...prev, [id]: true }));
+          for (const id of ids) {
+            try { await markNotificationAsRead(id); } catch (e) { /* ignore */ }
+          }
+          setLocalReadMap(prev => {
+            const updated = { ...prev };
+            ids.forEach(id => { updated[id] = true; });
+            return updated;
+          });
           setSelectedNotification(prev => prev ? { ...prev, read: true, is_read: true } : prev);
         }
         break;
@@ -360,9 +801,14 @@ const NotificationBar = () => {
     if (!selectedNotification) return;
     setDeleteLoading(true);
     try {
-      const id = selectedNotification.id;
-      // Local removal from list
-      setDeletedIds(prev => ({ ...prev, [id]: true }));
+      const ids = Array.isArray(selectedNotification._groupIds) && selectedNotification._groupIds.length > 0
+        ? selectedNotification._groupIds
+        : [selectedNotification.id];
+      setDeletedIds(prev => {
+        const updated = { ...prev };
+        ids.forEach(id => { updated[id] = true; });
+        return updated;
+      });
       setSelectedNotification(null);
     } finally {
       setDeleteLoading(false);
@@ -372,7 +818,18 @@ const NotificationBar = () => {
 
   const handleArchiveNotification = (notification) => {
     if (!notification) return;
-    setArchivedMap(prev => ({ ...prev, [notification.id]: notification }));
+    const ids = Array.isArray(notification._groupIds) && notification._groupIds.length > 0
+      ? notification._groupIds
+      : [notification.id];
+    setArchivedMap(prev => {
+      const updated = { ...prev };
+      // Store original notification objects where available to preserve data shape
+      ids.forEach(id => {
+        const original = notifications.find(n => n.id === id) || notification;
+        updated[id] = original;
+      });
+      return updated;
+    });
     setSelectedNotification(null);
     setViewArchived(true);
   };
@@ -389,14 +846,24 @@ const NotificationBar = () => {
     setViewArchived(prev => !prev);
   };
 
-  // When switching viewArchived, ensure a valid selection
+  // When switching viewArchived or lists update, ensure selection maps to merged list
   useEffect(() => {
     const currentList = getFilteredNotifications();
     if (currentList.length === 0) {
       setSelectedNotification(null);
       return;
     }
-    if (!selectedNotification || !currentList.some(n => n.id === selectedNotification.id)) {
+    if (!selectedNotification) {
+      setSelectedNotification(currentList[0]);
+      return;
+    }
+    const inListById = currentList.some(n => n.id === selectedNotification.id);
+    if (inListById) return;
+    // Try to find a group that contains the currently selected id
+    const containingGroup = currentList.find(n => Array.isArray(n._groupIds) && n._groupIds.includes(selectedNotification.id));
+    if (containingGroup) {
+      setSelectedNotification(containingGroup);
+    } else {
       setSelectedNotification(currentList[0]);
     }
   }, [viewArchived, archivedMap, deletedIds, notifications, filter, searchTerm]);
@@ -475,12 +942,12 @@ const NotificationBar = () => {
             <div className="list-header">
               <h3> {selectedFilterLabel}</h3>
               {notificationsFetching && notifications.length > 0 && (
-            <span style={{ marginLeft: '10px', fontSize: '12px', color: '#64748b' }}>
-              <i className="fas fa-sync fa-spin" style={{ fontSize: '10px' }}></i> Updating...
-            </span>
-          )}
+                <span style={{ marginLeft: '10px', fontSize: '12px', color: '#64748b' }}>
+                  <i className="fas fa-sync fa-spin" style={{ fontSize: '10px' }}></i> Updating...
+                </span>
+              )}
               {!viewArchived && (
-                <button className="mark-all-read-btn">
+                <button className="mark-all-read-btn" onClick={handleMarkAllAsRead}>
                   <i className="fas fa-check-double"></i>
                   Mark all as read
                 </button>
@@ -503,31 +970,30 @@ const NotificationBar = () => {
                     } ${!(localReadMap[notification.id] !== undefined ? localReadMap[notification.id] : (notification.is_read || notification.read)) ? "unread" : ""}`}
                     onClick={() => handleNotificationClick(notification)}
                   >
-                    <div className="notification-item-content">
-                      <div className="notification-header-item">
+                    <div className="notification-item-header">
+                      <div className="notification-header-left">
                         <div className="notification-icon">
                           <i 
                             className={getNotificationIcon(notification.type)}
                           ></i>
                         </div>
-                        <div className="notification-meta">
-                          <span className="notification-time">
-                            {getTimeAgo(notification.created_at || notification.timestamp)}
-                          </span>
-                          {!
-                            ((localReadMap[notification.id] !== undefined
-                              ? localReadMap[notification.id]
-                              : (notification.is_read || notification.read)))
-                            && <div className="unread-dot"></div>
-                          }
-                        </div>
+                        <span className="category-tag">{notification.category || notification.type}</span>
                       </div>
+                      <div className="notification-header-right">
+                        <span className="notification-time">
+                          {getTimeAgo(notification.created_at || notification.timestamp)}
+                        </span>
+                        {!
+                          ((localReadMap[notification.id] !== undefined
+                            ? localReadMap[notification.id]
+                            : (notification.is_read || notification.read)))
+                          && <div className="unread-dot"></div>
+                        }
+                      </div>
+                    </div>
+                    <div className="notification-item-content">
                       <h4 className="notification-title">{renderWithIcons(notification.title || notification.type)}</h4>
                       <p className="notification-message">{renderWithIcons(notification.message || notification.data)}</p>
-                      <div className="notification-tags">
-                        <span className="category-tag">{notification.category || notification.type}</span>
-                        {notification.type === 'login' && <span className="status-tag successful">Successful</span>}
-                      </div>
                     </div>
                   </div>
                 ))
@@ -561,6 +1027,11 @@ const NotificationBar = () => {
                       }
                     </span>
                     <span className="preview-category">• {selectedNotification.category || selectedNotification.type || 'System'}</span>
+                    {selectedNotification._group && isCollectionGroup(selectedNotification) &&
+                      Number.isFinite(selectedNotification._groupCollectionSumAmount) && selectedNotification._groupCollectionSumAmount > 0 && (
+                        <span className="preview-total-amount"> • Collections Total: {formatCurrency(selectedNotification._groupCollectionSumAmount)}</span>
+                      )
+                    }
                   </div>
                 </div>
                 <div className="preview-actions" ref={previewMenuRef}>
@@ -577,7 +1048,7 @@ const NotificationBar = () => {
                         onClick={() => handlePreviewAction('markRead')}
                       >
                         <i className="fas fa-check"></i>
-                        <span>{(selectedNotification && ((localReadMap[selectedNotification.id] !== undefined ? localReadMap[selectedNotification.id] : (selectedNotification.read || selectedNotification.is_read)))) ? 'Mark as Unread' : 'Mark as read'}</span>
+                        <span>{isNotificationGroupAllRead(selectedNotification) ? 'Mark as Unread' : 'Mark as read'}</span>
                       </button>
                       <button
                         className="preview-menu-option"
@@ -611,7 +1082,19 @@ const NotificationBar = () => {
 
                 <div className="notification-details">
                   <h4>Details</h4>
-                  <p>{renderWithIcons(selectedNotification.details || selectedNotification.message || selectedNotification.data)}</p>
+                  {/* <p>{renderWithIcons(selectedNotification.details || selectedNotification.message || selectedNotification.data)}</p> */}
+
+                  {isCollectionGroup(selectedNotification) && !selectedNotification._group && selectedNotification.data && typeof selectedNotification.data === 'object' && (
+                    <div className="related-data">
+                      <h5>Collection Total:</h5>
+                      <ul>
+                        {selectedFundNames.length > 0 && (
+                          <li><strong>Fund Account:</strong> {selectedFundNames.join(', ')}</li>
+                        )}
+                        <li><strong>Total Amount:</strong> {formatCurrency(parseAmount(selectedNotification.data.amount ?? selectedNotification.amount)) || '₱0.00'}</li>
+                      </ul>
+                    </div>
+                  )}
 
                   {selectedNotification.data && typeof selectedNotification.data === 'object' && (
                     <div className="related-data">
@@ -624,6 +1107,83 @@ const NotificationBar = () => {
                         ))}
                       </ul>
                     </div>
+                  )}
+
+                  {selectedNotification._group && Array.isArray(selectedNotification._groupIds) && (
+                    <>
+                      {isCollectionGroup(selectedNotification) && (
+                        <div className="related-data">
+                          <h5>Collection Summary:</h5>
+                          <ul>
+                            {selectedFundNames.length > 0 && (
+                              <li><strong>Fund Account{selectedFundNames.length > 1 ? 's' : ''}:</strong> {selectedFundNames.join(', ')}</li>
+                            )}
+                            {selectedNotification._groupRef && (
+                              <li><strong>Reference:</strong> {selectedNotification._groupRef}</li>
+                            )}
+                            <li><strong>Collection Items:</strong> {Number.isFinite(selectedNotification._groupCollectionCount) ? selectedNotification._groupCollectionCount : selectedNotification._groupCount}</li>
+                            {Number.isFinite(selectedNotification._groupCollectionSumAmount) && selectedNotification._groupCollectionSumAmount > 0 && (
+                              <li><strong>Collection Total:</strong> {formatCurrency(selectedNotification._groupCollectionSumAmount)}</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="related-data">
+                        <h5>Items:</h5>
+                        <div className="group-items-list">
+                          {selectedNotification._groupIds.map((gid) => {
+                            const item = notifications.find(n => n.id === gid) || archivedMap[gid] || null;
+                            if (!item) return null;
+                            const itemData = (item.data && typeof item.data === 'object') ? item.data : null;
+                            const itemAmount = itemData?.amount ?? item.amount;
+                            const { name: itemFundName } = getFundIdAndName(item);
+                            // Amount: prefer structured value, fallback to extracting from message
+                            let formattedAmount = null;
+                            const parsedAmount = parseAmount(itemAmount);
+                            if (Number.isFinite(parsedAmount)) {
+                              formattedAmount = formatCurrency(parsedAmount);
+                            } else {
+                              const amtFromMsg = extractAmountFromText(item.message || item.details || '');
+                              if (Number.isFinite(amtFromMsg)) {
+                                formattedAmount = formatCurrency(amtFromMsg);
+                              }
+                            }
+                            return (
+                              <div key={gid} className="group-item-card" style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 10, background: '#fff' }}>
+                                <div className="group-item-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    {/* <i className={getNotificationIcon(item.type)}></i> */}
+                                    <strong>{renderWithIcons(item.title || item.type)}</strong>
+                                  </div>
+                                  <span style={{ color: '#6b7280', fontSize: 12 }}>{(item.created_at || item.timestamp) ? new Date(item.created_at || item.timestamp).toLocaleString() : ''}</span>
+                                </div>
+                                {item.message && (
+                                  <div className="group-item-message" style={{ marginTop: 6, color: '#111827' }}>
+                                    {renderWithIcons(item.message)}
+                                  </div>
+                                )}
+                                {(formattedAmount || itemFundName) && (
+                                  <div className="group-item-amount" style={{ marginTop: 6 }}>
+                                    {formattedAmount && (
+                                      <>
+                                        <strong>Amount:</strong> {formattedAmount}
+                                      </>
+                                    )}
+                                    {itemFundName && (
+                                      <>
+                                        {formattedAmount ? ' • ' : null}
+                                        <strong>Fund Account:</strong> {itemFundName}
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
                   )}
                   
                   {selectedNotification.user_id && (

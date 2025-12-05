@@ -94,7 +94,7 @@ const WorkflowDashboard = () => {
     },
     {
       id: 5,
-      title: "Disburese",
+      title: "Disburse",
       description: "Disburse funds to recipients",
       roles: ["Disbursing Officer"],
       icon: "fas fa-hand-holding-usd",

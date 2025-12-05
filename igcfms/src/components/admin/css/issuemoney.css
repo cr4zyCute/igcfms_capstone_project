@@ -882,9 +882,10 @@
   background: #ffffff;
   border-radius: 12px;
   border: 2px solid #000000;
-  padding: 18px;
-  margin-top: -26%;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 14px;
+  padding-top: 1% !important;
+  margin-top: -20%;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
 }
 
@@ -894,7 +895,7 @@
 
 .section-header {
   margin-bottom: 20px;
-  padding-bottom: 15px;
+  padding-bottom:6px !important;
   border-bottom: 2px solid #000000;
   display: flex;
   justify-content: space-between;
@@ -1224,21 +1225,6 @@
     width: 100%;
     justify-content: flex-start;
   }
-}
-
-.disbursements-table-container {
-  max-height: 500px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: none;
-  /* Firefox */
-  -ms-overflow-style: none;
-  /* IE and Edge */
-}
-
-.disbursements-table-container::-webkit-scrollbar {
-  display: none;
-  /* Chrome, Safari, Opera */
 }
 
 /* Pagination Controls - Matching IssueReceipt Style */

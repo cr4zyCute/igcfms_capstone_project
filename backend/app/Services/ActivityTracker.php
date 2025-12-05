@@ -69,20 +69,34 @@ class ActivityTracker
 
             $adminUsers = User::where('role', 'Admin')->get();
             
+            // Decode details if stored as JSON string
+            $details = $activityLog->details;
+            if (is_string($details)) {
+                $decoded = json_decode($details, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $details = $decoded;
+                } else {
+                    $details = [];
+                }
+            }
+            if (!is_array($details)) {
+                $details = [];
+            }
+
             foreach ($adminUsers as $admin) {
                 Notification::create([
                     'user_id' => $admin->id,
                     'type' => 'user_activity',
                     'title' => self::getActivityTitle($activityLog),
                     'message' => $activityLog->activity_description,
-                    'data' => [
+                    'data' => array_merge([
                         'activity_id' => $activityLog->id,
                         'user_name' => $activityLog->user_name,
                         'user_role' => $activityLog->user_role,
                         'activity_type' => $activityLog->activity_type,
                         'ip_address' => $activityLog->ip_address,
                         'timestamp' => $activityLog->created_at->toISOString(),
-                    ],
+                    ], $details),
                     'is_read' => false,
                     'created_at' => now(),
                 ]);
@@ -120,7 +134,7 @@ class ActivityTracker
             ActivityLog::ACTIVITY_OVERRIDE_APPROVED => '✅ Override Approved',
             ActivityLog::ACTIVITY_OVERRIDE_REJECTED => '❌ Override Rejected',
             ActivityLog::ACTIVITY_FUND_ACCOUNT_CREATED => '🏦 Fund Account Created',
-            ActivityLog::ACTIVITY_FUND_ACCOUNT_UPDATED => '🏦 Fund Account Updated',
+            // ActivityLog::ACTIVITY_FUND_ACCOUNT_UPDATED => '🏦 Fund Account Updated', // Commented out - redundant with collection/disbursement notifications
             ActivityLog::ACTIVITY_REPORT_GENERATED => '📊 Report Generated',
             ActivityLog::ACTIVITY_USER_CREATED => '👤 User Created',
             ActivityLog::ACTIVITY_USER_UPDATED => '👤 User Updated',
@@ -249,11 +263,16 @@ class ActivityTracker
     /**
      * Track fund account operations
      */
-    public static function trackFundAccount($fundAccount, $user, $action = 'created')
+    public static function trackFundAccount($fundAccount, $user, $action = 'created', $skipNotification = false)
     {
         $activityType = $action === 'created' 
             ? ActivityLog::ACTIVITY_FUND_ACCOUNT_CREATED 
             : ActivityLog::ACTIVITY_FUND_ACCOUNT_UPDATED;
+
+        // Skip logging if this is just a balance update from a transaction (to avoid redundant notifications)
+        if ($skipNotification && $action === 'updated') {
+            return;
+        }
 
         self::log(
             $activityType,

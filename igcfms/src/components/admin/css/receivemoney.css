@@ -2559,3 +2559,62 @@
     font-size: 16px;
   }
 }
+
+/* Receipt Input Autocomplete Styles */
+.receipt-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.receipt-input-wrapper input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 13px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #ffffff;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.receipt-input-wrapper input:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.receipt-autocomplete-hint {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: 20px;
+  line-height: 20px;
+}
+
+.receipt-autocomplete-hint .hint-text {
+  color: #d1d5db2e;
+  font-weight: 500;
+}
+
+.receipt-autocomplete-hint .gray-char {
+  color: #9d9fa3;
+  opacity: 0.5;
+  font-weight: 400;
+  background: rgba(156, 163, 175, 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-left: 2px;
+}

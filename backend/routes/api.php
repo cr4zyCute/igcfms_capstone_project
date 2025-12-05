@@ -146,3 +146,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/recipient-accounts-fund-accounts', [RecipientAccountController::class, 'getFundAccounts']);
     Route::get('/recipient-accounts-stats', [RecipientAccountController::class, 'getStats']);
 });
+
+// Year-End Closing routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/year-end-closing', [ReportsController::class, 'yearEndClosing']);
+    Route::get('/year-end-closing/history', [ReportsController::class, 'yearEndHistory']);
+});
