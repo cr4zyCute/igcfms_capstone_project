@@ -147,7 +147,7 @@ const MoneyTransactions = () => {
       const requestedAmount = parseFloat(amount);
       
       if (requestedAmount > currentBalance) {
-        showMessage(`Insufficient funds. Available: ₱${currentBalance.toLocaleString()}`, 'error');
+        showMessage(`Available: ₱${currentBalance.toLocaleString()}`, 'error');
         return false;
       }
     }

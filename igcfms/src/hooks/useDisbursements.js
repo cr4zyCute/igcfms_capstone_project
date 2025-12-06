@@ -30,7 +30,20 @@ const fetchDisbursements = async () => {
       recipient: tx.recipient || 'N/A',
       amount: Math.abs(Number(tx.amount) || 0),
       mode_of_payment: tx.mode_of_payment || 'N/A',
-      created_at: tx.created_at || tx.updated_at
+      created_at: tx.created_at || tx.updated_at,
+      issuer_id: Number(
+        tx.issued_by ??
+        tx.issuedBy ??
+        tx.user_id ??
+        tx.userId ??
+        tx.created_by ??
+        tx.creator_id ??
+        tx.disbursing_officer_id ??
+        (tx.issued_by_user && tx.issued_by_user.id) ??
+        (tx.user && tx.user.id) ??
+        (tx.creator && tx.creator.id) ??
+        NaN
+      ) || null,
     }))
     .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 

@@ -17,6 +17,9 @@ import {
 import { printCompleteCheque } from '../pages/print/chequeSimplePrint.jsx';
 import * as XLSX from 'xlsx';
 import { generateDisbursementPDF } from '../reports/export/pdf/disbursementExport.jsx';
+import InsufficientFunds from '../common/Modals/Disbursement/InsufficientFunds';
+import ConfirmDisbursement from '../common/Modals/Disbursement/ConfirmDisbursement';
+import DisbursementCreatedSuccessfully from '../common/Modals/Disbursement/DisbursementCreatedSuccessfully';
 
 const CHEQUE_FIELD_LABELS = {
   dateIssued: "Date Issued",
@@ -61,35 +64,12 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
     data: recipientAccountsData, 
     isLoading: recipientAccountsLoading 
   } = useRecipientAccountsForDisbursement();
-  
-  const createDisbursementMutation = useCreateDisbursement();
-  
+
   // Local state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [filteredDisbursements, setFilteredDisbursements] = useState([]);
-  
-  // Derived data from React Query - filter by userId if provided
-  let recentDisbursements = disbursementsData || [];
-  if (filterByUserId) {
-    const userIdInt = parseInt(filterByUserId);
-    recentDisbursements = recentDisbursements.filter(disbursement => {
-      // Check multiple possible field names for the creator/issuer
-      const matches = 
-        disbursement.issued_by === userIdInt || 
-        disbursement.created_by === userIdInt ||
-        disbursement.user_id === userIdInt ||
-        disbursement.creator_id === userIdInt ||
-        disbursement.disbursing_officer_id === userIdInt ||
-        (disbursement.creator && disbursement.creator.id === userIdInt);
-      
-      return matches;
-    });
-  }
-  const fundAccounts = fundAccountsData || [];
-  const recipientAccounts = recipientAccountsData || [];
-  const loading = disbursementsLoading || fundAccountsLoading || recipientAccountsLoading;
   const [filters, setFilters] = useState({
     activeFilter: "all",
     searchTerm: "",
@@ -98,6 +78,31 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
     endDate: "",
     showDateFilter: false
   });
+
+  // Derived data from hooks
+  const fundAccounts = fundAccountsData || [];
+  const recipientAccounts = recipientAccountsData || [];
+  const loading = disbursementsLoading || fundAccountsLoading || recipientAccountsLoading;
+
+  // Memoized and filtered disbursements
+  const recentDisbursements = useMemo(() => {
+    if (!disbursementsData) return [];
+    const userIdToFilter = filterByUserId ? parseInt(filterByUserId) : (user ? parseInt(user.id) : null);
+    if (!userIdToFilter) return disbursementsData; // Show all if no user context
+
+    return disbursementsData.filter((d) => {
+      const issuerId = Number(
+        d.issuer_id ??
+        d.issued_by ??
+        d.user_id ??
+        d.created_by ??
+        d.creator_id ??
+        (d.user && d.user.id) ??
+        (d.creator && d.creator.id)
+      );
+      return Number.isFinite(issuerId) && issuerId === userIdToFilter;
+    });
+  }, [disbursementsData, user, filterByUserId]);
   // PDF preview state
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
@@ -178,6 +183,8 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [modalErrorMessage, setModalErrorMessage] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [disbursementResult, setDisbursementResult] = useState(null);
   const [recipientAccountSearch, setRecipientAccountSearch] = useState("");
@@ -300,8 +307,8 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       setSuccess(message);
       setError("");
     } else {
-      setError(message);
-      setSuccess("");
+      setModalErrorMessage(message);
+      setShowErrorModal(true);
     }
     setTimeout(() => {
       setSuccess("");
@@ -353,7 +360,7 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       });
 
       if (requestedAmount > currentBalance) {
-        showMessage(`Insufficient funds. Available balance: ₱${currentBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
+        showMessage(`Available balance: ₱${currentBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
         return false;
       }
 
@@ -366,7 +373,7 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
         const actualBalance = Math.max(currentBalance, latestBalance);
         
         if (requestedAmount > actualBalance) {
-          showMessage(`Insufficient funds. Available balance: ₱${actualBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
+          showMessage(`Available balance: ₱${actualBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
           return false;
         }
       } catch (serviceError) {
@@ -1104,7 +1111,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
 
   const confirmDisbursement = async () => {
     setSubmitting(true);
-    setShowConfirmModal(false);
 
     try {
       const headers = { Authorization: `Bearer ${token}` };
@@ -1344,11 +1350,10 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       }
     } finally {
       setSubmitting(false);
+      setShowConfirmModal(false);
     }
   };
 
-
-  // Department and category removed as requested - using default values in backend
 
   if (loading) {
     return <IssueMoneySkeletonLoader />;
@@ -1596,15 +1601,9 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
           className="submit-btn"
           disabled={loading || submitting}
         >
-          {submitting ? (
-            <>
-              <i className="fas fa-spinner fa-spin"></i> Processing...
-            </>
-          ) : (
             <>
               <i className="fas fa-paper-plane"></i> Create Disbursement
             </>
-          )}
         </button>
       </div>
     </form>
@@ -2349,197 +2348,33 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
         </div>
       </div>
 
-      {/* Confirmation Modal */}
-      {showConfirmModal && (
-        <div className="modal-overlay" onClick={() => setShowConfirmModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3><i className="fas fa-question-circle"></i> Confirm Disbursement</h3>
-              <button className="modal-close" onClick={() => setShowConfirmModal(false)}>
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="confirmation-details">
-                <div className="detail-item">
-                  <label>Recipient Account:</label>
-                  <span>{Array.isArray(recipientAccounts) ? recipientAccounts.find(r => r.id === parseInt(formData.recipientAccountId))?.name || 'Unknown' : 'Loading...'}</span>
-                </div>
-                {formData.payeeName && (
-                  <div className="detail-item">
-                    <label>Payee Name:</label>
-                    <span>{formData.payeeName}</span>
-                  </div>
-                )}
-                <div className="detail-item">
-                  <label>Fund Account (Source):</label>
-                  <span>{Array.isArray(fundAccounts) ? fundAccounts.find(f => f.id === parseInt(formData.fundAccountId))?.name || 'Unknown' : 'Loading...'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Amount:</label>
-                  <span>₱{Math.abs(parseFloat(formData.amount || 0)).toLocaleString()}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Reference Number:</label>
-                  <span>{formData.referenceNo}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Payment Mode:</label>
-                  <span>{formData.modeOfPayment}</span>
-                </div>
-                {formData.modeOfPayment === "Cheque" && (
-                  <div className="detail-item">
-                    <label>Cheque Number:</label>
-                    <span>{formData.chequeNumber}</span>
-                  </div>
-                )}
-              </div>
-              <p className="confirmation-message">
-                Are you sure you want to create this disbursement?
-              </p>
-            </div>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="cancel-btn"
-                onClick={() => setShowConfirmModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="confirm-btn"
-                onClick={confirmDisbursement}
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <i className="fas fa-spinner fa-spin"></i>
-                ) : (
-                  <>
-                    <i className="fas fa-check"></i> Confirm
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDisbursement 
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={confirmDisbursement}
+        submitting={submitting}
+        disbursementDetails={{
+          recipientName: Array.isArray(recipientAccounts) ? recipientAccounts.find(r => r.id === parseInt(formData.recipientAccountId))?.name : 'Loading...',
+          payeeName: formData.payeeName,
+          fundName: Array.isArray(fundAccounts) ? fundAccounts.find(f => f.id === parseInt(formData.fundAccountId))?.name : 'Loading...',
+          amount: formData.amount,
+          referenceNo: formData.referenceNo,
+          modeOfPayment: formData.modeOfPayment,
+          chequeNumber: formData.chequeNumber,
+        }}
+      />
 
-      {/* Success Modal */}
-      {showSuccessModal && disbursementResult && (
-        <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
-          <div className="modal-content success" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3><i className="fas fa-check-circle"></i> Disbursement Created Successfully</h3>
-              <button className="modal-close" onClick={() => setShowSuccessModal(false)}>
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="success-details">
-                <div className="result-details">
-                  <div className="detail-item">
-                    <label>Transaction ID:</label>
-                    <span>#{disbursementResult.transactionId}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Amount:</label>
-                    <span>₱{parseFloat(disbursementResult.amount).toLocaleString()}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Recipient:</label>
-                    <span>{disbursementResult.recipientName}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Recipient Account:</label>
-                    <span>{disbursementResult.recipientAccount}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Fund Account:</label>
-                    <span>{disbursementResult.fundAccount}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Reference:</label>
-                    <span>{disbursementResult.referenceNo}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Payment Mode:</label>
-                    <span>{disbursementResult.modeOfPayment}</span>
-                  </div>
-                </div>
+      <InsufficientFunds 
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        message={modalErrorMessage}
+      />
 
-                {disbursementResult.modeOfPayment === "Cheque" && (
-                  <div className="cheque-preview-panel">
-                    <div className="cheque-preview-header">
-                      <div className="cheque-preview-header-actions">
-                        <button
-                          type="button"
-                          className="cheque-preview-btn secondary"
-                          onClick={handleCycleChequeDateFormat}
-                        >
-                          <i className="fas fa-calendar-alt"></i>
-                          Change Date Format
-                          <span className="cheque-preview-format-label">{currentChequeDateFormatName}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="cheque-preview-btn ghost"
-                          onClick={handleResetChequeLayout}
-                        >
-                          <i className="fas fa-undo"></i>
-                          Reset Layout
-                        </button>
-                        <button
-                          type="button"
-                          className="cheque-preview-btn outline"
-                          onClick={handlePrintChequeLayout}
-                        >
-                          <i className="fas fa-print"></i>
-                          Print Layout
-                        </button>
-                      </div>
-                    </div>
-                    <div className="cheque-preview-canvas" ref={chequePreviewRef}>
-                      <div className="cheque-preview-guides" aria-hidden="true" />
-                      {Object.keys(CHEQUE_FIELD_LABELS).map((key) => {
-                        const position = chequePreviewPositions[key] || { x: 0, y: 0 };
-                        return (
-                          <div
-                            key={key}
-                            className={`cheque-preview-field cheque-field-${key}`}
-                            style={{ left: position.x, top: position.y }}
-                            onPointerDown={(event) => handleStartDrag(key, event)}
-                          >
-                            <span className="field-value">{chequeFieldValues[key]}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="close-btn"
-                onClick={() => setShowSuccessModal(false)}
-              >
-                <i className="fas fa-times"></i> Close
-              </button>
-              {disbursementResult?.modeOfPayment === "Cheque" && (
-                <button
-                  type="button"
-                  className="print-btn"
-                  onClick={handlePrintChequeLayout}
-                >
-                  <i className="fas fa-print"></i> Print Cheque
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <DisbursementCreatedSuccessfully 
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        disbursementResult={disbursementResult}
+      />
       {showPDFPreview && pdfPreviewUrl && (
         <div 
           className="pdf-preview-modal-overlay" 

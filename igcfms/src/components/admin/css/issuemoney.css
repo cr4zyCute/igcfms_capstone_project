@@ -928,10 +928,11 @@
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px; /* Adjusted gap for better spacing */
 }
 
-.search-filter-container {
+/* Ensure all direct children of header-controls are vertically aligned */
+.section-header > div {
   display: flex;
   align-items: center;
   gap: 12px;

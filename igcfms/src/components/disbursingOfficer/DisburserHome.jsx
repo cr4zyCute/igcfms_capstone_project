@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import "./css/disburserdashboard.css";
 import axios from "axios";
+import OverrideRequestTrendanalaytics from "../analytics/OverrideTransactionsAnalystics/OverrideRequestTrendanalaytics";
+import ChequeReconciliationRate from "../analytics/chequeAnalysis/ChequeReconciliationRate";
+import OutstandingChequesRatio from "../analytics/chequeAnalysis/OutstandingChequesRatio";
+import { useCheques } from "../../hooks/useCheques";
 
 const DisburserHome = () => {
   const [loading, setLoading] = useState(true);
@@ -20,7 +24,10 @@ const DisburserHome = () => {
   const [disbursementsByCategory, setDisbursementsByCategory] = useState([]);
   const [dailyDisbursementTrend, setDailyDisbursementTrend] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [fundBalances, setFundBalances] = useState([]);
+  
+  const [overrideRequests, setOverrideRequests] = useState([]);
+  const { data: cheques = [] } = useCheques();
+const [fundBalances, setFundBalances] = useState([]);
   const [dashboardMetrics, setDashboardMetrics] = useState({
     dpo: {
       average: 0,
@@ -38,20 +45,22 @@ const DisburserHome = () => {
       resolved: 0
     },
     vendorPerformance: {
-      topVendors: []
     },
     paymentMethods: {
       total: 0,
       breakdown: []
     }
   });
+const overrideTotal = overrideRequests.length;
+  const overridePending = overrideRequests.filter(req => req.status === "pending").length;
+  const overrideApproved = overrideRequests.filter(req => req.status === "approved").length;
+  const overrideRejected = overrideRequests.filter(req => req.status === "rejected").length;
 
   useEffect(() => {
     const fetchDisburserData = async () => {
       try {
         setLoading(true);
         setError("");
-
         const token = localStorage.getItem('token');
         if (!token) {
           setError("Authentication required. Please log in.");
@@ -170,8 +179,9 @@ const DisburserHome = () => {
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
           .slice(0, 8);
         setPendingRequests(pendingData);
-
-        // Fund balances (focus on expense and asset accounts)
+        
+        setOverrideRequests(allOverrides);
+// Fund balances (focus on expense and asset accounts)
         const relevantFunds = allFunds
           .filter(fund => fund.account_type === 'Expense' || fund.account_type === 'Asset')
           .sort((a, b) => parseFloat(b.current_balance || 0) - parseFloat(a.current_balance || 0))
@@ -361,7 +371,37 @@ const DisburserHome = () => {
       
       </div>
 
-      {/* Data Tables and Analytics */}
+      {/* Override Status KPIs */}
+      <div className="disburser-kpi-row secondary">
+        <div className="disburser-kpi-card">
+          <div className="kpi-icon"><i className="fas fa-list"></i></div>
+          <div className="kpi-content">
+            <div className="kpi-label">Total Overrides</div>
+            <div className="kpi-value">{overrideTotal}</div>
+          </div>
+        </div>
+        <div className="disburser-kpi-card">
+          <div className="kpi-icon"><i className="fas fa-hourglass-half"></i></div>
+          <div className="kpi-content">
+            <div className="kpi-label">Pending Review</div>
+            <div className="kpi-value">{overridePending}</div>
+          </div>
+        </div>
+        <div className="disburser-kpi-card">
+          <div className="kpi-icon"><i className="fas fa-check-circle"></i></div>
+          <div className="kpi-content">
+            <div className="kpi-label">Approved</div>
+            <div className="kpi-value">{overrideApproved}</div>
+          </div>
+        </div>
+        <div className="disburser-kpi-card">
+          <div className="kpi-icon"><i className="fas fa-times-circle"></i></div>
+          <div className="kpi-content">
+            <div className="kpi-label">Rejected</div>
+            <div className="kpi-value">{overrideRejected}</div>
+          </div>
+        </div>
+      </div>      {/* Data Tables and Analytics */}
       <div className="disburser-data-grid">
         
         {/* Recent Disbursements */}
@@ -437,6 +477,43 @@ const DisburserHome = () => {
 
 
       </div>
+      <div className="disburser-data-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
+        <div className="disburser-table-card" style={{ height: '300px' }}>
+          <div className="table-header">
+            <h3><i className="fas fa-donut-chart"></i> Cheque Reconciliation Rate</h3>
+            <span className="table-subtitle">Cleared cheques matched vs total</span>
+          </div>
+          <div style={{ height: '240px' }}>
+            <ChequeReconciliationRate cheques={cheques} />
+          </div>
+        </div>
+
+        <div className="disburser-table-card" style={{ height: '300px' }}>
+          <div className="table-header">
+            <h3><i className="fas fa-bars"></i> Outstanding Cheques Ratio</h3>
+            <span className="table-subtitle">Issued but not cleared over 30 days</span>
+          </div>
+          <div style={{ height: '240px' }}>
+            <OutstandingChequesRatio cheques={cheques} />
+          </div>
+        </div>
+
+        <div className="disburser-table-card" style={{ height: '300px', gridColumn: 'span 2' }}>
+          <div className="table-header">
+            <h3><i className="fas fa-chart-line"></i> Override Transactions</h3>
+            <span className="table-subtitle">Volume trend</span>
+          </div>
+          <div style={{ height: '240px' }}>
+            <OverrideRequestTrendanalaytics overrideRequests={overrideRequests} isLoading={loading} error={error} />
+          </div>
+        </div>
+      </div>
+
+
+
+
+
+
     </div>
   );
 };

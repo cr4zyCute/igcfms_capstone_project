@@ -58,7 +58,7 @@ export const generateIssuedReceiptsPDF = ({
   reportTitle = 'Issued Receipts Report',
 }) => {
   const doc = new jsPDF({ 
-    orientation: 'landscape',
+    orientation: 'Portrait',
     unit: 'mm',
     format: 'a4'
   });
