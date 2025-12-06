@@ -24,14 +24,8 @@ const fetchDisbursements = async () => {
 
   const mapped = txs
     .filter((tx) => (tx?.type || '').toLowerCase() === 'disbursement')
-    .map((tx) => ({
-      id: tx.id,
-      reference: tx.reference || tx.reference_no || tx.receipt_no || '',
-      recipient: tx.recipient || 'N/A',
-      amount: Math.abs(Number(tx.amount) || 0),
-      mode_of_payment: tx.mode_of_payment || 'N/A',
-      created_at: tx.created_at || tx.updated_at,
-      issuer_id: Number(
+    .map((tx) => {
+      const issuerIdRaw =
         tx.issued_by ??
         tx.issuedBy ??
         tx.user_id ??
@@ -41,10 +35,26 @@ const fetchDisbursements = async () => {
         tx.disbursing_officer_id ??
         (tx.issued_by_user && tx.issued_by_user.id) ??
         (tx.user && tx.user.id) ??
-        (tx.creator && tx.creator.id) ??
-        NaN
-      ) || null,
-    }))
+        (tx.creator && tx.creator.id);
+
+      const issuerNameRaw =
+        (tx.issued_by_user && tx.issued_by_user.name) ??
+        (tx.user && tx.user.name) ??
+        (tx.creator && tx.creator.name) ??
+        tx.issuer_name ??
+        'N/A';
+
+      return {
+        id: tx.id,
+        reference: tx.reference || tx.reference_no || tx.receipt_no || '',
+        recipient: tx.recipient || 'N/A',
+        amount: Math.abs(Number(tx.amount) || 0),
+        mode_of_payment: tx.mode_of_payment || 'N/A',
+        created_at: tx.created_at || tx.updated_at,
+        issuer_id: issuerIdRaw != null ? Number(issuerIdRaw) : null,
+        issuer_name: issuerNameRaw,
+      };
+    })
     .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
   return mapped;

@@ -5,7 +5,7 @@ const InsufficientFunds = ({
   isOpen,
   onClose,
   message,
-  title = "Insufficient Funds Ammount!! "
+  title = "Validation Error"
 }) => {
   if (!isOpen) return null;
 

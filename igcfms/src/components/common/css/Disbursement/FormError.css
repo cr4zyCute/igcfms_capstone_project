@@ -1,0 +1,82 @@
+.form-error-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999999;
+}
+
+.form-error-modal-content {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 420px;
+  overflow: hidden;
+  animation: fadeInScale 0.3s ease-out;
+}
+
+.form-error-modal-header {
+  background-color: #ffc107; /* Warning yellow */
+  color: #1a1a1a;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.form-error-modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.form-error-modal-header .fa-exclamation-triangle {
+  font-size: 1.4rem;
+}
+
+.form-error-modal-body {
+  padding: 24px 20px;
+  font-size: 1rem;
+  color: #333;
+  line-height: 1.6;
+}
+
+.form-error-modal-footer {
+  padding: 16px 20px;
+  text-align: right;
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+}
+
+.form-error-ok-button {
+  background-color: #dc3545; /* Red for error */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.form-error-ok-button:hover {
+  background-color: #c82333;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

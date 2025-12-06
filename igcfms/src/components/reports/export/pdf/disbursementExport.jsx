@@ -55,13 +55,14 @@ export function generateDisbursementPDF({ disbursementsForExport = [], disbursem
     d.recipient,
     formatCurrency ? formatCurrency(d.amount) : d.amount,
     d.mode_of_payment,
-    d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A'
+    d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A',
+    d.issuer_name
   ]);
 
   // Table
   autoTable(doc, {
     startY: y,
-    head: [['Disbursement ID', 'Reference', 'Recipient', 'Amount', 'Payment Mode', 'Date']],
+    head: [['Disbursement ID', 'Reference', 'Recipient', 'Amount', 'Payment Mode', 'Date', 'Created By']],
     body,
     theme: 'grid',
     headStyles: {
@@ -83,12 +84,13 @@ export function generateDisbursementPDF({ disbursementsForExport = [], disbursem
     },
     margin: { top: 10, right: 15, bottom: 20, left: 15 },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 25 },
-      1: { halign: 'left', cellWidth: 35 },
+      0: { halign: 'center', cellWidth: 20 },
+      1: { halign: 'left', cellWidth: 30 },
       2: { halign: 'left', cellWidth: 30 },
-      3: { halign: 'right', cellWidth: 40 },
+      3: { halign: 'right', cellWidth: 30 },
       4: { halign: 'center', cellWidth: 25 },
-      5: { halign: 'center', cellWidth: 25 }
+      5: { halign: 'center', cellWidth: 25 },
+      6: { halign: 'left', cellWidth: 25 }
     },
     didDrawPage: (data) => {
       // Footer: page numbering

@@ -360,7 +360,7 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       });
 
       if (requestedAmount > currentBalance) {
-        showMessage(`Available balance: ₱${currentBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
+        showMessage(`Insufficient Funds Ammount!! Available balance: ₱${currentBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
         return false;
       }
 
@@ -373,7 +373,7 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
         const actualBalance = Math.max(currentBalance, latestBalance);
         
         if (requestedAmount > actualBalance) {
-          showMessage(`Available balance: ₱${actualBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
+          showMessage(`Insufficient Funds Ammount!! Available balance: ₱${actualBalance.toLocaleString()} in ${selectedFund.name}`, 'error');
           return false;
         }
       } catch (serviceError) {
@@ -794,14 +794,14 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       recipient: disbursement.recipient || 'N/A',
       amount: parseAmountValue(disbursement.amount),
       mode_of_payment: disbursement.mode_of_payment || 'N/A',
-      created_at: disbursement.created_at || disbursement.updated_at
+      created_at: disbursement.created_at || disbursement.updated_at,
+      issuer_name: user?.name || 'N/A' // Use the logged-in user's name
     }))
-  ), [filteredDisbursements]);
+  ), [filteredDisbursements, user]);
 
   const selectedChequeDateFormatter = useMemo(() => (
     CHEQUE_DATE_FORMATS[chequeDateFormatIndex]?.formatter || new Intl.DateTimeFormat('en-US')
   ), [chequeDateFormatIndex]);
-
   const currentChequeDateFormatName = useMemo(() => (
     CHEQUE_DATE_FORMATS[chequeDateFormatIndex]?.name || 'Custom'
   ), [chequeDateFormatIndex]);
