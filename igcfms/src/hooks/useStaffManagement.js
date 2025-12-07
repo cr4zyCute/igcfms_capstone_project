@@ -47,12 +47,19 @@ export const useUpdateStaff = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }) => updateUser(id, data),
-    onSuccess: (_, variables) => {
+    mutationFn: ({ id, data }) => {
+      console.log(`[useUpdateStaff] Updating user ${id} with data:`, data);
+      return updateUser(id, data);
+    },
+    onSuccess: (response, variables) => {
+      console.log(`[useUpdateStaff] Update successful for user ${variables?.id}`);
       if (variables?.id) {
         queryClient.invalidateQueries({ queryKey: STAFF_KEYS.detail(variables.id) });
       }
       queryClient.invalidateQueries({ queryKey: STAFF_KEYS.all });
+    },
+    onError: (error, variables) => {
+      console.error(`[useUpdateStaff] Update failed for user ${variables?.id}:`, error);
     },
   });
 };
@@ -72,9 +79,16 @@ export const useDeleteStaff = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: deleteUser,
-    onSuccess: () => {
+    mutationFn: (id) => {
+      console.log(`[useDeleteStaff] Deleting user ${id}`);
+      return deleteUser(id);
+    },
+    onSuccess: (response, id) => {
+      console.log(`[useDeleteStaff] Delete successful for user ${id}`);
       queryClient.invalidateQueries({ queryKey: STAFF_KEYS.all });
+    },
+    onError: (error, id) => {
+      console.error(`[useDeleteStaff] Delete failed for user ${id}:`, error);
     },
   });
 };

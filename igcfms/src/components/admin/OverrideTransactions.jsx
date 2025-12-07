@@ -1244,7 +1244,12 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
                     </td>
                     <td>
                       <div className="cell-content">
-                        <span className="requester-name">{request.requested_by?.name || request.requestedBy?.name || 'N/A'}</span>
+                        <div className="requester-info">
+                          <span className="requester-name">{request.requested_by?.name || request.requestedBy?.name || 'N/A'}</span>
+                          {(request.requested_by?.role || request.requestedBy?.role) && (
+                            <span className="requester-role">{request.requested_by?.role || request.requestedBy?.role}</span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td>

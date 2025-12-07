@@ -1894,6 +1894,16 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
             </div>
             <div className="box-content">
             {(() => {
+              // Check if there's no data
+              if (recentDisbursements.length === 0) {
+                return (
+                  <div className="payment-method-no-data">
+                    <i className="fas fa-inbox"></i>
+                    <span>No disbursement data available</span>
+                  </div>
+                );
+              }
+
               // Calculate payment method distribution from real disbursement data
               const calculatePaymentMethodData = () => {
                 // Black and white color scheme
@@ -1904,15 +1914,6 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
                   'Bank': '#4b5563',           // Darker gray
                   'Check': '#374151'           // Dark gray (alternative spelling)
                 };
-                
-                if (recentDisbursements.length === 0) {
-                  // Default data with black and white theme
-                  return [
-                    { method: 'Cash', count: 25, percentage: 62.5, color: '#000000' },
-                    { method: 'Cheque', count: 10, percentage: 25, color: '#374151' },
-                    { method: 'Bank Transfer', count: 5, percentage: 12.5, color: '#4b5563' }
-                  ];
-                }
 
                 // Group disbursements by payment method
                 const methodCounts = recentDisbursements.reduce((acc, disbursement) => {

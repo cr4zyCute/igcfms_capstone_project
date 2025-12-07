@@ -56,52 +56,76 @@ export const useFundAccounts = (options = {}) => {
         return [];
       };
 
-      const accountsWithGraphData = await Promise.all(
-        filteredAccounts.map(async (account) => {
-          try {
-            // Fetch recent transactions for graph data
-            const transactions = await getTransactions({ 
-              fund_account_id: account.id,
-              limit: 20 
-            });
+      // Fetch all transactions once instead of per-account
+      let allTransactions = [];
+      try {
+        // Use accountIds parameter to filter transactions by fund account IDs
+        const accountIds = filteredAccounts.map(acc => acc.id).join(',');
+        console.log(`🔄 Fetching transactions for account IDs: [${accountIds}]`);
+        
+        const transactionsResponse = await getTransactions({ 
+          accountIds,
+          limit: 500 
+        });
+        allTransactions = normalizeTransactions(transactionsResponse);
+        console.log(`📊 Fetched transactions (total: ${allTransactions.length})`);
+        console.log(`📊 Response structure:`, transactionsResponse);
+        
+        // Log first transaction to see ALL available fields
+        if (allTransactions.length > 0) {
+          console.log(`🔎 FIRST TRANSACTION:`, allTransactions[0]);
+        } else {
+          console.warn(`⚠️ No transactions returned!`);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to fetch transactions:`, error);
+        console.error(`Error response:`, error.response?.data);
+      }
 
-            // Ensure we only get transactions for this specific account
-            const normalizedTransactions = normalizeTransactions(transactions);
-            const accountTransactions = normalizedTransactions.filter(tx => 
-              parseInt(tx.fund_account_id, 10) === parseInt(account.id, 10)
-            );
-            
-            const graphData = accountTransactions
-              .filter(tx => tx.type !== 'INITIAL_BALANCE')
-              .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) // Sort chronologically
-              .slice(-20) // Get last 20 transactions
-              .map(t => ({
-                    date: t.created_at,
-                    balance: t.balance_after_transaction ?? account.current_balance,
-                    amount: parseFloat(t.amount) || 0,
-                    type: t.type || 'Unknown',
-                    recipient: t.recipient || t.payee_name || null,
-                    payer_name: t.payer_name || null,
-                    payee_name: t.payee_name || t.recipient || null,
-                    description: t.description || '',
-                    reference: t.reference || t.reference_no || '',
-                  }));
-            
-            return {
-              ...account,
-              graphData,
-              transactionCount: accountTransactions.length
-            };
-          } catch (error) {
-            console.warn(`Failed to fetch graph data for account ${account.id}:`, error);
-            return {
-              ...account,
-              graphData: [],
-              transactionCount: 0
-            };
-          }
-        })
-      );
+      const accountsWithGraphData = filteredAccounts.map((account) => {
+        try {
+          // Filter transactions for this specific account
+          // The API already filters by accountIds, but we filter again to be safe
+          const accountTransactions = allTransactions.filter(tx => {
+            const txAccountId = parseInt(tx.fund_account_id, 10);
+            const accountIdInt = parseInt(account.id, 10);
+            return txAccountId === accountIdInt;
+          });
+
+          console.log(`🔍 Account ${account.name} (ID: ${account.id}): Found ${accountTransactions.length} transactions`);
+          
+          const graphData = accountTransactions
+            .filter(tx => tx.type !== 'INITIAL_BALANCE')
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) // Sort chronologically
+            .slice(-20) // Get last 20 transactions
+            .map(t => ({
+                  date: t.created_at,
+                  balance: t.balance_after_transaction ?? account.current_balance,
+                  amount: parseFloat(t.amount) || 0,
+                  type: t.type || 'Unknown',
+                  recipient: t.recipient || t.payee_name || null,
+                  payer_name: t.payer_name || null,
+                  payee_name: t.payee_name || t.recipient || null,
+                  description: t.description || '',
+                  reference: t.reference || t.reference_no || '',
+                }));
+          
+          console.log(`📈 Graph data for ${account.name}: ${graphData.length} items`);
+          
+          return {
+            ...account,
+            graphData,
+            transactionCount: accountTransactions.length
+          };
+        } catch (error) {
+          console.error(`❌ Failed to process graph data for account ${account.id} (${account.name}):`, error);
+          return {
+            ...account,
+            graphData: [],
+            transactionCount: 0
+          };
+        }
+      });
       
       // Simulate pagination
       const startIndex = (page - 1) * limit;

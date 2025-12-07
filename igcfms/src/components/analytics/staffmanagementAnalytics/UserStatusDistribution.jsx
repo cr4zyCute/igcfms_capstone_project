@@ -14,9 +14,21 @@ const UserStatusDistribution = ({ kpiData }) => {
     const source = (kpiData?.roleDistribution && kpiData.roleDistribution.length)
       ? kpiData.roleDistribution
       : (kpiData?.statusDistribution || []);
+    
+    // Black and white theme colors
+    const blackWhiteColors = {
+      'Collecting Officer': '#000000',
+      'Cashier': '#333333',
+      'Disbursing Officer': '#666666',
+      'Admin': '#999999',
+      'Active': '#111111',
+      'Inactive': '#bdbdbd',
+      'Suspended': '#6d6d6d',
+    };
+    
     const labels = source.map((s) => s.status);
     const data = source.map((s) => s.count);
-    const colors = source.map((s) => s.color);
+    const colors = source.map((s) => blackWhiteColors[s.status] || s.color);
 
     chartRef.current = new Chart(ctx, {
       type: 'doughnut',

@@ -62,6 +62,7 @@ export function generateOverridePDF({ overrideRequests = [], filters = {} }) {
     `#${req.id}`,
     `#${req.transaction_id}`,
     req.requested_by?.name || 'N/A',
+    req.requested_by?.role || req.requestedBy?.role || 'N/A',
     req.reason || 'N/A',
     req.status || 'N/A',
     req.created_at ? new Date(req.created_at).toLocaleDateString() : 'N/A'
@@ -70,7 +71,7 @@ export function generateOverridePDF({ overrideRequests = [], filters = {} }) {
   // Table
   autoTable(doc, {
     startY: y,
-    head: [['ID', 'Transaction', 'Requested By', 'Reason', 'Status', 'Date']],
+    head: [['ID', 'Transaction', 'Requested By', 'Role', 'Reason', 'Status', 'Date']],
     body,
     theme: 'grid',
     headStyles: {
@@ -94,10 +95,11 @@ export function generateOverridePDF({ overrideRequests = [], filters = {} }) {
     columnStyles: {
       0: { halign: 'center', cellWidth: 18 },
       1: { halign: 'center', cellWidth: 25 },
-      2: { halign: 'left', cellWidth: 30 },
-      3: { halign: 'left', cellWidth: 35 },
-      4: { halign: 'center', cellWidth: 20 },
-      5: { halign: 'center', cellWidth: 25 }
+      2: { halign: 'left', cellWidth: 28 },
+      3: { halign: 'left', cellWidth: 22 },
+      4: { halign: 'left', cellWidth: 32 },
+      5: { halign: 'center', cellWidth: 18 },
+      6: { halign: 'center', cellWidth: 22 }
     },
     didDrawPage: (data) => {
       // Footer: page numbering

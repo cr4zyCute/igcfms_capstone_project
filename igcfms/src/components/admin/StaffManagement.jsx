@@ -228,7 +228,8 @@ const StaffManagement = () => {
         email: formData.email,
         role: formData.role,
         password: formData.password,
-        phone: formData.phone
+        phone: formData.phone,
+        department: formData.department
       };
       await createStaffMutation.mutateAsync(payload);
       setShowAddModal(false);
@@ -250,10 +251,12 @@ const StaffManagement = () => {
         email: formData.email,
         role: formData.role,
         phone: formData.phone,
+        department: formData.department
       };
       if (formData.password && formData.password.trim()) {
         payload.password = formData.password;
       }
+      console.log("Updating staff with ID:", editingStaff.id, "Payload:", payload);
       await updateStaffMutation.mutateAsync({ id: editingStaff.id, data: payload });
       setShowEditModal(false);
       setEditingStaff(null);
@@ -261,20 +264,23 @@ const StaffManagement = () => {
       showNotification("success", "Staff Updated", `${formData.name}'s information has been successfully updated.`);
     } catch (err) {
       console.error("Edit staff error", err);
-      showNotification("error", "Update Failed", "Unable to update staff. Please try again.");
+      const errorMsg = err?.response?.data?.message || err?.message || "Unable to update staff. Please try again.";
+      showNotification("error", "Update Failed", errorMsg);
     }
   };
 
   const handleDeleteStaff = async () => {
     const name = deletingStaff?.name || "Staff";
     try {
+      console.log("Deleting staff with ID:", deletingStaff.id);
       await deleteStaffMutation.mutateAsync(deletingStaff.id);
       setShowDeleteModal(false);
       setDeletingStaff(null);
       showNotification("success", "Staff Deleted", `${name} has been removed from the system.`);
     } catch (err) {
       console.error("Delete staff error", err);
-      showNotification("error", "Delete Failed", `Unable to delete ${name}. Please try again.`);
+      const errorMsg = err?.response?.data?.message || err?.message || `Unable to delete ${name}. Please try again.`;
+      showNotification("error", "Delete Failed", errorMsg);
     }
   };
 
@@ -307,6 +313,7 @@ const StaffManagement = () => {
       role: staff.role,
       password: "",
       phone: staff.phone,
+      department: staff.department,
     });
     setShowEditModal(true);
   };
@@ -471,10 +478,10 @@ const StaffManagement = () => {
     };
     const roleOrder = ['Collecting Officer', 'Cashier', 'Disbursing Officer', 'Admin'];
     const roleColors = {
-      'Collecting Officer': '#111111',
+      'Collecting Officer': '#000000',
       'Cashier': '#333333',
-      'Disbursing Officer': '#555555',
-      'Admin': '#777777',
+      'Disbursing Officer': '#666666',
+      'Admin': '#999999',
     };
     const roleDistribution = roleOrder.map((role) => {
       const count = staffMembers.filter(s => canonicalRole(s.role) === role).length;
@@ -485,6 +492,7 @@ const StaffManagement = () => {
         color: roleColors[role],
       };
     });
+    console.log('Role Distribution Colors:', roleDistribution);
 
     const toDate = (val) => {
       const d = new Date(val);

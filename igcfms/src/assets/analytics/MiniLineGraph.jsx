@@ -2,8 +2,12 @@ import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 
 const MiniLineGraph = ({ data, accountId, accountName, globalMaxAmount }) => {
+  console.log(`📈 MiniLineGraph rendering for ${accountName}:`, { dataLength: data?.length, data });
+  
   const processedData = useMemo(() => {
+    console.log(`🔄 Processing data for ${accountName}: ${data?.length || 0} items`);
     if (!Array.isArray(data) || data.length === 0) {
+      console.log(`⚠️ No data for ${accountName}`);
       return [];
     }
 

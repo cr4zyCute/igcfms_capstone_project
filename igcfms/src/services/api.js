@@ -67,9 +67,12 @@ export const getProfile = async () => {
 
   export const updateUser = async (id, userData) => {
     try {
+      console.log(`[API] PUT /users/${id}`, userData);
       const response = await api.put(`/users/${id}`, userData);
+      console.log(`[API] PUT /users/${id} - Success:`, response.data);
       return response.data;
     } catch (error) {
+      console.error(`[API] PUT /users/${id} - Error:`, error.response?.data || error.message);
       throw error;
     }
   };
@@ -85,9 +88,12 @@ export const getProfile = async () => {
 
   export const deleteUser = async (id) => {
     try {
+      console.log(`[API] DELETE /users/${id}`);
       const response = await api.delete(`/users/${id}`);
+      console.log(`[API] DELETE /users/${id} - Success:`, response.data);
       return response.data;
     } catch (error) {
+      console.error(`[API] DELETE /users/${id} - Error:`, error.response?.data || error.message);
       throw error;
     }
   };

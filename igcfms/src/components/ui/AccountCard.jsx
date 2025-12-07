@@ -10,6 +10,12 @@ const AccountCard = memo(({
   onToggleMenu,
   globalMaxAmount 
 }) => {
+  console.log(`🎴 AccountCard rendered for ${account.name}:`, {
+    graphDataLength: account.graphData?.length || 0,
+    graphData: account.graphData,
+    transactionCount: account.transactionCount
+  });
+  
   // If account is loading, show skeleton
   if (account.isLoading) {
     return (

@@ -130,3 +130,23 @@
   color: #dc2626;
   font-weight: 600;
 }
+
+.ot-timeline-no-data {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 250px;
+  gap: 12px;
+}
+
+.ot-timeline-no-data i {
+  font-size: 48px;
+  color: #d1d5db;
+}
+
+.ot-timeline-no-data span {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}

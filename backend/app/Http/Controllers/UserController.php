@@ -23,7 +23,9 @@ class UserController extends Controller
             'name' => 'required|string|max:100',
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:6',
-            'role' => 'required|in:Cashier,Collecting Officer,Disbursing Officer,Admin'
+            'phone' => 'nullable|string|max:20',
+            'role' => 'required|in:Cashier,Collecting Officer,Disbursing Officer,Admin',
+            'department' => 'nullable|string|max:100'
         ]);
 
         $user = User::create([
@@ -31,6 +33,8 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
+            'phone' => $request->phone,
+            'department' => $request->department,
             'status' => 'active'
         ]);
 
@@ -62,6 +66,58 @@ class UserController extends Controller
             'status' => $user->status,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at
+        ]);
+    }
+
+    // Update a specific user (by admin)
+    public function update(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+        
+        $request->validate([
+            'name' => 'required|string|max:100',
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users')->ignore($user->id)
+            ],
+            'phone' => 'nullable|string|max:20',
+            'department' => 'nullable|string|max:100',
+            'role' => 'required|in:Cashier,Collecting Officer,Disbursing Officer,Admin',
+            'password' => 'nullable|string|min:6'
+        ]);
+
+        // Update user data
+        $updateData = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'department' => $request->department,
+            'role' => $request->role
+        ];
+
+        // Add password if provided
+        if ($request->filled('password')) {
+            $updateData['password'] = Hash::make($request->password);
+        }
+
+        $user->update($updateData);
+
+        return response()->json([
+            'message' => 'User updated successfully',
+            'user' => $user
+        ]);
+    }
+
+    // Delete a user
+    public function destroy($id)
+    {
+        $user = User::findOrFail($id);
+        $userName = $user->name;
+        $user->delete();
+
+        return response()->json([
+            'message' => "User '{$userName}' has been deleted successfully"
         ]);
     }
 

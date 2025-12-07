@@ -377,6 +377,11 @@ const OverrideRequestTrendanalaytics = ({
             <i className="fas fa-exclamation-triangle"></i>
             <span>Failed to load data</span>
           </div>
+        ) : overrideRequests.length === 0 ? (
+          <div className="ot-timeline-no-data">
+            <i className="fas fa-inbox"></i>
+            <span>No override requests available</span>
+          </div>
         ) : (
           <div className="ot-timeline-chart-container" style={{ 
             height: '250px', 
