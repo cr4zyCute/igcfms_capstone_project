@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import './css/activitydashboard.css';
 import { useRecentActivities, useActivityStatistics } from '../../hooks/useActivityDashboard.js';
 
@@ -6,8 +6,11 @@ const ActivityDashboard = () => {
   const [filters, setFilters] = useState({
     period: '7',
     role: 'all',
-    type: 'all'
+    type: 'all',
+    limit: 1000,
   });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [activeStatFilter, setActiveStatFilter] = useState(null);
 
   // TanStack Query hooks
@@ -26,6 +29,7 @@ const ActivityDashboard = () => {
   } = useActivityStatistics({ filters, refetchInterval: 30000 });
 
   const loading = activitiesLoading || statisticsLoading;
+  const statVal = (key) => (statistics?.statistics?.[key] ?? statistics?.[key] ?? 0);
   const error = activitiesError?.message || statisticsError?.message || '';
 
   // Manual refresh function
@@ -57,6 +61,20 @@ const ActivityDashboard = () => {
       }
     });
   }, [activeStatFilter, activities]);
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil((filteredActivities?.length || 0) / pageSize));
+    if (page > tp) setPage(tp);
+  }, [filteredActivities, page, pageSize, pageSize]);
+
+  const paginatedActivities = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredActivities.slice(start, start + pageSize);
+  }, [filteredActivities, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil((filteredActivities?.length || 0) / pageSize));
+  const startItem = filteredActivities.length ? (page - 1) * pageSize + 1 : 0;
+  const endItem = Math.min(filteredActivities.length, page * pageSize);
 
   const getActivityIcon = (type) => {
     const icons = {
@@ -108,6 +126,8 @@ const ActivityDashboard = () => {
     if (mediumPriority.includes(type)) return 'MEDIUM';
     return 'LOW';
   };
+
+  const formatTypeLabel = (type = '') => String(type).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
   const formatTimeAgo = (dateString) => {
     const now = new Date();
@@ -169,11 +189,11 @@ const ActivityDashboard = () => {
           onClick={() => setActiveStatFilter(null)}
           style={{ cursor: 'pointer' }}
         >
-          <div className="stat-icon">
+          <div className="ad-stat-icon">
             <i className="fas fa-chart-bar"></i>
           </div>
           <div className="stat-content">
-            <div className="stat-value">{statistics.statistics?.total_activities || 0}</div>
+            <div className="stat-value">{statVal('total_activities')}</div>
             <div className="stat-label">Total Activities</div>
           </div>
         </div>
@@ -183,11 +203,11 @@ const ActivityDashboard = () => {
           onClick={() => setActiveStatFilter('login')}
           style={{ cursor: 'pointer' }}
         >
-          <div className="stat-icon">
+          <div className="ad-stat-icon">
             <i className="fas fa-sign-in-alt"></i>
           </div>
           <div className="stat-content">
-            <div className="stat-value">{statistics.statistics?.login_activities || 0}</div>
+            <div className="stat-value">{statVal('login_activities')}</div>
             <div className="stat-label">Successful Logins</div>
           </div>
         </div>
@@ -197,11 +217,11 @@ const ActivityDashboard = () => {
           onClick={() => setActiveStatFilter('login_failed')}
           style={{ cursor: 'pointer' }}
         >
-          <div className="stat-icon">
+          <div className="ad-stat-icon">
             <i className="fas fa-exclamation-triangle"></i>
           </div>
           <div className="stat-content">
-            <div className="stat-value">{statistics.statistics?.failed_logins || 0}</div>
+            <div className="stat-value">{statVal('failed_logins')}</div>
             <div className="stat-label">Failed Login Attempts</div>
           </div>
         </div>
@@ -211,11 +231,11 @@ const ActivityDashboard = () => {
           onClick={() => setActiveStatFilter('collection_created')}
           style={{ cursor: 'pointer' }}
         >
-          <div className="stat-icon">
+          <div className="ad-stat-icon">
             <i className="fas fa-money-bill-wave"></i>
           </div>
           <div className="stat-content">
-            <div className="stat-value">{statistics.statistics?.transactions || 0}</div>
+            <div className="stat-value">{statVal('transactions')}</div>
             <div className="stat-label">Transactions</div>
           </div>
         </div>
@@ -225,104 +245,16 @@ const ActivityDashboard = () => {
           onClick={() => setActiveStatFilter('override_requested')}
           style={{ cursor: 'pointer' }}
         >
-          <div className="stat-icon">
+          <div className="ad-stat-icon">
             <i className="fas fa-edit"></i>
           </div>
           <div className="stat-content">
-            <div className="stat-value">{statistics.statistics?.override_requests || 0}</div>
+            <div className="stat-value">{statVal('override_requests')}</div>
             <div className="stat-label">Override Requests</div>
           </div>
         </div>
       </div>
-
-      {/* Recent Activities */}
-      <div className="activities-section">
-        <div className="section-header">
-          <h3>
-            <i className="fas fa-history"></i>
-            Recent Activities
-            {activeStatFilter && (
-              <span className="filter-badge">
-                <i className="fas fa-filter"></i> Filtered
-              </span>
-            )}
-          </h3>
-          <span className="activity-count">{filteredActivities.length} activities</span>
-        </div>
-
-        <div className="activities-list">
-          {filteredActivities.length === 0 ? (
-            <div className="no-activities">
-              <i className="fas fa-inbox"></i>
-              <p>{activeStatFilter ? 'No activities found for this filter' : 'No recent activities found'}</p>
-            </div>
-          ) : (
-            filteredActivities.map((activity) => (
-              <div key={activity.id} className={`activity-item ${getActivityColor(activity.activity_type)}`}>
-                <div className="activity-icon">
-                  <i className={getActivityIcon(activity.activity_type)}></i>
-                </div>
-                
-                <div className="activity-content">
-                  <div className="activity-header">
-                    <div className="activity-title">
-                      {activity.activity_description}
-                    </div>
-                    <div className="activity-meta">
-                      <span className={`priority-badge priority-${getPriorityLevel(activity.activity_type).toLowerCase()}`}>
-                        {getPriorityLevel(activity.activity_type)}
-                      </span>
-                      <span className="activity-time">
-                        {formatTimeAgo(activity.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="activity-details">
-                    <div className="detail-item">
-                      <span className="detail-label">User:</span>
-                      <span className="detail-value">{activity.user_name} ({activity.user_role})</span>
-                    </div>
-                    {activity.ip_address && (
-                      <div className="detail-item">
-                        <span className="detail-label">IP:</span>
-                        <span className="detail-value">{activity.ip_address}</span>
-                      </div>
-                    )}
-                    {activity.details && Object.keys(activity.details).length > 0 && (
-                      <div className="detail-item">
-                        <span className="detail-label">Details:</span>
-                        <span className="detail-value">
-                          {Object.entries(activity.details)
-                            .filter(([key, value]) => !['user_agent', 'session_id'].includes(key) && value)
-                            .map(([key, value]) => `${key}: ${value}`)
-                            .join(', ')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {activity.activity_type === 'login_failed' && (
-                  <div className="activity-alert">
-                    <i className="fas fa-shield-alt"></i>
-                    <span>Security Alert</span>
-                  </div>
-                )}
-
-                {activity.activity_type === 'override_requested' && (
-                  <div className="activity-alert">
-                    <i className="fas fa-clock"></i>
-                    <span>Action Required</span>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Activity by Role Chart */}
+       {/* Activity by Role Chart */}
       {statistics.activity_by_role && Object.keys(statistics.activity_by_role).length > 0 && (
         <div className="chart-section">
           <h3>
@@ -347,6 +279,117 @@ const ActivityDashboard = () => {
           </div>
         </div>
       )}
+      {/* Recent Activities */}
+      <div className="activities-section">
+        <div className="section-header">
+          <h3>
+            <i className="fas fa-history"></i>
+            Recent Activities
+            {activeStatFilter && (
+              <span className="filter-badge">
+                <i className="fas fa-filter"></i> Filtered
+              </span>
+            )}
+          </h3>
+          <span className="activity-count">{filteredActivities.length} activities</span>
+        </div>
+
+        {/* Table view */}
+        {filteredActivities.length === 0 ? (
+          <div className="no-activities">
+            <i className="fas fa-inbox"></i>
+            <p>{activeStatFilter ? 'No activities found for this filter' : 'No recent activities found'}</p>
+          </div>
+        ) : (
+          <div className="activities-table-container">
+            <table className="activities-table">
+              <thead>
+                <tr>
+                  <th><i className="fas fa-hashtag"></i> ID</th>
+                  <th><i className="fas fa-bolt"></i> TYPE</th>
+                  <th><i className="fas fa-align-left"></i> DESCRIPTION</th>
+                  <th><i className="fas fa-user"></i> USER</th>
+                  <th><i className="fas fa-exclamation-circle"></i> PRIORITY</th>
+                  <th><i className="fas fa-clock"></i> TIME</th>
+                  <th><i className="fas fa-network-wired"></i> IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedActivities.map((activity) => (
+                  <tr key={activity.id} className={`table-row`}>
+                    <td>#{activity.id}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className={`activity-icon small ${getActivityColor(activity.activity_type)}`} style={{ width: 26, height: 26, borderRadius: 6 }}>
+                          <i className={getActivityIcon(activity.activity_type)}></i>
+                        </span>
+                        <strong>{formatTypeLabel(activity.activity_type)}</strong>
+                      </div>
+                    </td>
+                    <td>{activity.activity_description}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <strong>{activity.user_name || '—'}</strong>
+                        <span style={{ color: '#6b7280', fontSize: 12 }}>{activity.user_role || '—'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`priority-badge priority-${getPriorityLevel(activity.activity_type).toLowerCase()}`}>
+                        {getPriorityLevel(activity.activity_type)}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span title={new Date(activity.created_at).toLocaleString()}>{formatTimeAgo(activity.created_at)}</span>
+                        <span style={{ color: '#9ca3af', fontSize: 12 }}>{new Date(activity.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </td>
+                    <td>{activity.ip_address || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="activities-pagination" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' }}>
+          <div style={{ color: '#6b7280', fontSize: 12 }}>
+            {filteredActivities.length ? `Showing ${startItem}–${endItem} of ${filteredActivities.length}` : 'No activities'}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}
+              style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6 }}
+            >
+              <option value={10}>10 / page</option>
+              <option value={25}>25 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff' }}
+            >
+              <i className="fas fa-chevron-left"></i> Prev
+            </button>
+            <span style={{ minWidth: 90, textAlign: 'center', fontSize: 12, color: '#374151' }}>
+              Page {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff' }}
+            >
+              Next <i className="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+     
     </div>
   );
 };

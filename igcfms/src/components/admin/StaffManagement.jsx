@@ -3,6 +3,12 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./css/staffmanagement.css";
 import Chart from "chart.js/auto";
+import * as XLSX from 'xlsx';
+import { generateStaffDirectoryPDF } from "../reports/export/pdf/staffexport.jsx";
+import UserStatusDistribution from "../analytics/staffmanagementAnalytics/UserStatusDistribution.jsx";
+import NewUsersOverTime from "../analytics/staffmanagementAnalytics/NewUsersOverTime.jsx";
+import ActiveUsersTrend from "../analytics/staffmanagementAnalytics/ActiveUsersTrend.jsx";
+import Deletion from "../common/Deletion.jsx";
 import {
   useStaffMembers,
   useCreateStaff,
@@ -40,6 +46,20 @@ const StaffManagement = () => {
   });
   const [errors, setErrors] = useState({});
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  const [actionMenuPosition, setActionMenuPosition] = useState({ top: 0, left: 0 });
+  const [filters, setFilters] = useState({
+    activeFilter: 'latest',
+    dateFrom: '',
+    dateTo: '',
+    searchTerm: '',
+    showFilterDropdown: false,
+  });
+  const filterDropdownRef = useRef(null);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const exportDropdownRef = useRef(null);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState("");
 
   // TanStack Query hooks
   const { 
@@ -96,29 +116,59 @@ const StaffManagement = () => {
 
   const handleActionMenuToggle = (event, staffId) => {
     event.stopPropagation();
+    const target = event.currentTarget;
+    const nextIsOpen = openActionMenuId !== staffId;
+    if (nextIsOpen && target && target.getBoundingClientRect) {
+      const rect = target.getBoundingClientRect();
+      const menuWidth = 200;
+      const menuHeight = 156; // approx height for 3 items
+      let left = Math.max(8, Math.min(window.innerWidth - menuWidth - 8, rect.right - menuWidth));
+      let top = rect.bottom + 8; // viewport coords for position: fixed
+      if (top + menuHeight > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - menuHeight - 8); // flip upward if not enough space
+      }
+      setActionMenuPosition({ top, left });
+    }
     setOpenActionMenuId((prev) => (prev === staffId ? null : staffId));
   };
 
   useEffect(() => {
     if (openActionMenuId === null) return;
 
-    const handleClickOutside = () => setOpenActionMenuId(null);
+    const handlePointerDownOutside = (event) => {
+      const t = event.target;
+      if (t && (t.closest && (t.closest('.action-menu') || t.closest('.action-menu-trigger')))) return;
+      setOpenActionMenuId(null);
+    };
     const handleKeydown = (event) => {
       if (event.key === "Escape") setOpenActionMenuId(null);
     };
 
-    document.addEventListener("click", handleClickOutside);
+    document.addEventListener("mousedown", handlePointerDownOutside, true);
     document.addEventListener("keydown", handleKeydown);
 
     return () => {
-      document.removeEventListener("click", handleClickOutside);
+      document.removeEventListener("mousedown", handlePointerDownOutside, true);
       document.removeEventListener("keydown", handleKeydown);
     };
   }, [openActionMenuId]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
+        setFilters((prev) => ({ ...prev, showFilterDropdown: false }));
+      }
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target)) {
+        setShowExportDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Add modal-open class to body when any modal is open
   useEffect(() => {
-    if (showAddModal || showEditModal || showDeleteModal || showNotificationModal) {
+    if (showAddModal || showEditModal || showDeleteModal || showNotificationModal || showPDFPreview) {
       document.body.classList.add("modal-open");
     } else {
       document.body.classList.remove("modal-open");
@@ -127,7 +177,7 @@ const StaffManagement = () => {
     return () => {
       document.body.classList.remove("modal-open");
     };
-  }, [showAddModal, showEditModal, showDeleteModal, showNotificationModal]);
+  }, [showAddModal, showEditModal, showDeleteModal, showNotificationModal, showPDFPreview]);
 
   // Utility Functions
   const showNotification = (type, title, message) => {
@@ -160,6 +210,13 @@ const StaffManagement = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleFilterChange = (key, value) => {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
   // CRUD Operations
   const handleAddStaff = async (e) => {
     e.preventDefault();
@@ -171,8 +228,7 @@ const StaffManagement = () => {
         email: formData.email,
         role: formData.role,
         password: formData.password,
-        phone: formData.phone,
-        department: formData.department,
+        phone: formData.phone
       };
       await createStaffMutation.mutateAsync(payload);
       setShowAddModal(false);
@@ -194,7 +250,6 @@ const StaffManagement = () => {
         email: formData.email,
         role: formData.role,
         phone: formData.phone,
-        department: formData.department,
       };
       if (formData.password && formData.password.trim()) {
         payload.password = formData.password;
@@ -252,7 +307,6 @@ const StaffManagement = () => {
       role: staff.role,
       password: "",
       phone: staff.phone,
-      department: staff.department,
     });
     setShowEditModal(true);
   };
@@ -270,12 +324,167 @@ const StaffManagement = () => {
     admins: staffMembers.filter(s => s.role === "Admin").length,
   };
 
+  const filteredStaff = useMemo(() => {
+    let data = [...staffMembers];
+    const { searchTerm, dateFrom, dateTo } = filters;
+    const canonicalRole = (r) => {
+      const s = (r || '').toString().trim().toLowerCase();
+      if (s === 'administrator' || s === 'admin') return 'Admin';
+      if (s === 'collecting officer' || s === 'collecting_officer' || s === 'collectingofficer') return 'Collecting Officer';
+      if (s === 'cashier') return 'Cashier';
+      if (s === 'disbursing officer' || s === 'disbursing_officer' || s === 'disbursingofficer') return 'Disbursing Officer';
+      return r || '';
+    };
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      data = data.filter((s) =>
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.email || '').toLowerCase().includes(q) ||
+        (s.role || '').toLowerCase().includes(q) ||
+        (s.department || '').toLowerCase().includes(q) ||
+        (s.phone || '').toLowerCase().includes(q) ||
+        String(s.id).includes(q)
+      );
+    }
+    if (dateFrom) {
+      data = data.filter((s) => new Date(s.joinDate) >= new Date(dateFrom));
+    }
+    if (dateTo) {
+      data = data.filter((s) => new Date(s.joinDate) <= new Date(`${dateTo}T23:59:59`));
+    }
+    if (filters.activeFilter && String(filters.activeFilter).startsWith('role:')) {
+      const roleValue = String(filters.activeFilter).slice(5);
+      data = data.filter((s) => canonicalRole(s.role) === roleValue);
+    }
+    return data;
+  }, [staffMembers, filters.searchTerm, filters.dateFrom, filters.dateTo, filters.activeFilter]);
+
+  const sortedStaff = useMemo(() => {
+    const arr = [...filteredStaff];
+    switch (filters.activeFilter) {
+      case 'oldest':
+        arr.sort((a, b) => new Date(a.joinDate) - new Date(b.joinDate));
+        break;
+      default:
+        arr.sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate));
+    }
+    return arr;
+  }, [filteredStaff, filters.activeFilter]);
+
+  // Export helpers
+  const exportFilters = useMemo(() => ({
+    Search: filters.searchTerm || 'None',
+    'Date From': filters.dateFrom || '—',
+    'Date To': filters.dateTo || '—',
+    Sorting: (
+      filters.activeFilter === 'latest' ? 'Latest First' :
+      filters.activeFilter === 'oldest' ? 'Oldest First' :
+      (String(filters.activeFilter || '').startsWith('role:') ? `Role: ${String(filters.activeFilter).slice(5)}` : 'Latest First')
+    )
+  }), [filters]);
+
+  const handleExportPdf = () => {
+    if (!sortedStaff.length) { setShowExportDropdown(false); return; }
+    try {
+      const { blob, filename } = generateStaffDirectoryPDF({
+        staff: sortedStaff,
+        filters: exportFilters,
+        reportTitle: 'Staff Directory',
+      });
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+      setPdfFileName(filename);
+      setShowPDFPreview(true);
+    } catch (e) {
+      console.error('Error generating Staff PDF:', e);
+    }
+    setShowExportDropdown(false);
+  };
+
+  const handleExportExcel = () => {
+    if (!sortedStaff.length) { setShowExportDropdown(false); return; }
+    const data = sortedStaff.map((s) => ({
+      'ID': s.id,
+      'Name': s.name,
+      'Email': s.email,
+      'Role': s.role,
+      'Status': (s.status || '').toString().toUpperCase(),
+      'Department': s.department || '',
+      'Join Date': new Date(s.joinDate).toLocaleDateString(),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Staff');
+
+    // Summary sheet
+    const summaryData = [
+      { Metric: 'Total Staff', Value: String(sortedStaff.length) },
+      { Metric: 'Active', Value: String(sortedStaff.filter(s => s.status === 'active').length) },
+      { Metric: 'Inactive', Value: String(sortedStaff.filter(s => s.status === 'inactive').length) },
+      { Metric: 'Generated', Value: new Date().toLocaleString() },
+      { Metric: 'Sorting', Value: exportFilters.Sorting },
+      { Metric: 'Search', Value: exportFilters.Search },
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    ws['!cols'] = [
+      { wch: 8 }, { wch: 26 }, { wch: 32 }, { wch: 16 }, { wch: 12 }, { wch: 22 }, { wch: 16 }
+    ];
+
+    const fileName = `staff_directory_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    setShowExportDropdown(false);
+  };
+
+  const downloadPDFFromPreview = () => {
+    if (!pdfPreviewUrl) return;
+    const a = document.createElement('a');
+    a.href = pdfPreviewUrl;
+    a.download = pdfFileName || 'staff_directory.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const closePDFPreview = () => {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setPdfPreviewUrl(null);
+    setPdfFileName('');
+    setShowPDFPreview(false);
+  };
+ 
   // KPI Data (structured JSON) for charts and summaries
   const kpiData = useMemo(() => {
     const total = staffMembers.length;
     const active = staffMembers.filter(s => s.status === 'active').length;
     const inactive = staffMembers.filter(s => s.status === 'inactive').length;
     const suspended = staffMembers.filter(s => s.status === 'suspended').length;
+    const canonicalRole = (r) => {
+      const s = (r || '').toString().trim().toLowerCase();
+      if (s === 'administrator' || s === 'admin') return 'Admin';
+      if (s === 'collecting officer' || s === 'collecting_officer' || s === 'collectingofficer') return 'Collecting Officer';
+      if (s === 'cashier') return 'Cashier';
+      if (s === 'disbursing officer' || s === 'disbursing_officer' || s === 'disbursingofficer') return 'Disbursing Officer';
+      return r || '';
+    };
+    const roleOrder = ['Collecting Officer', 'Cashier', 'Disbursing Officer', 'Admin'];
+    const roleColors = {
+      'Collecting Officer': '#111111',
+      'Cashier': '#333333',
+      'Disbursing Officer': '#555555',
+      'Admin': '#777777',
+    };
+    const roleDistribution = roleOrder.map((role) => {
+      const count = staffMembers.filter(s => canonicalRole(s.role) === role).length;
+      return {
+        status: role,
+        count,
+        percentage: total ? Math.round((count / total) * 100) : 0,
+        color: roleColors[role],
+      };
+    });
 
     const toDate = (val) => {
       const d = new Date(val);
@@ -315,6 +524,7 @@ const StaffManagement = () => {
 
     return {
       totals: { users: total },
+      roleDistribution,
       statusDistribution: [
         { status: 'Active', count: active, percentage: total ? Math.round((active / total) * 100) : 0, color: '#111111' },
         { status: 'Inactive', count: inactive, percentage: total ? Math.round((inactive / total) * 100) : 0, color: '#bdbdbd' },
@@ -335,254 +545,7 @@ const StaffManagement = () => {
     };
   }, [staffMembers]);
 
-  // Render KPI Charts with Chart.js
-  useEffect(() => {
-    const getCtx = (id) => {
-      const canvas = document.getElementById(id);
-      return canvas ? canvas.getContext('2d') : null;
-    };
-
-    // Pie: User Status Distribution
-    const pieCtx = getCtx('um-status-pie-canvas');
-    if (pieCtx) {
-      if (chartRefs.current.pie) chartRefs.current.pie.destroy();
-      const labels = kpiData.statusDistribution.map((s) => s.status);
-      const data = kpiData.statusDistribution.map((s) => s.count);
-      const colors = kpiData.statusDistribution.map((s) => s.color);
-      chartRefs.current.pie = new Chart(pieCtx, {
-        type: 'doughnut',
-        data: {
-          labels,
-          datasets: [
-            {
-              data,
-              backgroundColor: colors,
-              borderWidth: 1,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '60%',
-          plugins: {
-            legend: { display: false },
-          },
-        },
-      });
-    }
-
-    // Line: New Users Over Time
-    const newUsersCtx = getCtx('um-new-users-canvas');
-    if (newUsersCtx) {
-      if (chartRefs.current.newUsers) chartRefs.current.newUsers.destroy();
-      const gradientFill = newUsersCtx.createLinearGradient(
-        0,
-        0,
-        0,
-        newUsersCtx.canvas?.clientHeight || 220
-      );
-      gradientFill.addColorStop(0, 'rgba(17, 17, 17, 0.42)');
-      gradientFill.addColorStop(1, 'rgba(17, 17, 17, 0.08)');
-
-      const borderGradient = newUsersCtx.createLinearGradient(
-        0,
-        0,
-        newUsersCtx.canvas?.clientWidth || 320,
-        0
-      );
-      borderGradient.addColorStop(0, '#0f0f0f');
-      borderGradient.addColorStop(1, '#3a3a3a');
-
-      chartRefs.current.newUsers = new Chart(newUsersCtx, {
-        type: 'line',
-        data: {
-          labels: kpiData.newUsersOverTime.labels,
-          datasets: [
-            {
-              label: 'New Users',
-              data: kpiData.newUsersOverTime.series,
-              borderColor: borderGradient,
-              backgroundColor: gradientFill,
-              borderWidth: 3,
-              fill: 'start',
-              tension: 0,
-              pointRadius: 0,
-              pointHoverRadius: 6,
-              pointBackgroundColor: '#111111',
-              pointBorderColor: '#f5f5f5',
-              pointBorderWidth: 2,
-              pointHitRadius: 12,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: {
-            padding: { top: 16, bottom: 10, left: 10, right: 16 },
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: '#111111',
-              titleColor: '#f5f5f5',
-              bodyColor: '#d9d9d9',
-              borderColor: '#333333',
-              borderWidth: 1,
-              padding: 10,
-              cornerRadius: 8,
-              displayColors: false,
-              callbacks: {
-                title: (context) => context[0].label,
-                label: (context) => `New users: ${context.parsed.y}`,
-              },
-            },
-          },
-          scales: {
-            x: {
-              grid: { color: 'rgba(0, 0, 0, 0.08)', drawBorder: false },
-              ticks: {
-                color: '#1a1a1a',
-                font: { size: 11, weight: '600' },
-                maxRotation: 0,
-                minRotation: 0,
-              },
-            },
-            y: {
-              beginAtZero: true,
-              ticks: {
-                precision: 0,
-                color: '#1a1a1a',
-                font: { size: 11, weight: '600' },
-                padding: 8,
-              },
-              grid: { color: 'rgba(0, 0, 0, 0.08)', drawBorder: false },
-            },
-          },
-          elements: {
-            line: {
-              borderJoinStyle: 'round',
-            },
-          },
-          interaction: {
-            intersect: false,
-            mode: 'index',
-          },
-        },
-      });
-    }
-
-    // Line: Active Users Trend
-    const activeTrendCtx = getCtx('um-active-trend-canvas');
-    if (activeTrendCtx) {
-      if (chartRefs.current.activeTrend) chartRefs.current.activeTrend.destroy();
-      const gradientFill = activeTrendCtx.createLinearGradient(
-        0,
-        0,
-        0,
-        activeTrendCtx.canvas?.clientHeight || 240
-      );
-      gradientFill.addColorStop(0, 'rgba(34, 34, 34, 0.38)');
-      gradientFill.addColorStop(1, 'rgba(34, 34, 34, 0.08)');
-
-      const borderGradient = activeTrendCtx.createLinearGradient(
-        0,
-        0,
-        activeTrendCtx.canvas?.clientWidth || 360,
-        0
-      );
-      borderGradient.addColorStop(0, '#1a1a1a');
-      borderGradient.addColorStop(1, '#4a4a4a');
-
-      chartRefs.current.activeTrend = new Chart(activeTrendCtx, {
-        type: 'line',
-        data: {
-          labels: kpiData.activeUsersTrend.labels,
-          datasets: [
-            {
-              label: 'Active Users',
-              data: kpiData.activeUsersTrend.series,
-              borderColor: borderGradient,
-              backgroundColor: gradientFill,
-              borderWidth: 3,
-              fill: 'start',
-              tension: 0,
-              pointRadius: 0,
-              pointHoverRadius: 6,
-              pointBackgroundColor: '#222222',
-              pointBorderColor: '#f5f5f5',
-              pointBorderWidth: 2,
-              pointHitRadius: 12,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: {
-            padding: { top: 18, bottom: 12, left: 10, right: 20 },
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: '#1a1a1a',
-              titleColor: '#f5f5f5',
-              bodyColor: '#d9d9d9',
-              borderColor: '#4d4d4d',
-              borderWidth: 1,
-              padding: 12,
-              cornerRadius: 8,
-              displayColors: false,
-              callbacks: {
-                title: (context) => context[0].label,
-                label: (context) => `Active users: ${context.parsed.y}`,
-              },
-            },
-          },
-          scales: {
-            x: {
-              grid: { color: 'rgba(0, 0, 0, 0.08)', drawBorder: false },
-              ticks: {
-                color: '#1a1a1a',
-                font: { size: 11, weight: '600' },
-                maxRotation: 0,
-                minRotation: 0,
-              },
-            },
-            y: {
-              beginAtZero: true,
-              ticks: {
-                precision: 0,
-                color: '#1a1a1a',
-                font: { size: 11, weight: '600' },
-                padding: 8,
-              },
-              grid: { color: 'rgba(0, 0, 0, 0.08)', drawBorder: false },
-            },
-          },
-          elements: {
-            line: {
-              borderJoinStyle: 'round',
-            },
-          },
-          interaction: {
-            intersect: false,
-            mode: 'index',
-          },
-        },
-      });
-    }
-
-    return () => {
-      ['pie', 'newUsers', 'activeTrend'].forEach((k) => {
-        if (chartRefs.current[k]) {
-          chartRefs.current[k].destroy();
-          chartRefs.current[k] = null;
-        }
-      });
-    };
-  }, [kpiData]);
+  // KPI charts are now rendered by dedicated components
 
   return (
     <div className="staff-management-page">
@@ -595,7 +558,6 @@ const StaffManagement = () => {
               Staff Management
               <span className="sm-total-badge"><i className="fas fa-list-ol"></i> {stats.total} total</span>
             </h1>
-            <p className="sm-subtitle">Manage system users, roles, and permissions</p>
           </div>
           <div className="sm-header-actions">
             <button className="sm-btn-add-staff" onClick={openAddModal}>
@@ -641,54 +603,9 @@ const StaffManagement = () => {
       {/* User Management KPI Dashboard (Top row: KPI | Pie | New Users, Bottom: Active Trend) */}
       <div className="um-dashboard">
         <div className="um-top-grid">
-          {/* Pie Chart - Status Distribution */}
-          <div className="um-card">
-            <div className="um-card-header">
-              <h3><i className="fas fa-chart-pie"></i> User Status Distribution</h3>
-              <span className="um-subtext">Percentages and counts</span>
-            </div>
-            <div className="um-card-body">
-              <div className="um-chart-placeholder" id="um-status-pie" aria-label="User Status Pie Chart">
-                <canvas id="um-status-pie-canvas"></canvas>
-              </div>
-              <ul className="um-legend">
-                {kpiData.statusDistribution.map((s, idx) => (
-                  <li key={idx}>
-                    <span className="um-legend-dot" style={{ background: s.color }}></span>
-                    <span className="um-legend-label">{s.status}</span>
-                    <span className="um-legend-value">{s.count}</span>
-                    <span className="um-legend-pct">{s.percentage}%</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* New Users Over Time - Line/Bar */}
-          <div className="um-card">
-            <div className="um-card-header">
-              <h3><i className="fas fa-chart-line"></i> New Users Over Time</h3>
-              <span className="um-subtext">{kpiData.newUsersOverTime.granularity === 'monthly' ? 'Monthly' : 'Daily'} registrations</span>
-            </div>
-            <div className="um-card-body">
-              <div className="um-chart-placeholder" id="um-new-users" aria-label="New Users Chart">
-                <canvas id="um-new-users-canvas"></canvas>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom - Active Users Trend */}
-        <div className="um-bottom-box um-card">
-          <div className="um-card-header">
-            <h3><i className="fas fa-wave-square"></i> Active Users Trend</h3>
-            <span className="um-subtext">Monthly active users (approx.)</span>
-          </div>
-          <div className="um-card-body">
-            <div className="um-chart-placeholder um-large" id="um-active-trend" aria-label="Active Users Trend Chart">
-              <canvas id="um-active-trend-canvas"></canvas>
-            </div>
-          </div>
+          <UserStatusDistribution kpiData={kpiData} />
+          <NewUsersOverTime kpiData={kpiData} />
+          <ActiveUsersTrend kpiData={kpiData} />
         </div>
 
         {/* Structured data for charts (hidden, ready for consumption) */}
@@ -697,10 +614,154 @@ const StaffManagement = () => {
 
       {/* Staff Table */}
       <div className="staff-table-container">
-        <div className="staff-table-header">
-          <h3 className="table-title">
-            <i className="fas fa-table"></i> Staff Directory
-          </h3>
+        <div className="section-header">
+          <div className="section-title-group">
+            <h3>
+              <i className="fas fa-table"></i>
+              Staff Directory
+              <span className="section-count">({sortedStaff.length})</span>
+            </h3>
+          </div>
+          <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap' }}>
+            <div className="search-filter-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap' }}>
+              <div className="account-search-container">
+                <input
+                  type="text"
+                  placeholder="Search staff..."
+                  value={filters.searchTerm}
+                  onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                  className="account-search-input"
+                />
+                <i className="fas fa-search account-search-icon"></i>
+              </div>
+            </div>
+
+            <div className="date-range-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="date-field" style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date From</label>
+                <input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                  placeholder="dd/mm/yyyy"
+                  style={{
+                    padding: '5px 8px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    height: '34px',
+                    fontSize: '12px'
+                  }}
+                />
+              </div>
+              <div className="date-field" style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date To</label>
+                <input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                  placeholder="dd/mm/yyyy"
+                  style={{
+                    padding: '5px 8px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    height: '34px',
+                    fontSize: '12px'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="filter-dropdown-container" ref={filterDropdownRef}>
+              <button
+                className="filter-dropdown-btn"
+                onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
+                title="Sort staff"
+              >
+                <i className="fas fa-filter"></i>
+                <span className="filter-label">
+                  {filters.activeFilter === 'latest' ? 'Latest First' :
+                   filters.activeFilter === 'oldest' ? 'Oldest First' :
+                   (String(filters.activeFilter || '').startsWith('role:') ? `Role: ${String(filters.activeFilter).slice(5)}` : 'Latest First')}
+                </span>
+                <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
+              </button>
+              {filters.showFilterDropdown && (
+                <div className="filter-dropdown-menu">
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'latest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'latest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-arrow-down"></i>
+                    <span>Latest First</span>
+                    {filters.activeFilter === 'latest' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'oldest' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'oldest'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-arrow-up"></i>
+                    <span>Oldest First</span>
+                    {filters.activeFilter === 'oldest' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'role:Collecting Officer' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'role:Collecting Officer'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-briefcase"></i>
+                    <span>Collecting Officer</span>
+                    {filters.activeFilter === 'role:Collecting Officer' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'role:Cashier' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'role:Cashier'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-briefcase"></i>
+                    <span>Cashier</span>
+                    {filters.activeFilter === 'role:Cashier' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'role:Disbursing Officer' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'role:Disbursing Officer'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-briefcase"></i>
+                    <span>Disbursing Officer</span>
+                    {filters.activeFilter === 'role:Disbursing Officer' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                  <button
+                    className={`filter-option ${filters.activeFilter === 'role:Admin' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('activeFilter', 'role:Admin'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-user-shield"></i>
+                    <span>Admin</span>
+                    {filters.activeFilter === 'role:Admin' && <i className="fas fa-check filter-check"></i>}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="action-buttons" ref={exportDropdownRef}>
+              <button
+                className="btn-icon export-btn"
+                title="Export Staff"
+                type="button"
+                onClick={() => setShowExportDropdown(prev => !prev)}
+              >
+                <i className="fas fa-download" style={{ color: '#ffffff' }}></i>
+              </button>
+              {showExportDropdown && (
+                <div className="export-dropdown-menu">
+                  <button type="button" className="export-option" onClick={handleExportPdf}>
+                    <i className="fas fa-file-pdf"></i>
+                    <span>Download PDF</span>
+                  </button>
+                  <button type="button" className="export-option" onClick={handleExportExcel}>
+                    <i className="fas fa-file-excel"></i>
+                    <span>Download Excel</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <table className="staff-table">
           <thead>
@@ -715,7 +776,7 @@ const StaffManagement = () => {
             </tr>
           </thead>
           <tbody>
-            {staffMembers.map((staff) => (
+            {sortedStaff.map((staff) => (
               <tr key={staff.id}>
                 <td>#{staff.id}</td>
                 <td className="staff-name-cell">
@@ -748,52 +809,123 @@ const StaffManagement = () => {
                     <span className="sr-only">Open actions menu</span>
                     <i className="fas fa-ellipsis-v"></i>
                   </button>
-                  <div
-                    className={`action-menu ${openActionMenuId === staff.id ? "open" : ""}`}
-                    onClick={(event) => event.stopPropagation()}
-                    role="menu"
-                    aria-hidden={openActionMenuId === staff.id ? "false" : "true"}
-                  >
-                    <button
-                      type="button"
-                      className="action-menu-item"
-                      onClick={() => {
-                        setOpenActionMenuId(null);
-                        openEditModal(staff);
-                      }}
-                    >
-                      <i className="fas fa-edit"></i>
-                      Edit details
-                    </button>
-                    <button
-                      type="button"
-                      className="action-menu-item"
-                      onClick={() => {
-                        setOpenActionMenuId(null);
-                        toggleStaffStatus(staff);
-                      }}
-                    >
-                      <i className={`fas fa-${staff.status === "active" ? "user-times" : "user-check"}`}></i>
-                      {staff.status === "active" ? "Deactivate" : "Activate"}
-                    </button>
-                    <button
-                      type="button"
-                      className="action-menu-item danger"
-                      onClick={() => {
-                        setOpenActionMenuId(null);
-                        openDeleteModal(staff);
-                      }}
-                    >
-                      <i className="fas fa-trash"></i>
-                      Delete user
-                    </button>
-                  </div>
+                  {openActionMenuId === staff.id && createPortal(
+                    (
+                      <div
+                        className="action-menu open"
+                        style={{ position: 'fixed', top: actionMenuPosition.top, left: actionMenuPosition.left, right: 'auto', minWidth: 200 }}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        role="menu"
+                        aria-hidden="false"
+                      >
+                        <button
+                          type="button"
+                          className="action-menu-item"
+                          onClick={() => {
+                            setOpenActionMenuId(null);
+                            openEditModal(staff);
+                          }}
+                        >
+                          <i className="fas fa-edit"></i>
+                          Edit details
+                        </button>
+                        <button
+                          type="button"
+                          className="action-menu-item"
+                          onClick={() => {
+                            setOpenActionMenuId(null);
+                            toggleStaffStatus(staff);
+                          }}
+                        >
+                          <i className={`fas fa-${staff.status === "active" ? "user-times" : "user-check"}`}></i>
+                          {staff.status === "active" ? "Deactivate" : "Activate"}
+                        </button>
+                        <button
+                          type="button"
+                          className="action-menu-item danger"
+                          onClick={() => {
+                            setOpenActionMenuId(null);
+                            openDeleteModal(staff);
+                          }}
+                        >
+                          <i className="fas fa-trash"></i>
+                          Delete user
+                        </button>
+                      </div>
+                    ),
+                    document.body
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {showPDFPreview && pdfPreviewUrl && createPortal(
+        (
+          <div
+            className="modal-overlay sm-blur-overlay pdf-preview-modal-overlay"
+            onClick={closePDFPreview}
+            style={{ zIndex: 100000 }}
+          >
+            <div
+              className="pdf-preview-modal"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '80vw',
+                height: '85vh',
+                background: '#fff',
+                borderRadius: '10px',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}
+            >
+              <div
+                className="pdf-preview-header"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #e5e7eb',
+                  background: '#f9fafb'
+                }}
+              >
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                  Staff Directory PDF Preview
+                </h3>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={downloadPDFFromPreview}
+                    style={{ padding: '8px 12px', border: '1px solid #111827', borderRadius: 6, background: '#111827', color: '#fff', cursor: 'pointer' }}
+                  >
+                    <i className="fas fa-download"></i> Download
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closePDFPreview}
+                    style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', color: '#111827', cursor: 'pointer' }}
+                  >
+                    <i className="fas fa-times"></i> Close
+                  </button>
+                </div>
+              </div>
+              <div className="pdf-preview-body" style={{ flex: 1, background: '#11182710' }}>
+                <iframe
+                  title="Staff Directory PDF Preview"
+                  src={pdfPreviewUrl}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                />
+              </div>
+            </div>
+          </div>
+        ),
+        document.body
+      )}
 
       {/* Add Staff Modal */}
       {showAddModal && createPortal(
@@ -813,8 +945,8 @@ const StaffManagement = () => {
             </div>
             <form onSubmit={handleAddStaff}>
               <div className="modal-body">
-                <div className="form-grid">
-                  <div className="form-group">
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group" style={{ gridColumn: '1 / 2' }}>
                     <label className="form-label">Full Name *</label>
                     <input
                       type="text"
@@ -825,7 +957,7 @@ const StaffManagement = () => {
                     />
                     {errors.name && <div className="form-error">{errors.name}</div>}
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gridColumn: '2 / 3' }}>
                     <label className="form-label">Email Address *</label>
                     <input
                       type="email"
@@ -836,7 +968,7 @@ const StaffManagement = () => {
                     />
                     {errors.email && <div className="form-error">{errors.email}</div>}
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gridColumn: '1 / 2' }}>
                     <label className="form-label">Phone Number *</label>
                     <input
                       type="tel"
@@ -847,7 +979,7 @@ const StaffManagement = () => {
                     />
                     {errors.phone && <div className="form-error">{errors.phone}</div>}
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gridColumn: '2 / 3' }}>
                     <label className="form-label">Role *</label>
                     <select
                       className="form-select"
@@ -858,20 +990,6 @@ const StaffManagement = () => {
                       <option value="Collecting Officer">Collecting Officer</option>
                       <option value="Disbursing Officer">Disbursing Officer</option>
                       <option value="Admin">Administrator</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Department *</label>
-                    <select
-                      className="form-select"
-                      value={formData.department}
-                      onChange={(e) => setFormData({...formData, department: e.target.value})}
-                    >
-                      <option value="Finance">Finance</option>
-                      <option value="Revenue">Revenue</option>
-                      <option value="Administration">Administration</option>
-                      <option value="Operations">Operations</option>
-                      <option value="IT">IT</option>
                     </select>
                   </div>
                   <div className="form-group full-width">
@@ -904,10 +1022,10 @@ const StaffManagement = () => {
       )}
 
       {/* Edit Staff Modal */}
-      {showEditModal && (
+      {showEditModal && createPortal(
+        (
         <div
-          className="modal-overlay"
-          style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none', background: 'transparent' }}
+          className="modal-overlay sm-blur-overlay"
           onClick={() => setShowEditModal(false)}
         >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -968,20 +1086,6 @@ const StaffManagement = () => {
                       <option value="Admin">Administrator</option>
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Department *</label>
-                    <select
-                      className="form-select"
-                      value={formData.department}
-                      onChange={(e) => setFormData({...formData, department: e.target.value})}
-                    >
-                      <option value="Finance">Finance</option>
-                      <option value="Revenue">Revenue</option>
-                      <option value="Administration">Administration</option>
-                      <option value="Operations">Operations</option>
-                      <option value="IT">IT</option>
-                    </select>
-                  </div>
                   <div className="form-group full-width">
                     <label className="form-label">New Password (leave blank to keep current)</label>
                     <input
@@ -1006,42 +1110,26 @@ const StaffManagement = () => {
             </form>
           </div>
         </div>
+        ),
+        document.body
       )}
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && deletingStaff && (
-        <div
-          className="modal-overlay"
-          style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none', background: 'transparent' }}
-          onClick={() => setShowDeleteModal(false)}
-        >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">
-                <i className="fas fa-exclamation-triangle" style={{color: '#dc3545'}}></i> Confirm Delete
-              </h3>
-              <button className="modal-close" onClick={() => setShowDeleteModal(false)}>
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="modal-body">
-              <p>Are you sure you want to delete <strong>{deletingStaff.name}</strong>?</p>
-              <p style={{color: '#dc3545', fontSize: '14px'}}>
-                <i className="fas fa-warning"></i> This action cannot be undone.
-              </p>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={() => setShowDeleteModal(false)}>
-                <i className="fas fa-times"></i> Cancel
-              </button>
-              <button type="button" className="btn btn-danger" onClick={handleDeleteStaff} disabled={loading}>
-                {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-trash"></i>}
-                {loading ? 'Deleting...' : 'Delete Staff'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation Modal (Shared UI) */}
+      <Deletion
+        isOpen={!!(showDeleteModal && deletingStaff)}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteStaff}
+        loading={deleteStaffMutation?.isPending}
+        title="CONFIRM DELETE"
+        message={`Are you sure you want to delete ${deletingStaff?.name || 'this user'}? This action cannot be undone.`}
+        itemDetails={deletingStaff ? [
+          { label: 'Name', value: deletingStaff.name || '-' },
+          { label: 'Email', value: deletingStaff.email || '-' },
+          { label: 'Role', value: deletingStaff.role || '-' },
+        ] : []}
+        confirmText="Delete Staff"
+        cancelText="Cancel"
+      />
 
       {/* Notification Modal */}
       {showNotificationModal && (
