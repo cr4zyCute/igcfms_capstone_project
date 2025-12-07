@@ -16,7 +16,8 @@ import {
 
 // Chart.js
 import Chart from 'chart.js/auto';
-import { generateIssuedReceiptsPDF } from '../reports/export/pdf/IssuedReceiptExport.jsx';
+import * as XLSX from 'xlsx';
+import { generateIssuedReceiptsPDF } from '../reports/export/pdf/recieptExport.jsx';
 
 // Helper function to convert numbers to words
 const numberToWords = (num) => {
@@ -163,6 +164,9 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
   const [trendPeriod, setTrendPeriod] = useState('month');
   const [disbursementPeriod, setDisbursementPeriod] = useState('week'); // week, month, year
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState("");
 
   const {
     data: receiptsData = [],
@@ -936,15 +940,17 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
 
   const receiptsForExport = useMemo(() => {
     return sortedReceipts.map((receipt) => {
-      const transaction = receipt.transaction ?? transactions.find((tx) => tx.id === receipt.transaction_id);
+      const transaction = receipt.transaction ?? transactions.find((tx) => parseInt(tx.id, 10) === parseInt(receipt.transaction_id, 10));
       const amountValue = normalizeAmount(receipt.amount ?? transaction?.amount) ?? 0;
 
       // Get creator name from transaction (the person who created/recorded the collection)
+      const loggedInName = (typeof window !== 'undefined' && (localStorage.getItem('user_name') || localStorage.getItem('username'))) 
+        || user?.name || user?.full_name || user?.username || '';
       const creatorName = transaction?.creator?.name 
         || transaction?.creator?.full_name 
         || transaction?.creator_name 
         || transaction?.user_name 
-        || '';
+        || loggedInName;
 
       return {
         ...receipt,
@@ -960,12 +966,17 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
         issued_by: receipt.issued_by || creatorName || '',
         user_name: receipt.user_name || creatorName || '',
         creator_name: creatorName,
+        transaction_creator_name: (transaction?.creator?.name 
+          || transaction?.creator?.full_name 
+          || transaction?.creator_name 
+          || transaction?.user_name 
+          || '') || creatorName,
         issue_date: receipt.issued_at || receipt.created_at,
         dateIssued: receipt.issued_at || receipt.created_at,
         status: (receipt.status || 'Issued').toString(),
       };
     });
-  }, [sortedReceipts, transactions]);
+  }, [sortedReceipts, transactions, user]);
 
   const exportFilters = useMemo(() => ({
     'Sorting': FILTER_LABEL_MAP[filters.activeFilter] || FILTER_LABEL_MAP.all,
@@ -980,14 +991,23 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
       return;
     }
 
-    generateIssuedReceiptsPDF({
-      filters: exportFilters,
-      receipts: receiptsForExport,
-      summary: receiptsSummary,
-      generatedBy: (typeof window !== 'undefined' && localStorage.getItem('user_name')) || 'System',
-      reportTitle: 'Issued Receipts Report',
-    });
-    setShowExportDropdown(false);
+    try {
+      const { blob, filename } = generateIssuedReceiptsPDF({
+        filters: exportFilters,
+        receipts: receiptsForExport,
+        summary: receiptsSummary,
+        generatedBy: (user?.name || user?.full_name || user?.username || (typeof window !== 'undefined' && (localStorage.getItem('user_name') || localStorage.getItem('username'))) || 'System'),
+        reportTitle: 'Issued Receipts Report',
+      });
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+      setPdfFileName(filename);
+      setShowPDFPreview(true);
+      setShowExportDropdown(false);
+    } catch (e) {
+      console.error('Error generating PDF:', e);
+      setShowExportDropdown(false);
+    }
   };
 
   const handleExportExcel = () => {
@@ -996,32 +1016,74 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
       return;
     }
 
-    const headers = ['Receipt ID', 'Receipt Number', 'Transaction', 'Payer Name', 'Amount', 'Issue Date', 'Status'];
-    const rows = sortedReceipts.map((receipt) => {
+    const excelData = sortedReceipts.map((receipt) => {
       const transaction = receipt.transaction ?? transactions.find(tx => tx.id === receipt.transaction_id);
-      const amountValue = normalizeAmount(receipt.amount ?? transaction?.amount) ?? 0;
-      return [
-        `#${receipt.id}`,
-        receipt.receipt_number,
-        `#${receipt.transaction_id}`,
-        receipt.payer_name,
-        formatCurrency(amountValue),
-        new Date(receipt.issued_at || receipt.created_at).toLocaleDateString(),
-        (receipt.status || 'Issued')
-      ].map((value) => `"${(value || '').toString().replace(/"/g, '""')}"`).join(',');
+      const amountValue = Math.abs(parseFloat(receipt.amount ?? transaction?.amount ?? 0)) || 0;
+      return {
+        'Receipt ID': `#${receipt.id}`,
+        'Receipt Number': receipt.receipt_number || '',
+        'Transaction': `#${receipt.transaction_id}`,
+        'Payer Name': receipt.payer_name || transaction?.recipient || '',
+        'Amount': amountValue,
+        'Issue Date': (receipt.issued_at || receipt.created_at) ? new Date(receipt.issued_at || receipt.created_at).toLocaleDateString() : 'N/A',
+        'Status': receipt.status || 'Issued',
+      };
     });
 
-    const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows].join('\n');
-    const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `issued_receipts_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Receipts');
+
+    // Summary sheet
+    const totalAmount = sortedReceipts.reduce((sum, r) => {
+      const tx = r.transaction ?? transactions.find(tx => tx.id === r.transaction_id);
+      const amt = Math.abs(parseFloat(r.amount ?? tx?.amount ?? 0)) || 0;
+      return sum + amt;
+    }, 0);
+    const averageAmount = sortedReceipts.length ? totalAmount / sortedReceipts.length : 0;
+    const summaryData = [
+      { 'Metric': 'Total Receipts', 'Value': sortedReceipts.length },
+      { 'Metric': 'Total Amount', 'Value': totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+      { 'Metric': 'Average Amount', 'Value': averageAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+      { 'Metric': 'Generated', 'Value': new Date().toLocaleString() },
+      { 'Metric': 'Sorting', 'Value': FILTER_LABEL_MAP[filters.activeFilter] || FILTER_LABEL_MAP.all },
+      ...(filters.searchTerm ? [{ 'Metric': 'Search Term', 'Value': filters.searchTerm }] : []),
+      ...(filters.dateFrom ? [{ 'Metric': 'Date From', 'Value': filters.dateFrom }] : []),
+      ...(filters.dateTo ? [{ 'Metric': 'Date To', 'Value': filters.dateTo }] : []),
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    // Column widths
+    ws['!cols'] = [
+      { wch: 14 }, // Receipt ID
+      { wch: 22 }, // Receipt Number
+      { wch: 16 }, // Transaction
+      { wch: 28 }, // Payer Name
+      { wch: 16 }, // Amount
+      { wch: 18 }, // Issue Date
+      { wch: 12 }, // Status
+    ];
+    wsSummary['!cols'] = [{ wch: 20 }, { wch: 40 }];
+
+    const fileName = `issued_receipts_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
     setShowExportDropdown(false);
+  };
+
+  const downloadPDFFromPreview = () => {
+    if (!pdfPreviewUrl) return;
+    const link = document.createElement('a');
+    link.href = pdfPreviewUrl;
+    link.download = pdfFileName || 'issued_receipts.pdf';
+    link.click();
+  };
+
+  const closePDFPreview = () => {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setShowPDFPreview(false);
+    setPdfPreviewUrl(null);
+    setPdfFileName('');
   };
 
   // Filter transactions for dropdown based on search
@@ -1148,8 +1210,8 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
                 <span className="section-count">({filteredReceipts.length})</span>
               </h3>
             </div>
-            <div className="header-controls">
-              <div className="search-filter-container">
+            <div className="header-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap' }}>
+              <div className="search-filter-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap' }}>
                 <div className="account-search-container">
                   <input
                     type="text"
@@ -1161,7 +1223,47 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
                   <i className="fas fa-search account-search-icon"></i>
                 </div>
 
-                <div className="filter-dropdown-container">
+               
+              </div>
+
+              {/* Date Range Filters */}
+              <div className="date-range-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="date-field" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date From</label>
+                  <input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                    placeholder="dd/mm/yyyy"
+                    style={{
+                      padding: '5px 8px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      height: '34px',
+                      fontSize: '12px'
+                    }}
+                  />
+                </div>
+                <div className="date-field" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date To</label>
+                  <input
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                    placeholder="dd/mm/yyyy"
+                    style={{
+                      padding: '5px 8px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      height: '34px',
+                      fontSize: '12px'
+                    }}
+                  />
+                </div>
+                {/* Clear button removed per request */}
+              </div>
+
+              <div className="filter-dropdown-container">
                   <button
                     className="filter-dropdown-btn"
                     onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
@@ -1223,7 +1325,6 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
                     </div>
                   )}
                 </div>
-              </div>
 
               <div className="action-buttons" ref={exportDropdownRef}>
                 <button
@@ -1241,7 +1342,10 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
                       <i className="fas fa-file-pdf"></i>
                       <span>Download PDF</span>
                     </button>
-                    
+                    <button type="button" className="export-option" onClick={handleExportExcel}>
+                      <i className="fas fa-file-excel"></i>
+                      <span>Download Excel</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -1697,6 +1801,61 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
               </div>
             </div>
           
+          </div>
+        </div>
+      )}
+
+      {showPDFPreview && pdfPreviewUrl && (
+        <div 
+          className="pdf-preview-modal-overlay" 
+          onClick={closePDFPreview}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999
+          }}
+        >
+          <div 
+            className="pdf-preview-modal" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '80vw', height: '85vh', background: '#fff', borderRadius: '10px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            <div 
+              className="pdf-preview-header" 
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                       padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}
+            >
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                Issued Receipts PDF Preview
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button 
+                  type="button" 
+                  onClick={downloadPDFFromPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #111827', borderRadius: 6, background: '#111827', color: '#fff', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-download"></i> Download
+                </button>
+                <button 
+                  type="button" 
+                  onClick={closePDFPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', color: '#111827', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-times"></i> Close
+                </button>
+              </div>
+            </div>
+            <div className="pdf-preview-body" style={{ flex: 1, background: '#11182710' }}>
+              <iframe
+                title="Issued Receipts PDF Preview"
+                src={pdfPreviewUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
+            </div>
           </div>
         </div>
       )}

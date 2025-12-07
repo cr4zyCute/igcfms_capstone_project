@@ -31,6 +31,16 @@ const CollectorHome = () => {
       .map(id => parseInt(id, 10))
       .filter(Number.isFinite);
   }, [user]);
+  
+  const creatorId = useMemo(() => {
+    if (!user) return null;
+    const possible = [user.id, user.user_id, user.userId];
+    const parsed = possible
+      .map(id => parseInt(id, 10))
+      .find(Number.isFinite);
+    return parsed ?? null;
+  }, [user]);
+
   const [collectionStats, setCollectionStats] = useState({
     todayCollections: 0,
     weeklyCollections: 0,
@@ -110,10 +120,34 @@ const CollectorHome = () => {
           return Number.isFinite(txAccountId) && accountIds.includes(txAccountId);
         };
 
-        // Filter only collection transactions for assigned accounts
+        const matchesCreator = (obj = {}) => {
+          if (!Number.isFinite(creatorId)) return true;
+          const candidates = [
+            obj.created_by, obj.user_id, obj.issued_by, obj.collector_id, obj.creator_id,
+            obj.createdBy, obj.userId, obj.issuedBy, obj.collectorId, obj.creatorId,
+            obj.user?.id, obj.creator?.id
+          ];
+          return candidates
+            .map(v => parseInt(v, 10))
+            .some(id => Number.isFinite(id) && id === creatorId);
+        };
+
+        const filterByCreatorOrRelated = (obj = {}) => {
+          if (!Number.isFinite(creatorId)) return true;
+          if (matchesCreator(obj)) return true;
+          const relatedId = parseInt(obj.transaction_id ?? obj.transactionId, 10);
+          if (Number.isFinite(relatedId)) {
+            const relatedTx = allTransactions.find(tx => parseInt(tx.id, 10) === relatedId);
+            if (relatedTx && matchesCreator(relatedTx)) return true;
+          }
+          return false;
+        };
+
+        // Filter only collection transactions for assigned accounts and created by current user
         const collections = allTransactions
           .filter(tx => tx.type === 'Collection')
-          .filter(filterByAccount);
+          .filter(filterByAccount)
+          .filter(filterByCreatorOrRelated);
 
         // Calculate date ranges
         const today = new Date().toDateString();
@@ -140,15 +174,20 @@ const CollectorHome = () => {
 
         // Receipt statistics
         const relevantReceipts = allReceipts.filter(receipt => {
-          if (!Array.isArray(accountIds) || accountIds.length === 0) {
-            return true;
+          // Account constraint
+          let accountOk = true;
+          if (Array.isArray(accountIds) && accountIds.length > 0) {
+            const receiptAccountId = parseInt(receipt.fund_account_id ?? receipt.account_id, 10);
+            if (Number.isFinite(receiptAccountId)) {
+              accountOk = accountIds.includes(receiptAccountId);
+            } else {
+              const relatedTransaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
+              accountOk = relatedTransaction ? filterByAccount(relatedTransaction) : false;
+            }
           }
-          const receiptAccountId = parseInt(receipt.fund_account_id ?? receipt.account_id, 10);
-          if (Number.isFinite(receiptAccountId)) {
-            return accountIds.includes(receiptAccountId);
-          }
-          const relatedTransaction = allTransactions.find(tx => tx.id === receipt.transaction_id);
-          return relatedTransaction ? filterByAccount(relatedTransaction) : false;
+          // Creator constraint
+          const creatorOk = filterByCreatorOrRelated(receipt);
+          return accountOk && creatorOk;
         });
 
         const pendingReceipts = relevantReceipts.filter(receipt => receipt.status === 'pending').length;
