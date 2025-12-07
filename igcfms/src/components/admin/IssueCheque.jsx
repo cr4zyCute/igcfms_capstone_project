@@ -5,9 +5,11 @@ import { useFundAccounts } from "../../hooks/useFundAccounts";
 import IssueChequeSkeleton from "../ui/chequeSL";
 import { ErrorModal, SuccessModal } from "../common/Modals/IssueChequeModals";
 import { printCompleteCheque } from "../pages/print/chequeSimplePrint.jsx";
-import { generateIssueChequesPDF } from "../reports/export/pdf/IssueChequeExport.jsx";
+import { generateChequePDF } from "../reports/export/pdf/chequeExport";
+import * as XLSX from "xlsx";
 import "./css/issuecheque.css";
 import "./css/cheque-styles.css";
+import { useAuth } from "../../contexts/AuthContext";
 
 // Add pulse animation for skeleton loaders
 const pulseAnimation = `
@@ -66,28 +68,41 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
     }
   }, [cheques]);
 
-  // Filter cheques by userId if provided
-  if (filterByUserId) {
-    const userIdInt = parseInt(filterByUserId);
-    cheques = cheques.filter(cheque => {
-      // Check multiple possible field names for the creator/issuer
-      const matches = 
-        cheque.issued_by === userIdInt || 
-        cheque.created_by === userIdInt ||
-        cheque.user_id === userIdInt ||
-        cheque.creator_id === userIdInt ||
-        cheque.disbursing_officer_id === userIdInt ||
-        (cheque.creator && cheque.creator.id === userIdInt);
-      
-      return matches;
-    });
-  }
+  // We'll compute effective user filtering after loading disbursements (same logic as IssueMoney)
 
   let {
     data: disbursements = [],
     isLoading: disbursementsLoading,
     error: disbursementsError
   } = useDisbursements();
+
+  const { user } = useAuth();
+
+  const effectiveUserId = useMemo(() => {
+    const idFromProp = filterByUserId ? parseInt(filterByUserId) : null;
+    const idFromAuth = user?.id ? parseInt(user.id) : null;
+    return Number.isFinite(idFromProp) ? idFromProp : (Number.isFinite(idFromAuth) ? idFromAuth : null);
+  }, [filterByUserId, user]);
+
+  const allowedDisbursementIds = useMemo(() => {
+    if (!Array.isArray(disbursements)) return new Set();
+    if (!effectiveUserId) {
+      return new Set(disbursements.map(d => Number(d.id)).filter(Number.isFinite));
+    }
+    const matches = disbursements.filter((d) => {
+      const issuerId = Number(
+        d.issuer_id ??
+        d.issued_by ??
+        d.user_id ??
+        d.created_by ??
+        d.creator_id ??
+        (d.user && d.user.id) ??
+        (d.creator && d.creator.id)
+      );
+      return Number.isFinite(issuerId) && issuerId === effectiveUserId;
+    });
+    return new Set(matches.map(d => Number(d.id)).filter(Number.isFinite));
+  }, [disbursements, effectiveUserId]);
 
   const {
     data: fundAccountsData,
@@ -122,8 +137,8 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
   // Filter states
   const [filters, setFilters] = useState({
     status: "all",
-    dateFrom: "",
-    dateTo: "",
+    startDate: "",
+    endDate: "",
     searchTerm: "",
     bankName: "all",
     showFilterDropdown: false,
@@ -139,6 +154,9 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [openActionMenu, setOpenActionMenu] = useState(null);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState("");
   const [fundAccountSearch, setFundAccountSearch] = useState("");
   const [showFundAccountDropdown, setShowFundAccountDropdown] = useState(false);
   const [disbursementSearch, setDisbursementSearch] = useState("");
@@ -166,7 +184,7 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
     }, 200); // 200ms debounce
     
     return () => clearTimeout(timer);
-  }, [cheques, filters]);
+  }, [cheques, filters, allowedDisbursementIds, effectiveUserId]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -298,7 +316,35 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
   }, [disbursements, disbursementsLoading]);
 
   const applyFilters = () => {
-    let filtered = [...cheques];
+    let filtered = Array.isArray(cheques) ? [...cheques] : [];
+
+    // First, restrict to the same account/user context as IssueMoney
+    if (effectiveUserId != null) {
+      // If the user has zero matching disbursements, show none
+      if (!allowedDisbursementIds || allowedDisbursementIds.size === 0) {
+        filtered = [];
+      } else {
+        filtered = filtered.filter((cheque) => {
+          const issuerId = Number(
+            cheque.issued_by ??
+            cheque.created_by ??
+            cheque.user_id ??
+            cheque.creator_id ??
+            cheque.disbursing_officer_id ??
+            (cheque.creator && cheque.creator.id)
+          );
+          const transId = Number(
+            cheque.transaction_id ??
+            cheque.disbursement_id ??
+            (cheque.transaction && cheque.transaction.id)
+          );
+
+          // Prefer direct issuer match when present, fallback to transaction id match
+          if (Number.isFinite(issuerId)) return issuerId === effectiveUserId;
+          return Number.isFinite(transId) && allowedDisbursementIds.has(transId);
+        });
+      }
+    }
 
     // Apply sorting first
     switch (filters.sortBy) {
@@ -327,16 +373,22 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
       );
     }
 
-    // Date range filter
-    if (filters.dateFrom) {
-      filtered = filtered.filter(cheque => 
-        new Date(cheque.issue_date || cheque.created_at) >= new Date(filters.dateFrom)
-      );
-    }
-    if (filters.dateTo) {
-      filtered = filtered.filter(cheque => 
-        new Date(cheque.issue_date || cheque.created_at) <= new Date(filters.dateTo + "T23:59:59")
-      );
+    // Apply date filter
+    if (filters.startDate || filters.endDate) {
+      filtered = filtered.filter((cheque) => {
+        const chequeDate = new Date(cheque.issue_date || cheque.created_at);
+        const startDate = filters.startDate ? new Date(filters.startDate) : null;
+        const endDate = filters.endDate ? new Date(filters.endDate) : null;
+
+        if (startDate && endDate) {
+          return chequeDate >= startDate && chequeDate <= endDate;
+        } else if (startDate) {
+          return chequeDate >= startDate;
+        } else if (endDate) {
+          return chequeDate <= endDate;
+        }
+        return true;
+      });
     }
 
     // Bank name filter
@@ -576,21 +628,99 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
 
     const filterInfo = {
       ...(filters.status !== 'all' && { Status: filters.status }),
-      ...(filters.bankName !== 'all' && { Bank: filters.bankName }),
-      ...(filters.dateFrom && { 'From Date': filters.dateFrom }),
-      ...(filters.dateTo && { 'To Date': filters.dateTo }),
+      ...(filters.startDate && { 'Start Date': filters.startDate }),
+      ...(filters.endDate && { 'End Date': filters.endDate }),
       ...(filters.searchTerm && { Search: filters.searchTerm }),
     };
 
-    generateIssueChequesPDF({
-      filters: filterInfo,
-      cheques: filteredCheques,
-      summary: summary,
-      generatedBy: 'System',
-      reportTitle: 'Issued Cheques Report',
-    });
+    try {
+      const { blob, filename } = generateChequePDF({
+        filters: filterInfo,
+        cheques: filteredCheques,
+        summary: summary,
+        generatedBy: 'System',
+        reportTitle: 'Issued Cheques Report',
+      });
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+      setPdfFileName(filename);
+      setShowPDFPreview(true);
+      setShowExportDropdown(false);
+    } catch (e) {
+      console.error('Error generating PDF:', e);
+      showMessage('Error generating PDF. Please try again.', 'error');
+    }
+  };
 
+    // Handle Excel export for all cheques
+  const handleExportExcel = () => {
+    if (!Array.isArray(filteredCheques) || filteredCheques.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
+
+    const excelData = filteredCheques.map((c) => ({
+      'Cheque ID': '#' + c.id,
+      'Cheque Number': c.cheque_number || '',
+      'Payee Name': c.payee_name || '',
+      'Amount': Math.abs(parseFloat(c.amount || c.cheque_amount || c.transaction?.amount || 0)),
+      'Account No.': c.account_number || '',
+      'Issue Date': (c.issue_date || c.created_at) ? new Date(c.issue_date || c.created_at).toLocaleDateString() : 'N/A',
+      'Status': c.status || 'Issued',
+      'Reconciled': c.reconciled ? 'Yes' : 'No',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Cheques');
+
+    const totalAmount = filteredCheques.reduce((sum, c) => sum + Math.abs(parseFloat(c.amount || c.cheque_amount || c.transaction?.amount || 0)), 0);
+    const averageAmount = filteredCheques.length > 0 ? totalAmount / filteredCheques.length : 0;
+    const summaryData = [
+      { 'Metric': 'Total Cheques', 'Value': filteredCheques.length },
+      { 'Metric': 'Total Amount', 'Value': totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+      { 'Metric': 'Average Amount', 'Value': averageAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+      { 'Metric': 'Generated', 'Value': new Date().toLocaleString() },
+      ...(filters.sortBy ? [{ 'Metric': 'Sort By', 'Value': filters.sortBy }] : []),
+      ...(filters.status && filters.status !== 'all' ? [{ 'Metric': 'Status', 'Value': filters.status }] : []),
+      ...(filters.bankName && filters.bankName !== 'all' ? [{ 'Metric': 'Bank', 'Value': filters.bankName }] : []),
+      ...(filters.startDate ? [{ 'Metric': 'Start Date', 'Value': filters.startDate }] : []),
+      ...(filters.endDate ? [{ 'Metric': 'End Date', 'Value': filters.endDate }] : []),
+      ...(filters.searchTerm ? [{ 'Metric': 'Search', 'Value': filters.searchTerm }] : []),
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    ws['!cols'] = [
+      { wch: 14 },
+      { wch: 22 },
+      { wch: 28 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 12 },
+    ];
+    wsSummary['!cols'] = [ { wch: 20 }, { wch: 35 } ];
+
+    const fileName = 'cheques_' + new Date().toISOString().split('T')[0] + '.xlsx';
+    XLSX.writeFile(wb, fileName);
     setShowExportDropdown(false);
+  };
+const downloadPDFFromPreview = () => {
+    if (!pdfPreviewUrl) return;
+    const link = document.createElement('a');
+    link.href = pdfPreviewUrl;
+    link.download = pdfFileName || 'Cheques.pdf';
+    link.click();
+  };
+
+  const closePDFPreview = () => {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setShowPDFPreview(false);
+    setPdfPreviewUrl(null);
+    setPdfFileName('');
   };
 
   // Helper function to convert numbers to words (simplified)
@@ -934,6 +1064,27 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
               />
               <i className="fas fa-search account-search-icon"></i>
             </div>
+
+            <div className="date-range-filter-container">
+              <div className="date-filter-group">
+                <input
+                  type="date"
+                  id="startDate"
+                  value={filters.startDate}
+                  onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                  className="date-input"
+                />
+              </div>
+              <div className="date-filter-group">
+                <input
+                  type="date"
+                  id="endDate"
+                  value={filters.endDate}
+                  onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                  className="date-input"
+                />
+              </div>
+            </div>
             
             <div className="filter-dropdown-container">
               <button
@@ -965,14 +1116,14 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
                     <span>All Cheques</span>
                     {filters.status === 'all' && <i className="fas fa-check filter-check"></i>}
                   </button>
-                  <button
+                  {/* <button
                     className={`filter-option ${filters.status === 'recent' ? 'active' : ''}`}
                     onClick={() => { handleFilterChange('status', 'recent'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
                   >
                     <i className="fas fa-clock"></i>
                     <span>Recent (Last 7 days)</span>
                     {filters.status === 'recent' && <i className="fas fa-check filter-check"></i>}
-                  </button>
+                  </button> */}
 
                   {/* Sort Filter Section */}
                  
@@ -1008,37 +1159,39 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
                     <span>Lowest Amount</span>
                     {filters.sortBy === 'lowest' && <i className="fas fa-check filter-check"></i>}
                   </button>
+
                 </div>
               )}
             </div>
-          </div>
-          
-          <div className="action-buttons" ref={exportDropdownRef}>
-            <button
-              className="btn-icon export-btn"
-              title="Export Cheques"
-              type="button"
-              onClick={() => setShowExportDropdown(prev => !prev)}
-            >
-              <i className="fas fa-download"></i>
-            </button>
-            {showExportDropdown && (
-              <div className="export-dropdown-menu">
-                <button 
-                  type="button" 
-                  className="export-option"
-                  onClick={handleExportPDF}
-                  title="Export filtered cheques as PDF"
-                >
-                  <i className="fas fa-file-pdf"></i>
-                  <span>Download PDF</span>
-                </button>
-                <button type="button" className="export-option" disabled title="Excel export coming soon">
-                  <i className="fas fa-file-excel"></i>
-                  <span>Download Excel</span>
-                </button>
-              </div>
-            )}
+
+            <div className="action-buttons" ref={exportDropdownRef}>
+              <button
+                className="btn-icon export-btn"
+                title="Export Cheques"
+                type="button"
+                onClick={() => setShowExportDropdown(prev => !prev)}
+              >
+                <i className="fas fa-download"></i>
+              </button>
+              {showExportDropdown && (
+                <div className="export-dropdown-menu">
+                  <button 
+                    type="button" 
+                    className="export-option"
+                    onClick={handleExportPDF}
+                    title="Export filtered cheques as PDF"
+                  >
+                    <i className="fas fa-file-pdf"></i>
+                    <span>Download PDF</span>
+                  </button>
+                  <button type="button" className="export-option" onClick={handleExportExcel} title="Export filtered cheques as Excel">
+                    <i className="fas fa-file-excel"></i>
+                    <span>Download Excel</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
@@ -1502,6 +1655,61 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
 
               {/* Security Features */}
               <div className="cheque-security-border"></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPDFPreview && pdfPreviewUrl && (
+        <div 
+          className="pdf-preview-modal-overlay" 
+          onClick={closePDFPreview}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999
+          }}
+        >
+          <div 
+            className="pdf-preview-modal" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '80vw', height: '85vh', background: '#fff', borderRadius: '10px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            <div 
+              className="pdf-preview-header" 
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                       padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}
+            >
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                Cheques PDF Preview
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button 
+                  type="button" 
+                  onClick={downloadPDFFromPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #111827', borderRadius: 6, background: '#111827', color: '#fff', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-download"></i> Download
+                </button>
+                <button 
+                  type="button" 
+                  onClick={closePDFPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', color: '#111827', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-times"></i> Close
+                </button>
+              </div>
+            </div>
+            <div className="pdf-preview-body" style={{ flex: 1, background: '#11182710' }}>
+              <iframe
+                title="Cheques PDF Preview"
+                src={pdfPreviewUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
             </div>
           </div>
         </div>

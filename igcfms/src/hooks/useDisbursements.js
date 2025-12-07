@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
+import { useEffect } from 'react';
+import { subscribeToFundTransactions } from '../services/fundTransactionChannel';
 
 const API_BASE = API_BASE_URL;
 
@@ -94,6 +96,24 @@ export const useDisbursements = (options = {}) => {
     enabled = true,
     refetchInterval = false // Disable auto-refresh for faster load
   } = options;
+
+  const queryClient = useQueryClient();
+
+  // Real-time subscription: refresh disbursements (and fund accounts) when a disbursement event is broadcast
+  useEffect(() => {
+    const unsubscribe = subscribeToFundTransactions((event) => {
+      if (!event) return;
+      if (event.type === 'disbursement') {
+        // Invalidate queries so React Query refetches latest data
+        queryClient.invalidateQueries({ queryKey: DISBURSEMENTS_KEYS.all });
+        queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [queryClient]);
 
   return useQuery({
     queryKey: DISBURSEMENTS_KEYS.list({}),

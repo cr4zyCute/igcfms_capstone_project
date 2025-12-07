@@ -3,7 +3,7 @@ import axios from "axios";
 import API_BASE_URL from "../../config/api";
 import "./css/issuemoney.css";
 import balanceService from "../../services/balanceService";
-import { broadcastFundTransaction } from "../../services/fundTransactionChannel";
+import { broadcastFundTransaction, subscribeToFundTransactions } from "../../services/fundTransactionChannel";
 import Chart from 'chart.js/auto';
 import IssueMoneySkeletonLoader from "../ui/issuemoneySL";
 import { useQueryClient } from '@tanstack/react-query';
@@ -474,6 +474,23 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Real-time updates: subscribe to fund transaction events (BroadcastChannel/localStorage)
+  useEffect(() => {
+    const unsubscribe = subscribeToFundTransactions((event) => {
+      if (!event) return;
+      // Refresh disbursements and fund accounts when a disbursement event is broadcast
+      if (event.type === 'disbursement') {
+        // Invalidate queries so React Query refetches latest data
+        queryClient.invalidateQueries({ queryKey: ['disbursements'] });
+        queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [queryClient]);
 
   useEffect(() => {
     if (showSuccessModal && disbursementResult?.modeOfPayment === "Cheque") {
