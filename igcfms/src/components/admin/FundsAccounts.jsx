@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { subscribeToFundTransactions } from '../../services/fundTransactionChannel';
 import { useFundAccounts, useCreateFundAccount, useUpdateFundAccount, useDeleteFundAccount, FUND_ACCOUNTS_KEYS } from '../../hooks/useFundAccounts';
@@ -89,6 +89,9 @@ const FundsAccounts = () => {
   const transactions = useMemo(() => transactionsData?.data || [], [transactionsData?.data]);
   const loading = accountsLoading;
   
+  // Debounce balance updates to prevent excessive re-renders
+  const balanceUpdateTimeoutRef = useRef(null);
+  
   // Memoized filtered and sorted accounts
   const filteredAccounts = useMemo(() => {
     let filtered = accounts;
@@ -143,9 +146,12 @@ const FundsAccounts = () => {
     );
   }, [transactions, searchTerm]);
   
-  // Calculate global max amount for graphs
+  // Lazy calculate global max amount - only when needed
   const globalMaxAmount = useMemo(() => {
-    if (!accounts.length) return 0;
+    // Only calculate if accounts have graph data
+    const hasGraphData = accounts.some(acc => acc.graphData?.length > 0);
+    if (!accounts.length || !hasGraphData) return 0;
+    
     return accounts.reduce((max, account) => {
       const accountMax = (account.graphData || []).reduce(
         (accMax, point) => Math.max(accMax, Math.abs(point.amount || 0)),
@@ -170,7 +176,8 @@ const FundsAccounts = () => {
     setOpenMenuId(prevId => (prevId === accountId ? null : accountId));
   };
 
-  const exportToCSV = (data, filename) => {
+  // Memoized export functions to prevent recreation on every render
+  const exportToCSV = useCallback((data, filename) => {
     const csvContent = [
       ['Date', 'Description', 'Payee/Payer', 'Type', 'Amount', 'Reference'],
       ...data.map(transaction => [
@@ -192,9 +199,9 @@ const FundsAccounts = () => {
     link.href = URL.createObjectURL(blob);
     link.download = filename;
     link.click();
-  };
+  }, []);
 
-  const exportToExcel = (data, filename) => {
+  const exportToExcel = useCallback((data, filename) => {
     const tableHTML = `
       <table>
         <thead>
@@ -235,7 +242,7 @@ const FundsAccounts = () => {
     link.href = URL.createObjectURL(blob);
     link.download = filename;
     link.click();
-  };
+  }, []);
 
 
   // Event handlers
@@ -319,29 +326,24 @@ const FundsAccounts = () => {
   }, [filteredAccounts]);
   
   const handleExportExcel = useCallback(() => {
-    // Create Excel export function
-    const exportToExcel = (data, filename) => {
-      const csvContent = [
-        ['Account Code', 'Account Name', 'Type', 'Current Balance', 'Transactions', 'Status', 'Created Date'],
-        ...data.map(account => [
-          account.code || 'N/A',
-          account.name || 'N/A',
-          account.account_type || 'N/A',
-          (account.current_balance || 0).toFixed(2),
-          account.transactionCount || 0,
-          account.is_active !== false ? 'Active' : 'Inactive',
-          new Date(account.created_at).toLocaleDateString()
-        ])
-      ].map(row => row.join(',')).join('\n');
-      
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      link.click();
-    };
+    const csvContent = [
+      ['Account Code', 'Account Name', 'Type', 'Current Balance', 'Transactions', 'Status', 'Created Date'],
+      ...filteredAccounts.map(account => [
+        account.code || 'N/A',
+        account.name || 'N/A',
+        account.account_type || 'N/A',
+        (account.current_balance || 0).toFixed(2),
+        account.transactionCount || 0,
+        account.is_active !== false ? 'Active' : 'Inactive',
+        new Date(account.created_at).toLocaleDateString()
+      ])
+    ].map(row => row.join(',')).join('\n');
     
-    exportToExcel(filteredAccounts, `fund_accounts_${new Date().toISOString().split('T')[0]}.csv`);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `fund_accounts_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
     setShowExportReportDropdown(false);
   }, [filteredAccounts]);
   
@@ -360,57 +362,67 @@ const FundsAccounts = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showFilterDropdown, showExportReportDropdown]);
 
-  // Real-time updates via WebSocket/balance service
+  // Real-time updates via WebSocket/balance service - DEBOUNCED
   useEffect(() => {
     const handleBalanceUpdate = ({ fundAccountId, newBalance, latestTransaction }) => {
-      console.log('Real-time balance update:', { fundAccountId, newBalance, latestTransaction });
-      
-      // Immediately update the accounts cache with new balance
-      queryClient.setQueryData(
-        FUND_ACCOUNTS_KEYS.list({ page: currentPage, limit: 20, search: '' }),
-        (oldData) => {
-          if (!oldData?.data) return oldData;
-          
-          return {
-            ...oldData,
-            data: oldData.data.map(account => 
-              account.id === fundAccountId 
-                ? { 
-                    ...account, 
-                    current_balance: newBalance,
-                    // Add new transaction to graph data if available
-                    graphData: latestTransaction ? [
-                      ...(account.graphData || []).slice(-19), // Keep last 19
-                      {
-                        date: new Date().toISOString(),
-                        balance: newBalance,
-                        amount: latestTransaction.amount,
-                        type: latestTransaction.type,
-                        recipient: latestTransaction.recipient || latestTransaction.payee_name || null,
-                        payer_name: latestTransaction.payer_name || null,
-                        payee_name: latestTransaction.payee_name || latestTransaction.recipient || null,
-                        description: latestTransaction.description || '',
-                        reference: latestTransaction.reference || latestTransaction.reference_no || '',
-                      }
-                    ] : account.graphData
-                  }
-                : account
-            )
-          };
-        }
-      );
-      
-      // If viewing transactions for this account, invalidate to get fresh data
-      if (selectedAccount?.id === fundAccountId && showTransactionHistory) {
-        queryClient.invalidateQueries({ 
-          queryKey: FUND_ACCOUNTS_KEYS.transactions(fundAccountId) 
-        });
+      // Debounce balance updates to prevent excessive re-renders
+      if (balanceUpdateTimeoutRef.current) {
+        clearTimeout(balanceUpdateTimeoutRef.current);
       }
+      
+      balanceUpdateTimeoutRef.current = setTimeout(() => {
+        console.log('Real-time balance update:', { fundAccountId, newBalance, latestTransaction });
+        
+        // Update the accounts cache with new balance
+        queryClient.setQueryData(
+          FUND_ACCOUNTS_KEYS.list({ page: currentPage, limit: 20, search: '' }),
+          (oldData) => {
+            if (!oldData?.data) return oldData;
+            
+            return {
+              ...oldData,
+              data: oldData.data.map(account => 
+                account.id === fundAccountId 
+                  ? { 
+                      ...account, 
+                      current_balance: newBalance,
+                      // Add new transaction to graph data if available
+                      graphData: latestTransaction ? [
+                        ...(account.graphData || []).slice(-19), // Keep last 19
+                        {
+                          date: new Date().toISOString(),
+                          balance: newBalance,
+                          amount: latestTransaction.amount,
+                          type: latestTransaction.type,
+                          recipient: latestTransaction.recipient || latestTransaction.payee_name || null,
+                          payer_name: latestTransaction.payer_name || null,
+                          payee_name: latestTransaction.payee_name || latestTransaction.recipient || null,
+                          description: latestTransaction.description || '',
+                          reference: latestTransaction.reference || latestTransaction.reference_no || '',
+                        }
+                      ] : account.graphData
+                    }
+                  : account
+              )
+            };
+          }
+        );
+        
+        // If viewing transactions for this account, invalidate to get fresh data
+        if (selectedAccount?.id === fundAccountId && showTransactionHistory) {
+          queryClient.invalidateQueries({ 
+            queryKey: FUND_ACCOUNTS_KEYS.transactions(fundAccountId) 
+          });
+        }
+      }, 300); // Debounce by 300ms
     };
 
     balanceService.addBalanceListener(handleBalanceUpdate);
 
     return () => {
+      if (balanceUpdateTimeoutRef.current) {
+        clearTimeout(balanceUpdateTimeoutRef.current);
+      }
       balanceService.removeBalanceListener(handleBalanceUpdate);
     };
   }, [queryClient, currentPage, selectedAccount?.id, showTransactionHistory]);
@@ -1017,7 +1029,7 @@ const FundsAccounts = () => {
               <div className="account-cards">
                 {filteredAccounts.length > 0 ? (
                   filteredAccounts.map((account) => (
-                    <AccountCard
+                    <MemoizedAccountCard
                       key={account.id}
                       account={account}
                       onEdit={handleEditAccount}
@@ -1371,5 +1383,8 @@ const FundsAccounts = () => {
     </ErrorBoundary>
   );
 };
+
+// Memoize AccountCard component to prevent unnecessary re-renders
+const MemoizedAccountCard = memo(AccountCard);
 
 export default memo(FundsAccounts);

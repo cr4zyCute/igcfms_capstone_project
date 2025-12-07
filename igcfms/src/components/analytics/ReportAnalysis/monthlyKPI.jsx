@@ -26,6 +26,10 @@ const MonthlyKPI = ({ transactions = [], reports = [] }) => {
   const [selectedReport, setSelectedReport] = useState(null);
   const [autoGenerateEnabled, setAutoGenerateEnabled] = useState(true);
   const [lastAutoGenMonth, setLastAutoGenMonth] = useState(null);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState(null);
+  const [previewType, setPreviewType] = useState(null); // 'details' or 'history'
 
   // Chart refs
   const lineChartRef = useRef(null);
@@ -701,8 +705,8 @@ const MonthlyKPI = ({ transactions = [], reports = [] }) => {
     setSelectedReport(null);
   };
 
-  const handleDownloadPDF = () => {
-    if (!selectedReport) return;
+  const generateDetailsPDF = () => {
+    if (!selectedReport) return null;
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -835,13 +839,41 @@ const MonthlyKPI = ({ transactions = [], reports = [] }) => {
     doc.text(`Generated on: ${new Date().toLocaleString('en-US')}`, 15, footerY);
     doc.text(`Page 1 of 1`, pageWidth - 15, footerY, { align: 'right' });
 
-    // Save PDF
+    return doc;
+  };
+
+  const handleDownloadPDF = () => {
+    const doc = generateDetailsPDF();
+    if (!doc) return;
+    
     const fileName = `Monthly_Report_${selectedReport.report_type || 'Details'}_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    
+    setPdfPreviewUrl(pdfUrl);
+    setPdfFileName(fileName);
+    setPreviewType('details');
+    setShowPDFPreview(true);
   };
 
   const handleDownloadHistoryPDF = () => {
     if (!historyData || historyData.length === 0) return;
+
+    const doc = generateHistoryPDF();
+    if (!doc) return;
+
+    const fileName = `Monthly_Report_History_${selectedMonth}.pdf`;
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    
+    setPdfPreviewUrl(pdfUrl);
+    setPdfFileName(fileName);
+    setPreviewType('history');
+    setShowPDFPreview(true);
+  };
+
+  const generateHistoryPDF = () => {
+    if (!historyData || historyData.length === 0) return null;
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1000,9 +1032,25 @@ const MonthlyKPI = ({ transactions = [], reports = [] }) => {
     doc.text(`Generated on: ${new Date().toLocaleString('en-US')}`, 15, footerY);
     doc.text(`Page 1 of 1`, pageWidth - 15, footerY, { align: 'right' });
 
-    // Save PDF
-    const fileName = `Monthly_Report_History_${selectedMonth}.pdf`;
-    doc.save(fileName);
+    return doc;
+  };
+
+  const downloadPDFFromPreview = () => {
+    if (pdfPreviewUrl && pdfFileName) {
+      const link = document.createElement('a');
+      link.href = pdfPreviewUrl;
+      link.download = pdfFileName;
+      link.click();
+    }
+  };
+
+  const closePDFPreview = () => {
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl);
+    }
+    setShowPDFPreview(false);
+    setPdfPreviewUrl(null);
+    setPdfFileName(null);
   };
 
   const safeRate = Number.isFinite(monthlyData.collectionRate) ? monthlyData.collectionRate : 0;
@@ -1328,6 +1376,62 @@ const MonthlyKPI = ({ transactions = [], reports = [] }) => {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Preview Modal */}
+      {showPDFPreview && pdfPreviewUrl && (
+        <div
+          className="pdf-preview-modal-overlay"
+          onClick={closePDFPreview}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999
+          }}
+        >
+          <div
+            className="pdf-preview-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '80vw', height: '85vh', background: '#fff', borderRadius: '10px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            <div
+              className="pdf-preview-header"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                       padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}
+            >
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                {previewType === 'history' ? 'Monthly Report History PDF Preview' : 'Monthly Report Details PDF Preview'}
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={downloadPDFFromPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #111827', borderRadius: 6, background: '#111827', color: '#fff', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-download"></i> Download
+                </button>
+                <button
+                  type="button"
+                  onClick={closePDFPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', color: '#111827', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-times"></i> Close
+                </button>
+              </div>
+            </div>
+            <div className="pdf-preview-body" style={{ flex: 1, background: '#11182710' }}>
+              <iframe
+                title="Monthly Report PDF Preview"
+                src={pdfPreviewUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
             </div>
           </div>
         </div>

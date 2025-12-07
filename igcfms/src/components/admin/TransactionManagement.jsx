@@ -769,6 +769,7 @@ const TransactionManagement = ({ role = "Admin" }) => {
                     <th><i className="fas fa-tag"></i> TYPE</th>
                     <th><i className="fas fa-money-bill"></i> AMOUNT</th>
                     <th><i className="fas fa-user"></i> RECIPIENT/PAYER</th>
+                    <th><i className="fas fa-user-circle"></i> CREATED BY</th>
                     <th><i className="fas fa-calendar"></i> DATE</th>
                   </tr>
                 </thead>
@@ -816,6 +817,18 @@ const TransactionManagement = ({ role = "Admin" }) => {
                         </td>
                         <td>
                           <div className="cell-content">
+                            <div className="created-by-info">
+                              <span className="created-by-name">
+                                {transaction.creator?.name || transaction.created_by?.name || transaction.user?.name || transaction.issuing_officer_name || 'N/A'}
+                              </span>
+                              <span className="created-by-role">
+                                {transaction.creator?.role || transaction.user?.role || 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cell-content">
                             <span className="issue-date">
                               {new Date(transaction.created_at).toLocaleDateString()}
                             </span>
@@ -826,7 +839,7 @@ const TransactionManagement = ({ role = "Admin" }) => {
                     })
                   ) : (
                     <tr>
-                      <td colSpan="5" className="no-data">
+                      <td colSpan="6" className="no-data">
                         <i className="fas fa-inbox"></i>
                         <p>No transactions found matching your criteria.</p>
                       </td>

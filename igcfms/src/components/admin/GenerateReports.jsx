@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { useQueryClient } from "@tanstack/react-query";
 import "./css/generatereports.css";
 import DailyKPI from "../analytics/ReportAnalysis/dailyKPI.jsx";
@@ -136,8 +137,13 @@ const GenerateReports = ({
   const [overrideFilters, setOverrideFilters] = useState({
     status: "all",
     searchTerm: "",
-    showFilterDropdown: false
+    showFilterDropdown: false,
+    dateFrom: "",
+    dateTo: "",
+    showExportDropdown: false
   });
+  const [overridePdfPreviewUrl, setOverridePdfPreviewUrl] = useState(null);
+  const [overridePdfFileName, setOverridePdfFileName] = useState(null);
 
   useEffect(() => {
     applyFilters();
@@ -627,9 +633,22 @@ const GenerateReports = ({
     if (pdfPreviewUrl) {
       URL.revokeObjectURL(pdfPreviewUrl);
     }
+    if (overridePdfPreviewUrl) {
+      URL.revokeObjectURL(overridePdfPreviewUrl);
+    }
     setShowPDFPreview(false);
     setPdfPreviewUrl(null);
     setPdfFileName(null);
+    setOverridePdfPreviewUrl(null);
+    setOverridePdfFileName(null);
+  };
+
+  const downloadPDFFromOverridePreview = () => {
+    if (!overridePdfPreviewUrl) return;
+    const link = document.createElement('a');
+    link.href = overridePdfPreviewUrl;
+    link.download = overridePdfFileName || 'override_requests.pdf';
+    link.click();
   };
 
   const exportCollectionReportPDF = () => {
@@ -1312,10 +1331,7 @@ const GenerateReports = ({
                     <th><i className="fas fa-tag"></i> TYPE</th>
                     <th><i className="fas fa-money-bill"></i> AMOUNT</th>
                     <th><i className="fas fa-user"></i> RECIPIENT/PAYER</th>
-                    <th><i className="fas fa-id-card"></i> PAYEE ID</th>
-                    {!hideTransactionActions && (
-                      <th><i className="fas fa-cog"></i> ACTIONS</th>
-                    )}
+                    <th><i className="fas fa-user-circle"></i> CREATED BY</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1354,29 +1370,22 @@ const GenerateReports = ({
                           </td>
                           <td>
                             <div className="gr-cell-content">
-                              <span className="payee-id">{transaction.payee_id || transaction.recipient_id || 'N/A'}</span>
+                              <div className="created-by-info">
+                                <span className="created-by-name">
+                                  {transaction.creator?.name || transaction.created_by?.name || transaction.user?.name || transaction.issuing_officer_name || 'N/A'}
+                                </span>
+                                <span className="created-by-role">
+                                  {transaction.creator?.role || transaction.user?.role || 'N/A'}
+                                </span>
+                              </div>
                             </div>
                           </td>
-                          {!hideTransactionActions && (
-                            <td className="action-cell">
-                              <div className="gr-cell-content">
-                                <div className="action-buttons-group">
-                                  <button 
-                                    className="action-btn-icon"
-                                    title="View Details"
-                                  >
-                                    <i className="fas fa-eye"></i>
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          )}
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={hideTransactionActions ? "5" : "6"} className="gr-no-data">
+                      <td colSpan="5" className="gr-no-data">
                         <div className="gr-no-data-content">
                           <i className="fas fa-inbox"></i>
                           <p>No transactions found matching your criteria.</p>
@@ -1400,80 +1409,198 @@ const GenerateReports = ({
       
       {!hideOverrideTab && activityTab === 'overrides' && !overridesLoading && (
         <div>
-          <div className="section-header">
-            <div className="section-title-group">
-              <h3>
-                <i className="fas fa-exchange-alt"></i>
-                Override Requests
-                <span className="section-count">({filteredOverrideRequests.length})</span>
-              </h3>
+          <div className="gr-override-header">
+            <div className="gr-override-title">
+              <i className="fas fa-exchange-alt"></i>
+              Override Requests
+              <span className="gr-override-count">({filteredOverrideRequests.length})</span>
             </div>
-            <div className="header-controls">
-              <div className="search-filter-container">
-                <div className="account-search-container">
-                  <input
-                    type="text"
-                    placeholder="Search requests..."
-                    value={overrideFilters.searchTerm}
-                    onChange={(e) => setOverrideFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-                    className="account-search-input"
-                  />
-                  <i className="fas fa-search account-search-icon"></i>
-                </div>
+            <div className="gr-override-controls">
+              <div className="gr-override-search-container">
+                <input
+                  type="text"
+                  placeholder="Search requests..."
+                  value={overrideFilters.searchTerm}
+                  onChange={(e) => setOverrideFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                  className="gr-override-search-input"
+                />
+                <i className="fas fa-search gr-override-search-icon"></i>
+              </div>
+
+              <div className="gr-override-date-filter">
+                <input
+                  type="date"
+                  value={overrideFilters.dateFrom || ''}
+                  onChange={(e) => setOverrideFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                  className="gr-override-date-input"
+                  title="From Date"
+                />
+                <span className="gr-override-date-separator">to</span>
+                <input
+                  type="date"
+                  value={overrideFilters.dateTo || ''}
+                  onChange={(e) => setOverrideFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                  className="gr-override-date-input"
+                  title="To Date"
+                />
+              </div>
+              
+              <div className="gr-override-filter-container">
+                <button
+                  className="gr-override-filter-btn"
+                  onClick={() => setOverrideFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
+                  title="Filter requests"
+                >
+                  <i className="fas fa-filter"></i>
+                  <span className="gr-override-filter-label">
+                    {overrideFilters.status === 'all' ? 'All Status' :
+                     overrideFilters.status === 'pending' ? 'Pending' : 
+                     overrideFilters.status === 'approved' ? 'Approved' : 
+                     'Rejected'}
+                  </span>
+                  <i className={`fas fa-chevron-${overrideFilters.showFilterDropdown ? 'up' : 'down'}`}></i>
+                </button>
                 
-                <div className="filter-dropdown-container">
-                  <button
-                    className="filter-dropdown-btn"
-                    onClick={() => setOverrideFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
-                    title="Filter requests"
-                  >
-                    <i className="fas fa-filter"></i>
-                    <span className="filter-label">
-                      {overrideFilters.status === 'all' ? 'All Status' :
-                       overrideFilters.status === 'pending' ? 'Pending' : 
-                       overrideFilters.status === 'approved' ? 'Approved' : 
-                       'Rejected'}
-                    </span>
-                    <i className={`fas fa-chevron-${overrideFilters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
-                  </button>
-                  
-                  {overrideFilters.showFilterDropdown && (
-                    <div className="filter-dropdown-menu">
-                      <button
-                        className={`filter-option ${overrideFilters.status === 'all' ? 'active' : ''}`}
-                        onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'all', showFilterDropdown: false })); }}
-                      >
-                        <i className="fas fa-list"></i>
-                        <span>All Status</span>
-                        {overrideFilters.status === 'all' && <i className="fas fa-check filter-check"></i>}
-                      </button>
-                      <button
-                        className={`filter-option ${overrideFilters.status === 'pending' ? 'active' : ''}`}
-                        onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'pending', showFilterDropdown: false })); }}
-                      >
-                        <i className="fas fa-clock"></i>
-                        <span>Pending</span>
-                        {overrideFilters.status === 'pending' && <i className="fas fa-check filter-check"></i>}
-                      </button>
-                      <button
-                        className={`filter-option ${overrideFilters.status === 'approved' ? 'active' : ''}`}
-                        onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'approved', showFilterDropdown: false })); }}
-                      >
-                        <i className="fas fa-check-circle"></i>
-                        <span>Approved</span>
-                        {overrideFilters.status === 'approved' && <i className="fas fa-check filter-check"></i>}
-                      </button>
-                      <button
-                        className={`filter-option ${overrideFilters.status === 'rejected' ? 'active' : ''}`}
-                        onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'rejected', showFilterDropdown: false })); }}
-                      >
-                        <i className="fas fa-times-circle"></i>
-                        <span>Rejected</span>
-                        {overrideFilters.status === 'rejected' && <i className="fas fa-check filter-check"></i>}
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {overrideFilters.showFilterDropdown && (
+                  <div className="gr-override-filter-menu">
+                    <button
+                      className={`gr-override-filter-option ${overrideFilters.status === 'all' ? 'active' : ''}`}
+                      onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'all', showFilterDropdown: false })); }}
+                    >
+                      <i className="fas fa-list"></i>
+                      <span>All Status</span>
+                      {overrideFilters.status === 'all' && <i className="fas fa-check"></i>}
+                    </button>
+                    <button
+                      className={`gr-override-filter-option ${overrideFilters.status === 'pending' ? 'active' : ''}`}
+                      onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'pending', showFilterDropdown: false })); }}
+                    >
+                      <i className="fas fa-clock"></i>
+                      <span>Pending</span>
+                      {overrideFilters.status === 'pending' && <i className="fas fa-check"></i>}
+                    </button>
+                    <button
+                      className={`gr-override-filter-option ${overrideFilters.status === 'approved' ? 'active' : ''}`}
+                      onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'approved', showFilterDropdown: false })); }}
+                    >
+                      <i className="fas fa-check-circle"></i>
+                      <span>Approved</span>
+                      {overrideFilters.status === 'approved' && <i className="fas fa-check"></i>}
+                    </button>
+                    <button
+                      className={`gr-override-filter-option ${overrideFilters.status === 'rejected' ? 'active' : ''}`}
+                      onClick={() => { setOverrideFilters(prev => ({ ...prev, status: 'rejected', showFilterDropdown: false })); }}
+                    >
+                      <i className="fas fa-times-circle"></i>
+                      <span>Rejected</span>
+                      {overrideFilters.status === 'rejected' && <i className="fas fa-check"></i>}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="gr-override-export-dropdown-container">
+                <button
+                  className="gr-override-export-btn"
+                  onClick={() => setOverrideFilters(prev => ({ ...prev, showExportDropdown: !prev.showExportDropdown }))}
+                  title="Export options"
+                >
+                  <i className="fas fa-download"></i>
+                </button>
+
+                {overrideFilters.showExportDropdown && (
+                  <div className="gr-override-export-menu">
+                    <button
+                      className="gr-override-export-option"
+                      onClick={() => {
+                        // Export override requests to PDF with preview
+                        const doc = new jsPDF();
+                        const pageWidth = doc.internal.pageSize.getWidth();
+                        const margin = 14;
+                        
+                        // Header
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(16);
+                        doc.text('Override Requests Report', pageWidth / 2, 18, { align: 'center' });
+                        
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(11);
+                        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 26, { align: 'center' });
+                        
+                        // Table
+                        const tableData = filteredOverrideRequests.map((req) => [
+                          `#${req.id}`,
+                          `#${req.transaction_id}`,
+                          req.requested_by?.name || 'N/A',
+                          req.reviewed_by?.name || 'Pending',
+                          req.status || 'N/A',
+                          new Date(req.created_at).toLocaleDateString(),
+                        ]);
+                        
+                        autoTable(doc, {
+                          head: [['ID', 'Transaction', 'Requested By', 'Reviewed By', 'Status', 'Date']],
+                          body: tableData,
+                          startY: 35,
+                          margin: margin,
+                          theme: 'grid',
+                          headerStyles: {
+                            fillColor: [0, 0, 0],
+                            textColor: [255, 255, 255],
+                            fontStyle: 'bold',
+                            fontSize: 10,
+                          },
+                          bodyStyles: {
+                            fontSize: 9,
+                            textColor: [0, 0, 0],
+                          },
+                          alternateRowStyles: {
+                            fillColor: [250, 250, 250],
+                          },
+                        });
+                        
+                        const fileName = `override_requests_${new Date().toISOString().split('T')[0]}.pdf`;
+                        const blob = doc.output('blob');
+                        const url = URL.createObjectURL(blob);
+                        setOverridePdfPreviewUrl(url);
+                        setOverridePdfFileName(fileName);
+                        setShowPDFPreview(true);
+                        setOverrideFilters(prev => ({ ...prev, showExportDropdown: false }));
+                      }}
+                    >
+                      <i className="fas fa-file-pdf"></i>
+                      <span>Export as PDF</span>
+                    </button>
+
+                    <button
+                      className="gr-override-export-option"
+                      onClick={() => {
+                        // Export override requests to Excel
+                        const ws_data = [
+                          ['ID', 'Transaction', 'Requested By', 'Reviewed By', 'Status', 'Date'],
+                          ...filteredOverrideRequests.map((req) => [
+                            req.id,
+                            req.transaction_id,
+                            req.requested_by?.name || 'N/A',
+                            req.reviewed_by?.name || 'Pending',
+                            req.status || 'N/A',
+                            new Date(req.created_at).toLocaleDateString(),
+                          ]),
+                        ];
+                        
+                        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, 'Override Requests');
+                        
+                        const fileName = `override_requests_${new Date().toISOString().split('T')[0]}.xlsx`;
+                        XLSX.writeFile(wb, fileName);
+                        setOverrideFilters(prev => ({ ...prev, showExportDropdown: false }));
+                      }}
+                    >
+                      <i className="fas fa-file-excel"></i>
+                      <span>Export as Excel</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1512,7 +1639,10 @@ const GenerateReports = ({
                         </td>
                         <td>
                           <div className="cell-content">
-                            <span className="requester-name">{requester?.name || 'N/A'}</span>
+                            <div className="requester-info">
+                              <span className="requester-name">{requester?.name || 'N/A'}</span>
+                              <span className="requester-role">{requester?.role || requester?.position || 'N/A'}</span>
+                            </div>
                           </div>
                         </td>
                         <td>
@@ -1694,7 +1824,7 @@ const GenerateReports = ({
                   title="Export to PDF"
                 >
                   <i className="fas fa-download"></i>
-                  <span>Export PDF</span>
+                 
                 </button>
               </div>
             </div>
@@ -2499,36 +2629,29 @@ const GenerateReports = ({
     )}
 
     {/* PDF Preview Modal */}
-    {showPDFPreview && pdfPreviewUrl && (
+    {showPDFPreview && (pdfPreviewUrl || overridePdfPreviewUrl) && (
       <div className="pdf-preview-modal-overlay" onClick={closePDFPreview}>
         <div className="pdf-preview-modal" onClick={(e) => e.stopPropagation()}>
           <div className="pdf-preview-header">
             <h2>
               <i className="fas fa-file-pdf"></i>
-              {activityTab === 'collection-reports' ? 'Collection Report Preview' : 'Transaction Report Preview'}
+              PDF Preview
             </h2>
             <div className="pdf-preview-header-actions">
               <button 
                 className="pdf-download-btn"
-                onClick={downloadPDFFromPreview}
+                onClick={overridePdfPreviewUrl ? downloadPDFFromOverridePreview : downloadPDFFromPreview}
                 title="Download PDF"
               >
                 <i className="fas fa-download"></i>
                 Download PDF
-              </button>
-              <button 
-                className="pdf-preview-close-btn"
-                onClick={closePDFPreview}
-                title="Close Preview"
-              >
-                <i className="fas fa-times"></i>
               </button>
             </div>
           </div>
           
           <div className="pdf-preview-container">
             <iframe 
-              src={pdfPreviewUrl} 
+              src={overridePdfPreviewUrl || pdfPreviewUrl} 
               type="application/pdf"
               className="pdf-preview-iframe"
               title="PDF Preview"

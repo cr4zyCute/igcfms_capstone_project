@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from 'axios';
 import API_BASE_URL from '../../config/api';
+import * as XLSX from "xlsx";
+import { generateOverridePDF } from '../reports/export/pdf/overrrideExport';
 import TotalMiniGraph from "../analytics/OverrideTransactionsAnalystics/totalminigraph";
 import RequestDistributionPieG from "../analytics/OverrideTransactionsAnalystics/RequestDistributionPieG";
 import BarGraph from "../analytics/OverrideTransactionsAnalystics/bargraph";
@@ -95,6 +97,12 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // PDF Preview and Export state
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState("");
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   useEffect(() => {
     applyFilters();
@@ -194,6 +202,93 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
       setSuccess("");
       setError("");
     }, 5000);
+  };
+
+  // PDF Export Handler
+  const handleExportPdf = () => {
+    if (!filteredRequests.length) {
+      showMessage("No requests to export", 'error');
+      setShowExportDropdown(false);
+      return;
+    }
+
+    try {
+      const { blob, filename } = generateOverridePDF({
+        overrideRequests: filteredRequests,
+        filters: {
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          status: filters.status
+        }
+      });
+
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+      setPdfFileName(filename);
+      setShowPDFPreview(true);
+      setShowExportDropdown(false);
+    } catch (e) {
+      console.error('Error generating PDF:', e);
+      showMessage('Error generating PDF. Please try again.', 'error');
+    }
+  };
+
+  // Download PDF from preview
+  const downloadPDFFromPreview = () => {
+    if (!pdfPreviewUrl) return;
+    const link = document.createElement('a');
+    link.href = pdfPreviewUrl;
+    link.download = pdfFileName || 'override_requests.pdf';
+    link.click();
+  };
+
+  // Close PDF preview
+  const closePDFPreview = () => {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setShowPDFPreview(false);
+    setPdfPreviewUrl(null);
+    setPdfFileName('');
+  };
+
+  // Excel Export Handler
+  const handleExportExcel = () => {
+    if (!filteredRequests.length) {
+      showMessage("No requests to export", 'error');
+      setShowExportDropdown(false);
+      return;
+    }
+
+    try {
+      const excelData = filteredRequests.map((req) => ({
+        'ID': req.id,
+        'Transaction': req.transaction_id,
+        'Requested By': req.requested_by?.name || 'N/A',
+        'Reason': req.reason || 'N/A',
+        'Status': req.status || 'N/A',
+        'Date': new Date(req.created_at).toLocaleDateString(),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Override Requests');
+
+      ws['!cols'] = [
+        { wch: 10 },
+        { wch: 15 },
+        { wch: 20 },
+        { wch: 30 },
+        { wch: 12 },
+        { wch: 15 }
+      ];
+
+      const fileName = `override_requests_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      setShowExportDropdown(false);
+      showMessage('Excel file downloaded successfully!');
+    } catch (e) {
+      console.error('Error generating Excel:', e);
+      showMessage('Error generating Excel. Please try again.', 'error');
+    }
   };
 
   // Submit override request
@@ -833,85 +928,6 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
         </>
       )}
 
-      {/* Override Requests Section Header */}
-      <div className="section-header">
-        <div className="section-title-group">
-          <h3>
-            <i className="fas fa-exchange-alt"></i>
-            Override Requests
-            <span className="section-count">({filteredRequests.length})</span>
-          </h3>
-        </div>
-        <div className="header-controls">
-          <div className="search-filter-container">
-            <div className="account-search-container">
-              <input
-                type="text"
-                placeholder="Search requests..."
-                value={filters.searchTerm}
-                onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-                className="account-search-input"
-              />
-              <i className="fas fa-search account-search-icon"></i>
-            </div>
-            
-            <div className="filter-dropdown-container">
-              <button
-                className="filter-dropdown-btn"
-                onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
-                title="Filter requests"
-              >
-                <i className="fas fa-filter"></i>
-                <span className="filter-label">
-                  {filters.status === 'all' ? 'All Status' :
-                   filters.status === 'pending' ? 'Pending' : 
-                   filters.status === 'approved' ? 'Approved' : 
-                   'Rejected'}
-                </span>
-                <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'} filter-arrow`}></i>
-              </button>
-              
-              {filters.showFilterDropdown && (
-                <div className="filter-dropdown-menu">
-                  <button
-                    className={`filter-option ${filters.status === 'all' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('status', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-list"></i>
-                    <span>All Status</span>
-                    {filters.status === 'all' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.status === 'pending' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('status', 'pending'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-clock"></i>
-                    <span>Pending</span>
-                    {filters.status === 'pending' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.status === 'approved' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('status', 'approved'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-check-circle"></i>
-                    <span>Approved</span>
-                    {filters.status === 'approved' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                  <button
-                    className={`filter-option ${filters.status === 'rejected' ? 'active' : ''}`}
-                    onClick={() => { handleFilterChange('status', 'rejected'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
-                  >
-                    <i className="fas fa-times-circle"></i>
-                    <span>Rejected</span>
-                    {filters.status === 'rejected' && <i className="fas fa-check filter-check"></i>}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Manual Receipt Creation Modal */}
       {showManualReceiptModal && (
         <div className="ot-modal-overlay" onClick={() => setShowManualReceiptModal(false)}>
@@ -1050,6 +1066,130 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
 
       {/* Override Requests Table */}
       <div className="ot-requests-section">
+        {/* Table Header with Filters and Export */}
+        <div className="ot-table-header">
+          {/* Left: Title and Count */}
+          <div className="ot-header-title">
+            <i className="fas fa-exchange-alt"></i>
+            <span className="ot-title-text">Override Requests</span>
+            <span className="ot-title-count">({filteredRequests.length})</span>
+          </div>
+
+          {/* Center: Search Box */}
+          <div className="ot-search-container">
+            <input
+              type="text"
+              placeholder="Search receipts..."
+              value={filters.searchTerm}
+              onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+              className="ot-search-input"
+            />
+            <i className="fas fa-search ot-search-icon"></i>
+          </div>
+
+          {/* Right: Date Filters, Status Filter, Export */}
+          <div className="ot-header-controls">
+            <div className="ot-date-filter-group">
+              <input
+                type="date"
+                value={filters.dateFrom || ''}
+                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                className="ot-date-input"
+                title="From Date"
+              />
+              <span className="ot-date-separator">to</span>
+              <input
+                type="date"
+                value={filters.dateTo || ''}
+                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                className="ot-date-input"
+                title="To Date"
+              />
+            </div>
+
+            <div className="ot-filter-dropdown-container">
+              <button
+                className="ot-filter-btn"
+                onClick={() => setFilters(prev => ({ ...prev, showFilterDropdown: !prev.showFilterDropdown }))}
+                title="Filter by status"
+              >
+                <i className="fas fa-filter"></i>
+                <span>
+                  {filters.status === 'all' ? 'All Status' :
+                   filters.status === 'pending' ? 'Pending' : 
+                   filters.status === 'approved' ? 'Approved' : 
+                   'Rejected'}
+                </span>
+                <i className={`fas fa-chevron-${filters.showFilterDropdown ? 'up' : 'down'}`}></i>
+              </button>
+              
+              {filters.showFilterDropdown && (
+                <div className="ot-filter-menu">
+                  <button
+                    className={`ot-filter-option ${filters.status === 'all' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('status', 'all'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-list"></i>
+                    <span>All Status</span>
+                    {filters.status === 'all' && <i className="fas fa-check"></i>}
+                  </button>
+                  <button
+                    className={`ot-filter-option ${filters.status === 'pending' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('status', 'pending'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-clock"></i>
+                    <span>Pending</span>
+                    {filters.status === 'pending' && <i className="fas fa-check"></i>}
+                  </button>
+                  <button
+                    className={`ot-filter-option ${filters.status === 'approved' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('status', 'approved'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-check-circle"></i>
+                    <span>Approved</span>
+                    {filters.status === 'approved' && <i className="fas fa-check"></i>}
+                  </button>
+                  <button
+                    className={`ot-filter-option ${filters.status === 'rejected' ? 'active' : ''}`}
+                    onClick={() => { handleFilterChange('status', 'rejected'); setFilters(prev => ({ ...prev, showFilterDropdown: false })); }}
+                  >
+                    <i className="fas fa-times-circle"></i>
+                    <span>Rejected</span>
+                    {filters.status === 'rejected' && <i className="fas fa-check"></i>}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="ot-export-dropdown-container">
+              <button
+                className="ot-export-btn"
+                onClick={() => setShowExportDropdown(prev => !prev)}
+                title="Export options"
+              >
+                <i className="fas fa-download"></i>
+              </button>
+              {showExportDropdown && (
+                <div className="ot-export-menu">
+                  <button
+                    className="ot-export-option"
+                    onClick={handleExportPdf}
+                  >
+                    <i className="fas fa-file-pdf"></i>
+                    <span>Download PDF</span>
+                  </button>
+                  <button
+                    className="ot-export-option"
+                    onClick={handleExportExcel}
+                  >
+                    <i className="fas fa-file-excel"></i>
+                    <span>Download Excel</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         <div className="requests-table-container">
           <table className="requests-table">
@@ -1374,30 +1514,78 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
             </div>
             <div className="ot-modal-body">
               <div className="request-details">
-                <div className="detail-item">
-                  <label>Request ID:</label>
-                  <span>#{selectedRequest.id}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Transaction ID:</label>
-                  <span>#{selectedRequest.transaction_id}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Requested By:</label>
-                  <span>{selectedRequest.requested_by?.name || selectedRequest.requestedBy?.name || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Reason:</label>
-                  <span>{selectedRequest.reason}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Proposed Changes:</label>
-                  <span>{selectedRequest.changes || 'No changes proposed'}</span>
-                </div>
-                <div className="detail-item">
-                  <label>Request Date:</label>
-                  <span>{new Date(selectedRequest.created_at).toLocaleString()}</span>
-                </div>
+                {(() => {
+                  // Look up the transaction from the transactions array using transaction_id
+                  const linkedTransaction = transactions.find(tx => tx.id === selectedRequest.transaction_id);
+                  const txData = linkedTransaction || selectedRequest.transaction || {};
+                  
+                  return (
+                    <>
+                      <div className="detail-item">
+                        <label>Recipient Account:</label>
+                        <span>{txData?.recipient || 'N/A'}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Transaction ID:</label>
+                        <span>#{selectedRequest.transaction_id}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Requested By:</label>
+                        <span>
+                          {selectedRequest.requested_by?.name || selectedRequest.requestedBy?.name || 'N/A'}
+                          {(selectedRequest.requested_by?.role || selectedRequest.requestedBy?.role) && 
+                            ` (${selectedRequest.requested_by?.role || selectedRequest.requestedBy?.role})`
+                          }
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Fund Account:</label>
+                        <span>
+                          {txData?.fund_account?.name || 
+                           txData?.fund_accounts?.[0]?.name ||
+                           txData?.fund_name ||
+                           'N/A'}
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Old Amount:</label>
+                        <span>
+                          ₱{parseFloat(txData?.amount || 0).toLocaleString('en-PH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Proposed Amount:</label>
+                        <span>
+                          {(() => {
+                            const changes = typeof selectedRequest.changes === 'string' 
+                              ? JSON.parse(selectedRequest.changes || '{}') 
+                              : (selectedRequest.changes || {});
+                            const proposedAmount = changes.amount || txData?.amount;
+                            return `₱${parseFloat(proposedAmount || 0).toLocaleString('en-PH', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}`;
+                          })()}
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Reason:</label>
+                        <span>{selectedRequest.reason}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Proposed Changes:</label>
+                        <span>{selectedRequest.changes || 'No changes proposed'}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Request Date:</label>
+                        <span>{new Date(selectedRequest.created_at).toLocaleString()}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="form-group">
@@ -1468,36 +1656,74 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
             </div>
             <div className="ot-modal-body">
               <div className="request-details">
-                <div className="detail-item">
-                  <label><i className="fas fa-hashtag"></i> Request ID:</label>
-                  <span>#{selectedRequest.id}</span>
-                </div>
-                <div className="detail-item">
-                  <label><i className="fas fa-exchange-alt"></i> Transaction ID:</label>
-                  <span>#{selectedRequest.transaction_id}</span>
-                </div>
-                <div className="detail-item">
-                  <label><i className="fas fa-user"></i> Requested By:</label>
-                  <span>{selectedRequest.requested_by?.name || selectedRequest.requestedBy?.name || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <label><i className="fas fa-calendar"></i> Request Date:</label>
-                  <span>{new Date(selectedRequest.created_at).toLocaleString()}</span>
-                </div>
-                <div className="detail-item">
-                  <label><i className="fas fa-comment"></i> Reason for Override:</label>
-                  <span>{selectedRequest.reason || 'No reason provided'}</span>
-                </div>
-                <div className="detail-item">
-                  <label><i className="fas fa-edit"></i> Proposed Changes:</label>
-                  <span>
-                    {selectedRequest.changes ? (
-                      typeof selectedRequest.changes === 'string' 
-                        ? selectedRequest.changes 
-                        : JSON.stringify(selectedRequest.changes, null, 2)
-                    ) : 'No changes proposed'}
-                  </span>
-                </div>
+                {(() => {
+                  // Look up the transaction from the transactions array using transaction_id
+                  const linkedTransaction = transactions.find(tx => tx.id === selectedRequest.transaction_id);
+                  const txData = linkedTransaction || selectedRequest.transaction || {};
+                  
+                  return (
+                    <>
+                      <div className="detail-item">
+                        <label><i className="fas fa-exchange-alt"></i> Transaction ID:</label>
+                        <span>#{selectedRequest.transaction_id}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label><i className="fas fa-user"></i> Requested By:</label>
+                        <span>
+                          {selectedRequest.requested_by?.name || selectedRequest.requestedBy?.name || 'N/A'}
+                          {(selectedRequest.requested_by?.role || selectedRequest.requestedBy?.role) && 
+                            ` (${selectedRequest.requested_by?.role || selectedRequest.requestedBy?.role})`
+                          }
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label><i className="fas fa-building"></i> Recipient Account:</label>
+                        <span>{txData?.recipient || 'N/A'}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label><i className="fas fa-piggy-bank"></i> Fund Account:</label>
+                        <span>
+                          {txData?.fund_account?.name || 
+                           txData?.fund_accounts?.[0]?.name ||
+                           txData?.fund_name ||
+                           'N/A'}
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label><i className="fas fa-money-bill-wave"></i> Old Amount:</label>
+                        <span>
+                          ₱{parseFloat(txData?.amount || 0).toLocaleString('en-PH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label><i className="fas fa-arrow-right"></i> New Amount:</label>
+                        <span>
+                          {(() => {
+                            const changes = typeof selectedRequest.changes === 'string' 
+                              ? JSON.parse(selectedRequest.changes || '{}') 
+                              : (selectedRequest.changes || {});
+                            const proposedAmount = changes.amount || txData?.amount;
+                            return `₱${parseFloat(proposedAmount || 0).toLocaleString('en-PH', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}`;
+                          })()}
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label><i className="fas fa-calendar"></i> Request Date:</label>
+                        <span>{new Date(selectedRequest.created_at).toLocaleString()}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label><i className="fas fa-comment"></i> Reason for Override:</label>
+                        <span>{selectedRequest.reason || 'No reason provided'}</span>
+                      </div>
+                    </>
+                  );
+                })()}
                 
                 {/* Review Information */}
                 <div className="detail-item" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e5e7eb' }}>
@@ -1552,6 +1778,62 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
                   <i className="fas fa-times"></i> Close
                 </button>
               </div> */}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Preview Modal */}
+      {showPDFPreview && pdfPreviewUrl && (
+        <div 
+          className="pdf-preview-modal-overlay" 
+          onClick={closePDFPreview}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000
+          }}
+        >
+          <div 
+            className="pdf-preview-modal" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '80vw', height: '85vh', background: '#fff', borderRadius: '10px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            <div 
+              className="pdf-preview-header" 
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                       padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}
+            >
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                Override Requests PDF Preview
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button 
+                  type="button" 
+                  onClick={downloadPDFFromPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #111827', borderRadius: 6, background: '#111827', color: '#fff', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-download"></i> Download
+                </button>
+                <button 
+                  type="button" 
+                  onClick={closePDFPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', color: '#111827', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-times"></i> Close
+                </button>
+              </div>
+            </div>
+            <div className="pdf-preview-body" style={{ flex: 1, background: '#11182710' }}>
+              <iframe
+                title="Override Requests PDF Preview"
+                src={pdfPreviewUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
             </div>
           </div>
         </div>

@@ -128,7 +128,7 @@ export const generateTransactionManagementPDF = ({
         textColor: [0, 0, 0],
       },
       alternateRowStyles: {
-        fillColor: [245, 245, 245],
+        fillColor: [250, 250, 250],
       },
       columnStyles: {
         0: { halign: 'left', cellWidth: 50 },
@@ -144,7 +144,7 @@ export const generateTransactionManagementPDF = ({
       tx.type || 'Unknown',
       formatCurrency(tx.amount),
       tx.recipient || 'N/A',
-      tx.department || 'N/A',
+      (tx.creator?.name || tx.user?.name || 'N/A') + '\n(' + (tx.creator?.role || tx.user?.role || 'N/A') + ')',
       formatDate(tx.created_at),
     ]);
 
@@ -153,11 +153,11 @@ export const generateTransactionManagementPDF = ({
 
     // Make the table fill the space: compute dynamic column widths to fit usable width
     const usableWidth = pageWidth - margin * 2;
-    // Relative distribution [ID, Type, Amount, Recipient/Payer, Department, Date]
+    // Relative distribution [ID, Type, Amount, Recipient/Payer, Created By, Date]
     const dist = [0.08, 0.12, 0.15, 0.38, 0.15, 0.12]; // sums to 1
 
     autoTable(doc, {
-      head: [['ID', 'Type', 'Amount', 'Recipient/Payer', 'Department', 'Date']],
+      head: [['ID', 'Type', 'Amount', 'Recipient/Payer', 'Created By', 'Date']],
       body: tableData,
       startY: startY,
       margin: { left: margin, right: margin },
@@ -174,7 +174,7 @@ export const generateTransactionManagementPDF = ({
         textColor: [0, 0, 0],
       },
       alternateRowStyles: {
-        fillColor: [245, 245, 245],
+        fillColor: [250, 250, 250],
       },
       styles: {
         overflow: 'linebreak',

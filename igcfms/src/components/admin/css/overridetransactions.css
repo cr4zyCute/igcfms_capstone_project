@@ -608,8 +608,8 @@
   background: #ffffff;
   border-radius: 0 0 12px 12px;
   overflow: visible;
+  padding-top: 5%;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border: 2px solid #000000;
   border-top: none;
   margin-top: 0;
   clear: both;
@@ -640,27 +640,269 @@
   font-weight: 600;
 }
 
-.requests-table-container {
-  overflow-x: auto;
-  margin: 0;
-  padding: 0;
-}
-
-.requests-table {
-  width: 100%;
-  border-collapse: collapse;
-  border-spacing: 0;
+/* Table Header with Filters and Export */
+.ot-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
   background: #ffffff;
-  margin: 0;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.ot-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ot-header-title i {
+  font-size: 16px;
+  color: #000000;
+}
+
+.ot-title-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.ot-title-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.ot-search-container {
+  position: relative;
+  flex: 1;
+  max-width: 280px;
+}
+
+.ot-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  color: #1f2937;
+}
+
+.ot-search-input:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+.ot-search-input::placeholder {
+  color: #9ca3af;
+}
+
+.ot-search-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.ot-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ot-date-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ot-date-input {
+  padding: 6px 10px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  width: 120px;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  color: #1f2937;
+  font-family: inherit;
+}
+
+.ot-date-input:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+.ot-date-separator {
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 0 4px;
+}
+
+.ot-filter-dropdown-container {
+  position: relative;
+}
+
+.ot-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.ot-filter-btn:hover {
+  background: #f5f5f5;
+}
+
+.ot-filter-btn i:first-child {
+  font-size: 12px;
+}
+
+.ot-filter-btn i:last-child {
+  font-size: 11px;
+}
+
+.ot-filter-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  margin-top: 4px;
+  min-width: 180px;
+  overflow: hidden;
+}
+
+.ot-filter-option {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: #ffffff;
+  color: #1f2937;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.ot-filter-option:hover {
+  background: #f9fafb;
+}
+
+.ot-filter-option.active {
+  background: #000000;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.ot-filter-option i {
+  width: 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.ot-table-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ot-export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   padding: 0;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.requests-table thead {
-  background: #000000 !important;
+.ot-export-btn:hover {
+  background: #f5f5f5;
+  transform: translateY(-1px);
 }
 
-.requests-table thead tr {
-  background: #000000 !important;
+.ot-export-btn:active {
+  transform: translateY(0);
+}
+
+/* Export Dropdown Menu */
+.ot-export-dropdown-container {
+  position: relative;
+}
+
+.ot-export-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  margin-top: 4px;
+  min-width: 180px;
+  overflow: hidden;
+}
+
+.ot-export-option {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: #ffffff;
+  color: #1f2937;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.ot-export-option:hover {
+  background: #f9fafb;
+}
+
+.ot-export-option i {
+  width: 16px;
+  text-align: center;
+  font-size: 13px;
 }
 
 .requests-table th {

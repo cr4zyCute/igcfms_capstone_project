@@ -2009,7 +2009,7 @@ const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
             <div className="vendor-header">
               <i className="fas fa-star"></i>
               <div>
-                <h3>Vendor Performance Ratings</h3>
+                <h3>Account Performance Ratings</h3>
                 <p>Bar chart by vendor performance</p>
               </div>
             </div>

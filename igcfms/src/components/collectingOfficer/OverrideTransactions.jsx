@@ -305,15 +305,20 @@ const CollectingOfficerOverrideTransactions = () => {
     setShowReviewModal(true);
   };
 
-  // Filter transactions based on search
+  // Filter transactions based on search, type (Collection only), and created by current user
   const filteredTransactions = transactions.filter(tx => {
     const searchLower = transactionSearch.toLowerCase();
-    return (
+    const matchesSearch = (
       tx.id?.toString().includes(searchLower) ||
       tx.type?.toLowerCase().includes(searchLower) ||
       tx.description?.toLowerCase().includes(searchLower) ||
       tx.amount?.toString().includes(searchLower)
     );
+    
+    // Only show Collection transactions created by the current user
+    const isCollectionByUser = tx.type === 'Collection' && tx.created_by === user?.id;
+    
+    return matchesSearch && isCollectionByUser;
   });
 
   // Get selected transaction for display

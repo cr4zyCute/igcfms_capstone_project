@@ -305,15 +305,20 @@ const DisbursingSidebarOverrideTransactions = () => {
     setShowReviewModal(true);
   };
 
-  // Filter transactions based on search
+  // Filter transactions based on search, type (Disbursement only), and created by current user
   const filteredTransactions = transactions.filter(tx => {
     const searchLower = transactionSearch.toLowerCase();
-    return (
+    const matchesSearch = (
       tx.id?.toString().includes(searchLower) ||
       tx.type?.toLowerCase().includes(searchLower) ||
       tx.description?.toLowerCase().includes(searchLower) ||
       tx.amount?.toString().includes(searchLower)
     );
+    
+    // Only show Disbursement transactions created by the current user
+    const isDisbursementByUser = tx.type === 'Disbursement' && tx.created_by === user?.id;
+    
+    return matchesSearch && isDisbursementByUser;
   });
 
   // Get selected transaction for display
