@@ -2011,4 +2011,16 @@
   .tm-timestamp-grid {
     grid-template-columns: 1fr;
   }
-}
+}/* --- TransactionManagement header alignment with IssueReceipt --- */
+.tm-header-controls { flex-wrap: nowrap; }
+.tm-filter-label { text-transform: uppercase; font-weight: 700; white-space: nowrap; }
+
+.tm-date-range-controls { display: flex; align-items: center; gap: 12px; }
+.tm-date-field { display: flex; flex-direction: column; }
+.tm-date-field label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+.tm-date-field input[type="date"] { padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 6px; height: 34px; font-size: 12px; background: #ffffff; }
+.tm-date-field input[type="date"]:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+.tm-btn-icon { width: 40px; height: 40px; border-radius: 8px; border: 2px solid #000000; background: #ffffff; color: #000000; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+.tm-btn-icon i { font-size: 16px; }
+.tm-btn-icon:hover { background: #f8f9fa; transform: translateY(-1px); }

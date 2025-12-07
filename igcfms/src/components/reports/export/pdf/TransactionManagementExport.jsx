@@ -53,7 +53,8 @@ export const generateTransactionManagementPDF = ({
   generatedBy = 'System',
   reportTitle = 'Transaction Management Report',
 }) => {
-  const doc = new jsPDF({ orientation: 'landscape' });
+  // Use explicit A4 portrait for consistent sizing
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 14;
@@ -148,13 +149,18 @@ export const generateTransactionManagementPDF = ({
     ]);
 
     // Get the current Y position after summary table
-    const startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : 110;
+    const startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : 70;
+
+    // Make the table fill the space: compute dynamic column widths to fit usable width
+    const usableWidth = pageWidth - margin * 2;
+    // Relative distribution [ID, Type, Amount, Recipient/Payer, Department, Date]
+    const dist = [0.08, 0.12, 0.15, 0.38, 0.15, 0.12]; // sums to 1
 
     autoTable(doc, {
       head: [['ID', 'Type', 'Amount', 'Recipient/Payer', 'Department', 'Date']],
       body: tableData,
       startY: startY,
-      margin: margin,
+      margin: { left: margin, right: margin },
       theme: 'grid',
       headerStyles: {
         fillColor: [0, 0, 0],
@@ -170,13 +176,18 @@ export const generateTransactionManagementPDF = ({
       alternateRowStyles: {
         fillColor: [245, 245, 245],
       },
+      styles: {
+        overflow: 'linebreak',
+        cellPadding: 2,
+      },
+      tableWidth: 'auto',
       columnStyles: {
-        0: { halign: 'center', cellWidth: 15 },
-        1: { halign: 'center', cellWidth: 18 },
-        2: { halign: 'right', cellWidth: 25 },
-        3: { halign: 'left', cellWidth: 40 },
-        4: { halign: 'left', cellWidth: 35 },
-        5: { halign: 'center', cellWidth: 25 },
+        0: { halign: 'center', cellWidth: usableWidth * dist[0] },
+        1: { halign: 'center', cellWidth: usableWidth * dist[1] },
+        2: { halign: 'right',  cellWidth: usableWidth * dist[2] },
+        3: { halign: 'left',   cellWidth: usableWidth * dist[3] },
+        4: { halign: 'left',   cellWidth: usableWidth * dist[4] },
+        5: { halign: 'center', cellWidth: usableWidth * dist[5] },
       },
       didDrawPage: (data) => {
         // Footer
@@ -201,7 +212,8 @@ export const generateTransactionManagementPDF = ({
   addSummary();
   addTransactionsTable();
 
-  // Download
-  const fileName = `Transaction_Management_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(fileName);
+  // Return blob for preview/download
+  const filename = `${reportTitle.replace(/\s+/g, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+  const blob = doc.output('blob');
+  return { blob, filename };
 };

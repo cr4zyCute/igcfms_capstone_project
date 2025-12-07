@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import axios from "axios";
 import API_BASE_URL from "../../config/api";
 import "./css/transactionmanagement.css";
 import "../analytics/TransactionAnalytics.jsx/css/transaction-kpis.css";
 import { generateTransactionManagementPDF } from "../reports/export/pdf/TransactionManagementExport";
+import * as XLSX from 'xlsx';
+import TransactionManagementSL from '../ui/TransactionManagementSL';
 
 // Lazy load chart components for better performance
 const TrendChart = lazy(() => import('../analytics/TransactionAnalytics.jsx/TrendChart'));
@@ -53,6 +55,13 @@ const TransactionManagement = ({ role = "Admin" }) => {
     showFilterDropdown: false
   });
 
+  // Export/Preview states
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const exportDropdownRef = useRef(null);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState("");
+
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   
@@ -73,6 +82,17 @@ const TransactionManagement = ({ role = "Admin" }) => {
     }, 500); // Load charts after 500ms
     
     return () => clearTimeout(timer);
+  }, []);
+
+  // Close export dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target)) {
+        setShowExportDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
 
@@ -254,6 +274,16 @@ const TransactionManagement = ({ role = "Admin" }) => {
     return filtered;
   }, [transactions, filters]);
 
+  // Filters summary for export
+  const exportFilters = useMemo(() => ({
+    'Type': filters.type !== 'all' ? filters.type : 'All',
+    'Department': filters.department !== 'all' ? filters.department : 'All',
+    'Date From': filters.dateFrom || 'Any',
+    'Date To': filters.dateTo || 'Any',
+    'Search Term': filters.searchTerm || 'None',
+    'Sort': filters.activeFilter || 'all',
+  }), [filters]);
+
   // Pagination calculations
   const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -308,6 +338,98 @@ const TransactionManagement = ({ role = "Admin" }) => {
     };
   }, []);
 
+  // Export handlers
+  const handleExportPdf = () => {
+    if (!filteredTransactions.length) {
+      setShowExportDropdown(false);
+      return;
+    }
+    try {
+      const { blob, filename } = generateTransactionManagementPDF({
+        filters: exportFilters,
+        transactions: filteredTransactions,
+        stats: stats,
+        generatedBy: localStorage.getItem('user_name') || 'System',
+        reportTitle: 'Transaction Management Report',
+      }) || {};
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        setPdfPreviewUrl(url);
+        setPdfFileName(filename || 'transactions_report.pdf');
+        setShowPDFPreview(true);
+      }
+      setShowExportDropdown(false);
+    } catch (e) {
+      console.error('Error generating PDF:', e);
+      setShowExportDropdown(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (!filteredTransactions.length) {
+      setShowExportDropdown(false);
+      return;
+    }
+    const rows = filteredTransactions.map((tx) => {
+      const displayType = getTransactionDisplayType(tx);
+      const amountValue = parseFloat(tx.amount || 0) || 0;
+      return {
+        'ID': `#${tx.id}`,
+        'Type': displayType,
+        'Amount': amountValue,
+        'Recipient/Payer': tx.recipient || 'N/A',
+        'Department': tx.department || 'N/A',
+        'Date': tx.created_at ? new Date(tx.created_at).toLocaleDateString() : 'N/A',
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+
+    // Summary sheet
+    const summaryData = [
+      { 'Metric': 'Total Transactions', 'Value': filteredTransactions.length },
+      { 'Metric': 'Total Collections', 'Value': stats.totalCollections },
+      { 'Metric': 'Total Disbursements', 'Value': stats.totalDisbursements },
+      { 'Metric': 'Net Balance', 'Value': stats.netBalance },
+      { 'Metric': 'Average Transaction', 'Value': stats.averageTransactionValue },
+      { 'Metric': 'Collection Rate', 'Value': `${(stats.collectionRate || 0).toFixed(1)}%` },
+      { 'Metric': 'Generated', 'Value': new Date().toLocaleString() },
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    ws['!cols'] = [
+      { wch: 10 }, // ID
+      { wch: 12 }, // Type
+      { wch: 14 }, // Amount
+      { wch: 24 }, // Recipient/Payer
+      { wch: 16 }, // Department
+      { wch: 14 }, // Date
+    ];
+    wsSummary['!cols'] = [{ wch: 22 }, { wch: 40 }];
+
+    const fileName = `transaction_records_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    setShowExportDropdown(false);
+  };
+
+  const downloadPDFFromPreview = () => {
+    if (!pdfPreviewUrl) return;
+    const link = document.createElement('a');
+    link.href = pdfPreviewUrl;
+    link.download = pdfFileName || 'transactions_report.pdf';
+    link.click();
+  };
+
+  const closePDFPreview = () => {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setShowPDFPreview(false);
+    setPdfPreviewUrl(null);
+    setPdfFileName('');
+  };
+
 
   const departments = [
     "Finance", "Administration", "Operations", "HR", "IT", "Legal",
@@ -316,12 +438,7 @@ const TransactionManagement = ({ role = "Admin" }) => {
   ];
 
   if (loading) {
-    return (
-      <div className="transaction-management-loading">
-        <div className="spinner"></div>
-        <div className="loading-text">Loading transaction management...</div>
-      </div>
-    );
+    return <TransactionManagementSL />;
   }
 
   return (
@@ -421,7 +538,7 @@ const TransactionManagement = ({ role = "Admin" }) => {
                   <div className="kpi-label">Net Balance</div>
                   <div className="kpi-value">₱{stats.netBalance.toLocaleString()}</div>
                   <div className="kpi-subtitle">
-                    {stats.netBalance >= 0 ? '⚫ Surplus' : '⚪ Deficit'}
+                    {stats.netBalance >= 0 ? 'âš« Surplus' : 'âšª Deficit'}
                   </div>
                 </div>
               </div>
@@ -484,7 +601,7 @@ const TransactionManagement = ({ role = "Admin" }) => {
             <div className="tm-section-title-group">
               <h3>
                 <i className="fas fa-exchange-alt"></i>
-                Transaction Records
+                Transaction
                 <span className="tm-section-count">({filteredTransactions.length})</span>
               </h3>
             </div>
@@ -500,7 +617,28 @@ const TransactionManagement = ({ role = "Admin" }) => {
                   />
                   <i className="fas fa-search tm-search-icon"></i>
                 </div>
-                
+                {/* Date Range Controls */}
+                <div className="tm-date-range-controls">
+                  <div className="tm-date-field">
+                    <label>Date From</label>
+                    <input
+                      type="date"
+                      value={filters.dateFrom}
+                      onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                      placeholder="dd/mm/yyyy"
+                    />
+                  </div>
+                  <div className="tm-date-field">
+                    <label>Date To</label>
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                      placeholder="dd/mm/yyyy"
+                    />
+                  </div>
+                </div>
+
                 <div className="tm-filter-dropdown-container">
                   <button
                     className="tm-filter-dropdown-btn"
@@ -582,28 +720,42 @@ const TransactionManagement = ({ role = "Admin" }) => {
                   )}
                 </div>
               </div>
-              <button 
-                className="tm-btn-export-records"
-                onClick={() => {
-                  generateTransactionManagementPDF({
-                    filters: {
-                      'Type': filters.type !== 'all' ? filters.type : 'All',
-                      'Department': filters.department !== 'all' ? filters.department : 'All',
-                      'Date From': filters.dateFrom || 'Any',
-                      'Date To': filters.dateTo || 'Any',
-                      'Search Term': filters.searchTerm || 'None',
-                    },
-                    transactions: filteredTransactions,
-                    stats: stats,
-                    generatedBy: localStorage.getItem('user_name') || 'System',
-                    reportTitle: 'Transaction Management Report',
-                  });
-                }}
-                title="Export Transaction Records as PDF"
-              >
-                <i className="fas fa-download"></i>
-                Export Report
-              </button>
+              <div className="tm-export-actions" ref={exportDropdownRef} style={{ position: 'relative' }}>
+                <button
+                  className="tm-btn-icon tm-export-btn"
+                  onClick={() => setShowExportDropdown(prev => !prev)}
+                  title="Export / Download"
+                  type="button"
+                >
+                  <i className="fas fa-download"></i>
+                </button>
+                {showExportDropdown && (
+                  <div
+                    className="tm-export-dropdown-menu"
+                    style={{
+                      position: 'absolute', top: '110%', right: 0,
+                      background: '#ffffff', border: '2px solid #e0e0e0', borderRadius: 8,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 1000,
+                      marginTop: 4, minWidth: 180, overflow: 'hidden'
+                    }}
+                  >
+                    <button type="button" onClick={handleExportPdf} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 14px',
+                      background: 'white', border: 'none', cursor: 'pointer'
+                    }}>
+                      <i className="fas fa-file-pdf" style={{ color: '#ef4444' }}></i>
+                      <span>Preview PDF</span>
+                    </button>
+                    <button type="button" onClick={handleExportExcel} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 14px',
+                      background: 'white', border: 'none', cursor: 'pointer'
+                    }}>
+                      <i className="fas fa-file-excel" style={{ color: '#16a34a' }}></i>
+                      <span>Download Excel</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -618,7 +770,6 @@ const TransactionManagement = ({ role = "Admin" }) => {
                     <th><i className="fas fa-money-bill"></i> AMOUNT</th>
                     <th><i className="fas fa-user"></i> RECIPIENT/PAYER</th>
                     <th><i className="fas fa-calendar"></i> DATE</th>
-                    <th><i className="fas fa-cog"></i> ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -670,28 +821,12 @@ const TransactionManagement = ({ role = "Admin" }) => {
                             </span>
                           </div>
                         </td>
-                        <td className="action-cell">
-                          <div className="cell-content">
-                            <div className="action-buttons-group">
-                              <button 
-                                className="action-btn-icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  viewTransactionDetails(transaction);
-                                }}
-                                title="View Details"
-                              >
-                                <i className="fas fa-eye"></i>
-                              </button>
-                            </div>
-                          </div>
-                        </td>
                       </tr>
                     );
                     })
                   ) : (
                     <tr>
-                      <td colSpan="6" className="no-data">
+                      <td colSpan="5" className="no-data">
                         <i className="fas fa-inbox"></i>
                         <p>No transactions found matching your criteria.</p>
                       </td>
@@ -732,6 +867,62 @@ const TransactionManagement = ({ role = "Admin" }) => {
         </div>
 
       </div>
+
+      {/* PDF Preview Modal */}
+      {showPDFPreview && pdfPreviewUrl && (
+        <div
+          className="pdf-preview-modal-overlay"
+          onClick={closePDFPreview}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999
+          }}
+        >
+          <div
+            className="pdf-preview-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '80vw', height: '85vh', background: '#fff', borderRadius: '10px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            <div
+              className="pdf-preview-header"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                       padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}
+            >
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827' }}>
+                Transaction Records PDF Preview
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={downloadPDFFromPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #111827', borderRadius: 6, background: '#111827', color: '#fff', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-download"></i> Download
+                </button>
+                <button
+                  type="button"
+                  onClick={closePDFPreview}
+                  style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', color: '#111827', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-times"></i> Close
+                </button>
+              </div>
+            </div>
+            <div className="pdf-preview-body" style={{ flex: 1, background: '#11182710' }}>
+              <iframe
+                title="Transaction Records PDF Preview"
+                src={pdfPreviewUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Enhanced Transaction Details Modal */}
       {showDetailsModal && selectedTransaction && (
@@ -925,3 +1116,4 @@ const TransactionManagement = ({ role = "Admin" }) => {
 };
 
 export default TransactionManagement;
+

@@ -38,14 +38,31 @@ const ActivityDashboard = () => {
     refetchStatistics();
   };
 
-  // Filter activities based on active stat filter
+  // Filter activities by selected period (client-side guard) and optional type
   const filteredActivities = useMemo(() => {
-    if (activeStatFilter === null) {
-      return activities;
+    // Determine date threshold from filters.period (days)
+    const days = parseInt(filters?.period ?? '7', 10);
+    const threshold = new Date();
+    if (Number.isFinite(days)) {
+      threshold.setDate(threshold.getDate() - days);
     }
-    
-    return activities.filter(activity => {
-      switch(activeStatFilter) {
+
+    // Normalize date accessor
+    const getDate = (a) => new Date(a?.created_at || a?.createdAt || a?.timestamp || 0);
+
+    // Always enforce period filter to keep UI counts consistent with statistics
+    const withinPeriod = (Array.isArray(activities) ? activities : []).filter(a => {
+      const d = getDate(a);
+      return Number.isFinite(d.getTime()) ? d >= threshold : true; // keep if date missing
+    });
+
+    if (activeStatFilter === null) {
+      return withinPeriod;
+    }
+
+    // Apply type filter when a stat pill is active
+    return withinPeriod.filter(activity => {
+      switch (activeStatFilter) {
         case 'login':
           return activity.activity_type === 'login';
         case 'login_failed':
@@ -60,7 +77,7 @@ const ActivityDashboard = () => {
           return true;
       }
     });
-  }, [activeStatFilter, activities]);
+  }, [activeStatFilter, activities, filters?.period]);
 
   useEffect(() => {
     const tp = Math.max(1, Math.ceil((filteredActivities?.length || 0) / pageSize));
@@ -351,15 +368,15 @@ const ActivityDashboard = () => {
             </table>
           </div>
         )}
-        <div className="activities-pagination" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' }}>
-          <div style={{ color: '#6b7280', fontSize: 12 }}>
+        <div className="table-pagination">
+          <div className="pagination-info">
             {filteredActivities.length ? `Showing ${startItem}–${endItem} of ${filteredActivities.length}` : 'No activities'}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="pagination-controls">
             <select
+              className="pagination-select"
               value={pageSize}
               onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}
-              style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6 }}
             >
               <option value={10}>10 / page</option>
               <option value={25}>25 / page</option>
@@ -368,22 +385,20 @@ const ActivityDashboard = () => {
             </select>
             <button
               type="button"
+              className="pagination-button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff' }}
             >
-              <i className="fas fa-chevron-left"></i> Prev
+              Previous
             </button>
-            <span style={{ minWidth: 90, textAlign: 'center', fontSize: 12, color: '#374151' }}>
-              Page {page} / {totalPages}
-            </span>
+            <span className="pagination-info" style={{ whiteSpace: 'nowrap' }}>Page {page} of {totalPages}</span>
             <button
               type="button"
+              className="pagination-button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff' }}
             >
-              Next <i className="fas fa-chevron-right"></i>
+              Next
             </button>
           </div>
         </div>
