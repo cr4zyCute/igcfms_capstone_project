@@ -1,7 +1,7 @@
-﻿/* Disbursing Officer Dashboard Styles */
+﻿/* Disbursing Officer Dashboard Styles - Black & White Theme */
 .disburser-page {
   padding: 14px;
-  background: #ffffff;
+  background: #f5f5f5;
   min-height: 100vh;
   font-family: 'Segoe UI', Arial, sans-serif;
 }
@@ -9,7 +9,7 @@
 .disburser-header {
   margin-bottom: 20px;
   padding-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid #333333;
 }
 
 .disburser-title {
@@ -30,15 +30,15 @@
 }
 
 .error-banner {
-  background: #fef2f2;
-  color: #991b1b;
+  background: #e8e8e8;
+  color: #333333;
   padding: 16px 20px;
   border-radius: 8px;
   margin-bottom: 20px;
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #fecaca;
+  border: 1px solid #999999;
 }
 
 /* KPI Cards */
@@ -55,7 +55,7 @@
 
 .disburser-kpi-card {
   background: #ffffff;
-  border: 2px solid #f0f0f0;
+  border: 2px solid #cccccc;
   border-radius: 12px;
   padding: 14px;
   display: flex;
@@ -79,9 +79,9 @@
 }
 
 .disburser-kpi-card:hover {
-  border-color: #cccccc;
+  border-color: #666666;
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
 .disburser-kpi-card:hover::before {
@@ -89,51 +89,51 @@
 }
 
 .disburser-kpi-card.primary::before {
-  background: #dc2626;
+  background: #000000;
 }
 
 .disburser-kpi-card.danger::before {
-  background: #dc2626;
+  background: #000000;
 }
 
 .disburser-kpi-card.warning::before {
-  background: #f59e0b;
+  background: #333333;
 }
 
 .disburser-kpi-card.info::before {
-  background: #2563eb;
+  background: #555555;
 }
 
 .kpi-icon {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: #f5f5f5;
+  background: #e8e8e8;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: #666666;
+  color: #333333;
 }
 
 .disburser-kpi-card.primary .kpi-icon {
-  background: #fef2f2;
-  color: #dc2626;
+  background: #d0d0d0;
+  color: #000000;
 }
 
 .disburser-kpi-card.danger .kpi-icon {
-  background: #fef2f2;
-  color: #dc2626;
+  background: #d0d0d0;
+  color: #000000;
 }
 
 .disburser-kpi-card.warning .kpi-icon {
-  background: #fffbeb;
-  color: #f59e0b;
+  background: #c0c0c0;
+  color: #1a1a1a;
 }
 
 .disburser-kpi-card.info .kpi-icon {
-  background: #eff6ff;
-  color: #2563eb;
+  background: #b8b8b8;
+  color: #1a1a1a;
 }
 
 .kpi-content {
@@ -164,7 +164,7 @@
 /* Table Cards */
 .disburser-table-card {
   background: #ffffff;
-  border: 2px solid #f0f0f0;
+  border: 2px solid #cccccc;
   border-radius: 12px;
   padding: 25px;
   margin-bottom: 20px;
@@ -176,7 +176,7 @@
   align-items: center;
   margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid #cccccc;
 }
 
 .table-header h3 {
@@ -210,24 +210,24 @@
 }
 
 .disburser-table th {
-  background: #f8f9fa;
+  background: #e8e8e8;
   padding: 15px 12px;
   text-align: left;
   font-weight: 700;
   color: #000000;
   font-size: 14px;
-  border-bottom: 2px solid #e5e5e5;
+  border-bottom: 2px solid #999999;
 }
 
 .disburser-table td {
   padding: 15px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #d9d9d9;
   font-size: 14px;
   color: #333333;
 }
 
 .disburser-table tr:hover {
-  background: #fafafa;
+  background: #f0f0f0;
 }
 
 .disburser-table tr:last-child td {
@@ -235,7 +235,7 @@
 }
 
 .amount-negative {
-  color: #dc2626 !important;
+  color: #000000 !important;
   font-weight: 600;
 }
 
@@ -247,7 +247,7 @@
 
 .no-data i {
   font-size: 48px;
-  color: #cccccc;
+  color: #999999;
   margin-bottom: 15px;
   display: block;
 }
@@ -265,17 +265,17 @@
 }
 
 .department-card {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
+  background: #f0f0f0;
+  border: 1px solid #cccccc;
   border-radius: 8px;
   padding: 15px;
   transition: all 0.2s ease;
 }
 
 .department-card:hover {
-  border-color: #cccccc;
+  border-color: #666666;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .department-header {
@@ -302,20 +302,20 @@
 .department-amount {
   font-size: 18px;
   font-weight: 700;
-  color: #dc2626;
+  color: #000000;
   margin-bottom: 8px;
 }
 
 .department-bar {
   height: 4px;
-  background: #f0f0f0;
+  background: #d9d9d9;
   border-radius: 2px;
   overflow: hidden;
 }
 
 .department-progress {
   height: 100%;
-  background: linear-gradient(90deg, #dc2626, #ef4444);
+  background: linear-gradient(90deg, #333333, #666666);
   transition: width 0.3s ease;
 }
 
@@ -353,13 +353,13 @@
 }
 
 .trend-bar.disbursement {
-  background: linear-gradient(to top, #dc2626, #ef4444);
+  background: linear-gradient(to top, #333333, #666666);
 }
 
 .trend-amount {
   font-size: 12px;
   font-weight: 700;
-  color: #dc2626;
+  color: #000000;
 }
 
 .trend-count {
@@ -383,17 +383,17 @@
 }
 
 .request-card {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
+  background: #f0f0f0;
+  border: 1px solid #cccccc;
   border-radius: 8px;
   padding: 15px;
   transition: all 0.2s ease;
 }
 
 .request-card:hover {
-  border-color: #cccccc;
+  border-color: #666666;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .request-header {
@@ -418,9 +418,9 @@
 }
 
 .request-status.pending {
-  background: #fffbeb;
-  color: #f59e0b;
-  border: 1px solid #fbbf24;
+  background: #e8e8e8;
+  color: #333333;
+  border: 1px solid #999999;
 }
 
 .request-details {
@@ -466,24 +466,24 @@
 }
 
 .approve-btn {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
+  background: #d0d0d0;
+  color: #000000;
+  border: 1px solid #999999;
 }
 
 .approve-btn:hover {
-  background: #16a34a;
+  background: #666666;
   color: #ffffff;
 }
 
 .reject-btn {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+  background: #c0c0c0;
+  color: #000000;
+  border: 1px solid #999999;
 }
 
 .reject-btn:hover {
-  background: #dc2626;
+  background: #333333;
   color: #ffffff;
 }
 
@@ -497,8 +497,8 @@
 }
 
 .fund-balance-card {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
+  background: #f0f0f0;
+  border: 1px solid #cccccc;
   border-radius: 8px;
   padding: 15px;
   transition: all 0.2s ease;
@@ -508,9 +508,9 @@
 }
 
 .fund-balance-card:hover {
-  border-color: #cccccc;
+  border-color: #666666;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .fund-info {
@@ -536,7 +536,7 @@
 .balance-amount {
   font-size: 16px;
   font-weight: 700;
-  color: #2563eb;
+  color: #000000;
   margin-bottom: 4px;
 }
 
@@ -549,15 +549,15 @@
 }
 
 .balance-status.healthy {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
+  background: #d0d0d0;
+  color: #000000;
+  border: 1px solid #999999;
 }
 
 .balance-status.low {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+  background: #c0c0c0;
+  color: #000000;
+  border: 1px solid #999999;
 }
 
 /* Category Grid */
@@ -568,17 +568,17 @@
 }
 
 .category-card {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
+  background: #f0f0f0;
+  border: 1px solid #cccccc;
   border-radius: 8px;
   padding: 15px;
   transition: all 0.2s ease;
 }
 
 .category-card:hover {
-  border-color: #cccccc;
+  border-color: #666666;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .category-header {
@@ -605,20 +605,20 @@
 .category-amount {
   font-size: 18px;
   font-weight: 700;
-  color: #dc2626;
+  color: #000000;
   margin-bottom: 8px;
 }
 
 .category-bar {
   height: 4px;
-  background: #f0f0f0;
+  background: #d9d9d9;
   border-radius: 2px;
   overflow: hidden;
 }
 
 .category-progress.disbursement {
   height: 100%;
-  background: linear-gradient(90deg, #dc2626, #ef4444);
+  background: linear-gradient(90deg, #333333, #666666);
   transition: width 0.3s ease;
 }
 
@@ -632,8 +632,8 @@
 }
 
 .disburser-spinner {
-  border: 6px solid #f3f3f3;
-  border-top: 6px solid #dc2626;
+  border: 6px solid #d9d9d9;
+  border-top: 6px solid #000000;
   border-radius: 50%;
   width: 48px;
   height: 48px;

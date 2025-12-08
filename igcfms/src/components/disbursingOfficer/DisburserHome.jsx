@@ -167,10 +167,20 @@ const overrideTotal = overrideRequests.length;
         }
         setDailyDisbursementTrend(dailyTrend);
 
-        // Recent disbursements (last 10)
+        // Create a mapping of fund account IDs to names
+        const fundAccountMap = {};
+        allFunds.forEach(fund => {
+          fundAccountMap[fund.id] = fund.name;
+        });
+
+        // Recent disbursements (last 10) with fund account names
         const recentData = disbursements
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 10);
+          .slice(0, 10)
+          .map(tx => ({
+            ...tx,
+            fundAccountName: fundAccountMap[tx.fund_account_id] || 'N/A'
+          }));
         setRecentDisbursements(recentData);
 
         // Pending override requests
@@ -222,9 +232,7 @@ const overrideTotal = overrideRequests.length;
           <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#000000', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <i className="fas fa-hand-holding-usd"></i> Disbursing Officer Dashboard
           </h2>
-          <p style={{ fontSize: '14px', color: '#666666', margin: '0' }}>
-            Disbursement management and financial oversight
-          </p>
+        
         </div>
 
         {/* Loading Stats Cards */}
@@ -349,27 +357,7 @@ const overrideTotal = overrideRequests.length;
       </div>
 
       {/* Secondary KPIs */}
-      <div className="disburser-kpi-row secondary">
-        <div className="disburser-kpi-card">
-          <div className="kpi-icon">
-            <i className="fas fa-clock"></i>
-          </div>
-          <div className="kpi-content">
-            <div className="kpi-label">Pending Approvals</div>
-            <div className="kpi-value">{disbursementStats.pendingApprovals}</div>
-          </div>
-        </div>
-        <div className="disburser-kpi-card">
-          <div className="kpi-icon">
-            <i className="fas fa-check-circle"></i>
-          </div>
-          <div className="kpi-content">
-            <div className="kpi-label">Approved Requests</div>
-            <div className="kpi-value">{disbursementStats.approvedDisbursements}</div>
-          </div>
-        </div>
-      
-      </div>
+   
 
       {/* Override Status KPIs */}
       <div className="disburser-kpi-row secondary">
@@ -417,7 +405,7 @@ const overrideTotal = overrideRequests.length;
                   <th><i className="fas fa-hashtag"></i> ID</th>
                   <th><i className="fas fa-money-bill"></i> Amount</th>
                   <th><i className="fas fa-tag"></i> Category</th>
-                  <th><i className="fas fa-building"></i> Department</th>
+                  <th><i className="fas fa-piggy-bank"></i> Funds Account Name</th>
                   <th><i className="fas fa-user"></i> Recipient</th>
                   <th><i className="fas fa-calendar"></i> Date</th>
                 </tr>
@@ -429,7 +417,7 @@ const overrideTotal = overrideRequests.length;
                       <td>#{disbursement.id}</td>
                       <td className="amount-negative">₱{parseFloat(disbursement.amount || 0).toLocaleString()}</td>
                       <td>{disbursement.category || 'N/A'}</td>
-                      <td>{disbursement.department || 'N/A'}</td>
+                      <td>{disbursement.fundAccountName}</td>
                       <td>{disbursement.recipient || 'N/A'}</td>
                       <td>{new Date(disbursement.created_at).toLocaleDateString()}</td>
                     </tr>
@@ -450,8 +438,10 @@ const overrideTotal = overrideRequests.length;
 
 
       </div>
-      <div className="disburser-data-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
-        <div className="disburser-table-card" style={{ height: '300px' }}>
+
+      {/* Analytics Charts Grid */}
+      <div className="disburser-data-grid">
+        <div className="disburser-table-card" style={{ height: '320px' }}>
           <div className="table-header">
             <h3><i className="fas fa-donut-chart"></i> Cheque Reconciliation Rate</h3>
             <span className="table-subtitle">Cleared cheques matched vs total</span>
@@ -461,7 +451,7 @@ const overrideTotal = overrideRequests.length;
           </div>
         </div>
 
-        <div className="disburser-table-card" style={{ height: '300px' }}>
+        <div className="disburser-table-card" style={{ height: '320px' }}>
           <div className="table-header">
             <h3><i className="fas fa-bars"></i> Outstanding Cheques Ratio</h3>
             <span className="table-subtitle">Issued but not cleared over 30 days</span>
@@ -470,20 +460,18 @@ const overrideTotal = overrideRequests.length;
             <OutstandingChequesRatio cheques={cheques} />
           </div>
         </div>
-
-        <div className="disburser-table-card" style={{ height: '300px', gridColumn: 'span 2' }}>
-          <div className="table-header">
-            <h3><i className="fas fa-chart-line"></i> Override Transactions</h3>
-            <span className="table-subtitle">Volume trend</span>
-          </div>
-          <div style={{ height: '240px' }}>
-            <OverrideRequestTrendanalaytics overrideRequests={overrideRequests} isLoading={loading} error={error} />
-          </div>
-        </div>
       </div>
 
-
-
+      {/* Override Transactions Chart - Bottom Section */}
+      <div className="disburser-table-card" style={{ marginTop: '10%' }}>
+        <div className="table-header">
+          <h3><i className="fas fa-chart-line"></i> Override Transactions</h3>
+          <span className="table-subtitle">Volume trend</span>
+        </div>
+        <div style={{ height: '280px' }}>
+          <OverrideRequestTrendanalaytics overrideRequests={overrideRequests} isLoading={loading} error={error} />
+        </div>
+      </div>
 
 
 

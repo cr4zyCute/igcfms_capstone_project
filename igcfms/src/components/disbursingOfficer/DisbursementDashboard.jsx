@@ -5,6 +5,7 @@ import DisburserHome from './DisburserHome';
 import GenerateReports from './GenerateReports';
 import OverrideTransactions from './OverrideTransactions';
 import NotificationBellDO from './NotificationBellDO';
+import ProfileSettings from '../admin/ProfileSettings';
 
 const DisbursementDashboard = ({ user, activeTab }) => {
  
@@ -19,6 +20,8 @@ const DisbursementDashboard = ({ user, activeTab }) => {
       return <GenerateReports />;
     case "override-transactions":
       return <OverrideTransactions/>;
+    case "profile-settings":
+      return <ProfileSettings />;
     case "view-transactions":
       return <div>View Transactions - Coming Soon</div>;
     case "daily-summary":

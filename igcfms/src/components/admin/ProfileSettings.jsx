@@ -2,8 +2,10 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import API_BASE_URL from "../../config/api";
 import "./css/profilesettings.css";
+import { useAuth } from "../../contexts/AuthContext";
 
 const ProfileSettings = () => {
+  const { user: authUser } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
   const [activeSection, setActiveSection] = useState("profile-settings");
   const [user, setUser] = useState(null);
@@ -458,13 +460,15 @@ const ProfileSettings = () => {
               <i className="fas fa-user"></i>
               Profile Settings
             </button>
-            <button
-              className={`nav-item ${activeSection === "system-settings" ? "active" : ""}`}
-              onClick={() => setActiveSection("system-settings")}
-            >
-              <i className="fas fa-cog"></i>
-              System Settings
-            </button>
+            {authUser?.role === 'Admin' && (
+              <button
+                className={`nav-item ${activeSection === "system-settings" ? "active" : ""}`}
+                onClick={() => setActiveSection("system-settings")}
+              >
+                <i className="fas fa-cog"></i>
+                System Settings
+              </button>
+            )}
           </div>
         </div>
 

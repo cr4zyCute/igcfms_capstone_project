@@ -158,14 +158,16 @@ const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab, sel
                     <span className="item-icon"></span>
                     <span className="item-text">Profile</span>
                   </a>
-                  <a 
-                    href="#" 
-                    onClick={(e) => { e.preventDefault(); handleNavigation('profile-settings'); }} 
-                    className="dropdown-item"
-                  >
-                    <span className="item-icon"></span>
-                    <span className="item-text">Settings</span>
-                  </a>
+                  {userRole === 'Admin' && (
+                    <a 
+                      href="#" 
+                      onClick={(e) => { e.preventDefault(); handleNavigation('manage-staff'); }} 
+                      className="dropdown-item"
+                    >
+                      <span className="item-icon"></span>
+                      <span className="item-text">Manage Staff</span>
+                    </a>
+                  )}
                 </div>
               </div>
 

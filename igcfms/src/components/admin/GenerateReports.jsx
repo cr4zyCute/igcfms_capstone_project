@@ -1129,8 +1129,7 @@ const GenerateReports = ({
                   <i className="fas fa-file-alt"></i>
                 </div>
                 <div className="stat-content">
-                  <div className="stat-value">{stats.totalReports}</div>
-                  <div className="stat-label">Total Reports</div>
+                  <div className="stat-value" style={{ position: 'relative', left: '25%' }}>{stats.totalReports}</div>                  <div className="stat-label">Total Reports</div>
                 </div>
               </div>
               <div className="stat-card">
@@ -1138,7 +1137,7 @@ const GenerateReports = ({
                   <i className="fas fa-calendar-day"></i>
                 </div>
                 <div className="stat-content">
-                  <div className="stat-value">{stats.dailyReports}</div>
+                  <div style={{ position: 'relative', left: '25%' }} className="stat-value"  >{stats.dailyReports}</div>
                   <div className="stat-label">Daily Reports</div>
                 </div>
               </div>
@@ -1147,7 +1146,7 @@ const GenerateReports = ({
                   <i className="fas fa-calendar-alt"></i>
                 </div>
                 <div className="stat-content">
-                  <div className="stat-value">{stats.monthlyReports}</div>
+                  <div style={{ position: 'relative', left: '25%' }} className="stat-value">{stats.monthlyReports}</div>
                   <div className="stat-label">Monthly Reports</div>
                 </div>
               </div>
@@ -1156,7 +1155,7 @@ const GenerateReports = ({
                   <i className="fas fa-calendar"></i>
                 </div>
                 <div className="stat-content">
-                  <div className="stat-value">{stats.yearlyReports}</div>
+                  <div style={{ position: 'relative', left: '25%' }} className="stat-value">{stats.yearlyReports}</div>
                   <div className="stat-label">Yearly Reports</div>
                 </div>
               </div>
@@ -1165,7 +1164,7 @@ const GenerateReports = ({
                   <i className="fas fa-exchange-alt"></i>
                 </div>
                 <div className="stat-content">
-                  <div className="stat-value">{overrideStats.total}</div>
+                  <div style={{ position: 'relative', left: '25%' }} className="stat-value">{overrideStats.total}</div>
                   <div className="stat-label">Override Requests</div>
                   <div style={{ fontSize: '12px', marginTop: '4px', color: '#6b7280' }}>
                     Approved {overrideStats.approved} • Pending {overrideStats.pending} • Rejected {overrideStats.rejected}

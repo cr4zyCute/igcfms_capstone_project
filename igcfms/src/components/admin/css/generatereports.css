@@ -1745,6 +1745,7 @@
   flex-direction: column;
   gap: 4px;
   flex: 1;
+
 }
 
 .gr-stat-label {
@@ -1759,6 +1760,7 @@
   font-size: 15px;
   font-weight: 700;
   color: #000000;
+
 }
 
 .gr-stat-time {

@@ -210,12 +210,12 @@ const Login = () => {
             </button>
           </form>
 
-          <p className="register">
+          {/* <p className="register">
             Don't have an account?{" "}
             <Link to="/register" className="text-blue-600 hover:text-blue-500">
               Register here
             </Link>
-          </p>
+          </p> */}
         </div>
       </div>
 
