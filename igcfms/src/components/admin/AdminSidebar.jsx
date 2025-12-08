@@ -20,7 +20,7 @@ const AdminSidebar = ({ activeTab, setActiveTab }) => {
       title: "Transaction",
       icon: "fas fa-exchange-alt",
       items: [
-        // { id: "receive-money", label: "Collection", icon: <i className="fas fa-money-bill-wave"></i> },
+        { id: "adminDashboardHome", label: "new", icon: <i className="fas fa-money-bill-wave"></i> },
         { id: "issue-money", label: "Disburse", icon: <i className="fas fa-hand-holding-usd"></i> },
         { id: "issue-receipt", label: "Receipt", icon: <i className="fas fa-receipt"></i> },
         { id: "issue-check", label: "Cheque", icon: <i className="fas fa-money-check-alt"></i> },

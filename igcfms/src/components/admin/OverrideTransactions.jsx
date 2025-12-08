@@ -204,7 +204,7 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
     }, 5000);
   };
 
-  // PDF Export Handler
+ // PDF Export Handler
   const handleExportPdf = () => {
     if (!filteredRequests.length) {
       showMessage("No requests to export", 'error');

@@ -414,6 +414,85 @@
   content: '\f2f5';
 }
 
+.year-selector-navbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.year-selector-btn-navbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: white;
+  border: 2px solid #000000;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: #000000;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.year-selector-btn-navbar:hover {
+  background: #f0f7ff;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.15);
+}
+
+.year-label-navbar {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.year-value-navbar {
+  font-weight: 700;
+  min-width: 40px;
+  text-align: center;
+}
+
+.year-dropdown-menu-navbar {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  margin-top: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  min-width: 100px;
+}
+
+.year-option-navbar {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: white;
+  border: none;
+  text-align: center;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s ease;
+}
+
+.year-option-navbar:hover {
+  background: #f5f5f5;
+  color: #1976d2;
+}
+
+.year-option-navbar.active {
+  background: #1976d2;
+  color: white;
+  font-weight: 600;
+}
+
 /* Responsive Design */
 @media (max-width: 1024px) {
   .navbar {
@@ -443,6 +522,39 @@
     left: auto !important;
     transform: translateX(0) !important;
     margin-left: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    height: 56px;
+    padding: 0 1rem;
+  }
+  
+  .quick-actions {
+    display: none;
+  }
+  
+  .profile-dropdown .dropdown-menu {
+    width: 240px !important;
+    right: 0 !important;
+    left: auto !important;
+    transform: translateX(0) !important;
+    margin-left: 0 !important;
+  }
+  
+  .brand-text h2 {
+    font-size: 1.1rem;
+  }
+  
+  .breadcrumb-separator,
+  .current-section {
+    display: none;
+  }
+  
+  .profile-button {
+    width: 44px;
+    padding: 6px;
   }
 }
 

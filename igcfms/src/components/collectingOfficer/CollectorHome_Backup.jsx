@@ -238,9 +238,9 @@ const CollectorHome = () => {
           <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#000000', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <i className="fas fa-hand-holding-usd"></i> Collecting Officer Dashboard
           </h2>
-          <p style={{ fontSize: '14px', color: '#666666', margin: '0' }}>
+          {/* <p style={{ fontSize: '14px', color: '#666666', margin: '0' }}>
             Revenue collection management and receipt processing
-          </p>
+          </p> */}
         </div>
 
         {/* Loading Stats Cards */}
@@ -452,7 +452,7 @@ const CollectorHome = () => {
         </div>
 
         {/* Collections by Category */}
-        <div className="collector-table-card">
+        {/* <div className="collector-table-card">
           <div className="table-header">
             <h3><i className="fas fa-chart-pie"></i> Collections by Category</h3>
             <span className="table-subtitle">Revenue breakdown by category</span>
@@ -476,10 +476,10 @@ const CollectorHome = () => {
               </div>
             ))}
           </div>
-        </div>
+        </div> */}
 
         {/* Daily Collection Trend */}
-        <div className="collector-table-card">
+        {/* <div className="collector-table-card">
           <div className="table-header">
             <h3><i className="fas fa-chart-area"></i> Daily Collection Trend</h3>
             <span className="table-subtitle">Last 7 days performance</span>
@@ -501,7 +501,7 @@ const CollectorHome = () => {
               </div>
             ))}
           </div>
-        </div>
+        </div> */}
 
         {/* Recent Receipts */}
         <div className="collector-table-card">

@@ -279,14 +279,19 @@ const ActivityDashboard = () => {
             Activity by Role
           </h3>
           <div className="role-chart">
-            {Object.entries(statistics.activity_by_role).map(([role, count]) => (
+            {Object.entries(statistics.activity_by_role)
+              .filter(([role]) => role && role.toLowerCase() !== 'unknown')
+              .map(([role, count]) => (
               <div key={role} className="role-item">
                 <div className="role-name">{role}</div>
                 <div className="role-bar">
                   <div 
                     className="role-fill" 
                     style={{
-                      width: `${(count / Math.max(...Object.values(statistics.activity_by_role))) * 100}%`
+                      width: `${(count / Math.max(...Object.values(statistics.activity_by_role).filter((_, idx) => {
+                        const roles = Object.keys(statistics.activity_by_role);
+                        return roles[idx] && roles[idx].toLowerCase() !== 'unknown';
+                      }))) * 100}%`
                     }}
                   ></div>
                 </div>

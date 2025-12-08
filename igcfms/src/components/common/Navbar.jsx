@@ -5,22 +5,34 @@ import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../common/NotificationBell';
 import NotificationBellCO from '../collectingOfficer/NotificationBellCO';
 
-const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab }) => {
+const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab, selectedYear, onYearChange, years }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
+  const yearDropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsProfileOpen(false);
       }
+      if (yearDropdownRef.current && !yearDropdownRef.current.contains(event.target)) {
+        setShowYearDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleYearSelect = (year) => {
+    if (onYearChange) {
+      onYearChange(year);
+    }
+    setShowYearDropdown(false);
+  };
 
   const handleLogout = () => {
     logout();
@@ -71,6 +83,32 @@ const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab }) =
               <span className="breadcrumb-separator">/</span>
               <span className="current-section">{getTabDisplayName(activeTab)}</span>
           </div>
+            {userRole === 'Admin' && selectedYear && years && activeTab === 'adminDashboardHome' && (
+              <div className="year-selector-navbar" ref={yearDropdownRef}>
+                <button 
+                  className="year-selector-btn-navbar"
+                  onClick={() => setShowYearDropdown(!showYearDropdown)}
+                >
+                  <span className="year-label-navbar">SELECT YEAR:</span>
+                  <span className="year-value-navbar">{selectedYear}</span>
+                  <i className={`fas fa-chevron-${showYearDropdown ? 'up' : 'down'}`}></i>
+                </button>
+                {showYearDropdown && (
+                  <div className="year-dropdown-menu-navbar">
+                    {years.map(year => (
+                      <button
+                        key={year}
+                        className={`year-option-navbar ${selectedYear === year ? 'active' : ''}`}
+                        onClick={() => handleYearSelect(year)}
+                      >
+                        {year}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            
           
           <div className="navbar-actions">
             {userRole === 'Disbursing Officer' ? (
@@ -81,6 +119,7 @@ const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab }) =
               <NotificationBell onNavigate={onNavigate} />
             )}
             
+          
             <div className="profile-dropdown" ref={dropdownRef}>
           <button 
             className="profile-button"

@@ -1,0 +1,142 @@
+.trends-analysis-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.trends-header {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border-bottom: 2px solid #e0e0e0;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.trends-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.5px;
+}
+
+.trends-icon {
+  color: #1976d2;
+  font-size: 14px;
+}
+
+.trends-stats {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #fafafa;
+  border-bottom: 1px solid #e0e0e0;
+  box-sizing: border-box;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 9px;
+  color: #999;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.stat-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.stat-color.collections {
+  background-color: #2e7d32;
+}
+
+.stat-color.disbursements {
+  background-color: #c62828;
+}
+
+.stat-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.stat-value.collections {
+  color: #2e7d32;
+}
+
+.stat-value.disbursements {
+  color: #c62828;
+}
+
+.stat-value.net-positive {
+  color: #2e7d32;
+}
+
+.stat-value.net-negative {
+  color: #c62828;
+}
+
+.trends-chart {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4px 8px;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  height: 80px;
+}
+
+.trends-chart canvas {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.trends-loading,
+.trends-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #aaa;
+  font-size: 11px;
+}
+
+.trends-no-data-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #999;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}

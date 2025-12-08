@@ -468,9 +468,7 @@ const CashierHome = () => {
             <h2 className="text-2xl md:text-3xl font-bold text-black flex items-center gap-3">
               <i className="fas fa-cash-register" /> Cashier Dashboard
             </h2>
-            <p className="text-sm text-gray-700 mt-2">
-              Monitor transactions, fund accounts, and financial operations
-            </p>
+           
           </div>
           <div className="flex flex-col items-end">
             <div className="text-3xl font-bold text-black tabular-nums">
@@ -537,7 +535,7 @@ const CashierHome = () => {
       </div>
 
       {/* Net Flow Summary */}
-      <div className="mb-6 p-5 rounded-lg border-2 border-black bg-gradient-to-r from-gray-50 to-white">
+      {/* <div className="mb-6 p-5 rounded-lg border-2 border-black bg-gradient-to-r from-gray-50 to-white">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm text-gray-600 font-semibold mb-1">Net Cash Flow</div>
@@ -559,98 +557,13 @@ const CashierHome = () => {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Secondary KPIs */}
-      <div className="grid gap-5 mb-8 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border-2 border-black bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
-          <div className="h-14 w-14 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300 text-lg">
-            <i className="fas fa-calendar-check" />
-          </div>
-          <div>
-            <div className="text-sm text-gray-600 font-semibold">Monthly Collections</div>
-            <div className="text-2xl font-bold text-black">
-              ₱{kpis.monthlyCollections.toLocaleString()}
-            </div>
-          </div>
-        </div>
-        <div className="rounded-lg border-2 border-black bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
-          <div className="h-14 w-14 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300 text-lg">
-            <i className="fas fa-calendar-days" />
-          </div>
-          <div>
-            <div className="text-sm text-gray-600 font-semibold">Weekly Disbursements</div>
-            <div className="text-2xl font-bold text-black">
-              ₱{kpis.weeklyDisbursements.toLocaleString()}
-            </div>
-          </div>
-        </div>
-        <div className="rounded-lg border-2 border-black bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
-          <div className="h-14 w-14 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300 text-lg">
-            <i className="fas fa-wallet" />
-          </div>
-          <div>
-            <div className="text-sm text-gray-600 font-semibold">Cash Balance</div>
-            <div className="text-2xl font-bold text-black">
-              ₱{kpis.cashBalance.toLocaleString()}
-            </div>
-          </div>
-        </div>
-        <div className="rounded-lg border-2 border-black bg-gray-50 p-5 flex items-center gap-4 hover:border-black hover:bg-gray-200 transition-all duration-300 group">
-          <div className="h-14 w-14 rounded-lg bg-gray-800 text-white flex items-center justify-center group-hover:bg-black transition-all duration-300 text-lg">
-            <i className="fas fa-clock-rotate-left" />
-          </div>
-          <div>
-            <div className="text-sm text-gray-600 font-semibold">Pending Overrides</div>
-            <div className="text-2xl font-bold text-black">
-              {kpis.pendingOverrides}
-            </div>
-          </div>
-        </div>
-      </div>
+    
 
       {/* Charts Section */}
-      <div className="grid gap-6 mb-8 grid-cols-1 lg:grid-cols-2">
-        {/* Collection Trend Chart */}
-        <div className="bg-white border-2 border-black rounded-lg overflow-hidden shadow-lg">
-          <div className="px-5 py-4 border-b-2 border-black bg-black text-white flex items-center justify-between">
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              <i className="fas fa-chart-line" /> Collection Trends
-            </h3>
-            <select
-              value={chartPeriod}
-              onChange={(e) => setChartPeriod(e.target.value)}
-              className="px-3 py-1 text-sm rounded-md border-2 border-white bg-black text-white font-semibold hover:bg-white hover:text-black transition-all duration-300"
-            >
-              <option value="week">Last 7 Days</option>
-              <option value="month">Last 30 Days</option>
-              <option value="year">Last 12 Months</option>
-            </select>
-          </div>
-          <div className="p-5">
-            <div style={{ height: '300px', position: 'relative' }}>
-              <canvas ref={collectionChartRef}></canvas>
-            </div>
-          </div>
-        </div>
-
-        {/* Disbursement Trend Chart */}
-        <div className="bg-white border-2 border-black rounded-lg overflow-hidden shadow-lg">
-          <div className="px-5 py-4 border-b-2 border-black bg-black text-white flex items-center justify-between">
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              <i className="fas fa-chart-bar" /> Disbursement Trends
-            </h3>
-            <div className="text-sm font-semibold">
-              {chartPeriod === 'week' ? 'Last 7 Days' : chartPeriod === 'month' ? 'Last 30 Days' : 'Last 12 Months'}
-            </div>
-          </div>
-          <div className="p-5">
-            <div style={{ height: '300px', position: 'relative' }}>
-              <canvas ref={disbursementChartRef}></canvas>
-            </div>
-          </div>
-        </div>
-      </div>
+   
 
       {/* Recent Transactions */}
       <div className="bg-white border-2 border-black rounded-lg overflow-hidden mb-8 shadow-lg">

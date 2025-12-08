@@ -1,5 +1,6 @@
 import React from "react";
 import DashboardHome from "./DashboardHome";
+import AdminDashboardHome from "./admindashboardhome";
 import ReceiveMoney from "./ReceiveMoney";
 import IssueReceipt from "./IssueReceipt";
 import IssueMoney from "./IssueMoney";
@@ -17,15 +18,16 @@ import NotificationBar from "./NotificationBar";
 import ProfileSettings from "./ProfileSettings";
 import '../pages/css/Dashboard.css';
 
-const AdminDashboard = ({ user, activeTab }) => {
+
+const AdminDashboard = ({ user, activeTab, selectedYear }) => {
   const renderTabContent = () => {
     switch (activeTab) {
       case "dashboard":
         return <DashboardHome user={user} />;
       case "notifications":
         return <NotificationBar />;
-      case "receive-money":
-        return <ReceiveMoney />;
+      case "adminDashboardHome":
+        return <AdminDashboardHome user={user} selectedYear={selectedYear} />;
       case "issue-receipt":
         return <IssueReceipt />;
       case "issue-money":

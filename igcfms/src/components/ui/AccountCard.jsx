@@ -10,7 +10,7 @@ const AccountCard = memo(({
   onToggleMenu,
   globalMaxAmount 
 }) => {
-  console.log(`🎴 AccountCard rendered for ${account.name}:`, {
+  console.log(` AccountCard rendered for ${account.name}:`, {
     graphDataLength: account.graphData?.length || 0,
     graphData: account.graphData,
     transactionCount: account.transactionCount

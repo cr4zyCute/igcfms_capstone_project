@@ -446,33 +446,6 @@ const overrideTotal = overrideRequests.length;
             </table>
           </div>
         </div>
-
-  
-        {/* Daily Disbursement Trend */}
-        <div className="disburser-table-card">
-          <div className="table-header">
-            <h3><i className="fas fa-chart-area"></i> Daily Disbursement Trend</h3>
-            <span className="table-subtitle">Last 7 days spending pattern</span>
-          </div>
-          <div className="trend-container">
-            {dailyDisbursementTrend.map((day, index) => (
-              <div key={day.date} className="trend-day">
-                <div className="trend-bar-container">
-                  <div 
-                    className="trend-bar disbursement" 
-                    style={{ 
-                      height: `${Math.max((day.amount / Math.max(...dailyDisbursementTrend.map(d => d.amount))) * 100, 5)}%` 
-                    }}
-                  ></div>
-                </div>
-                <div className="trend-amount">₱{day.amount.toLocaleString()}</div>
-                <div className="trend-count">{day.count} txns</div>
-                <div className="trend-date">{day.date}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
     
 
 

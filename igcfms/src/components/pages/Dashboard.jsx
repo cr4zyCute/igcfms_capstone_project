@@ -31,11 +31,20 @@ const Dashboard = () => {
     return localStorage.getItem('igcfms_activeTab') || 'dashboard';
   });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  // Generate years from 2023 to current year
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 2023 + 1 }, (_, i) => 2023 + i).reverse();
 
   // Wrapper function to save to localStorage when tab changes
   const setActiveTab = (tab) => {
     setActiveTabState(tab);
     localStorage.setItem('igcfms_activeTab', tab);
+  };
+
+  const handleYearChange = (year) => {
+    setSelectedYear(year);
   };
 
   if (loading) {
@@ -79,6 +88,9 @@ const Dashboard = () => {
         onNavigate={setActiveTab}
         isSidebarCollapsed={isSidebarCollapsed}
         activeTab={activeTab}
+        selectedYear={selectedYear}
+        onYearChange={handleYearChange}
+        years={years}
       />
       
       <Sidebar
@@ -88,7 +100,7 @@ const Dashboard = () => {
       />
 
       <main className={`dashboard-main ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <SelectedDashboard user={user} activeTab={activeTab} />
+        <SelectedDashboard user={user} activeTab={activeTab} selectedYear={selectedYear} />
       </main>
     </div>
   );

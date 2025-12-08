@@ -1741,6 +1741,53 @@
   transform: none;
 }
 
+/* Modal Footer Enhanced Styles */
+.modal-footer-enhanced {
+  padding: 16px 50px !important;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  align-items: center;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.btn-update-enhanced {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid #000000 !important;
+  padding: 12px 28px !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.btn-update-enhanced:hover {
+  background: #333333 !important;
+  border-color: #333333 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-update-enhanced:active {
+  transform: translateY(0);
+}
+
+.btn-update-enhanced:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .transaction-history-overlay {
   backdrop-filter: blur(12px);
 }
