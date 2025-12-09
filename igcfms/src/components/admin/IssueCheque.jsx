@@ -1548,7 +1548,7 @@ const downloadPDFFromPreview = () => {
       {/* Official Cheque Modal */}
       {showSuccessModal && chequeResult && (
         <div className="ic-modal-overlay" onClick={() => setShowSuccessModal(false)}>
-          <div className="ic-cheque-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="ic-cheque-modal-content ic-cheque-success-modal-wide" onClick={(e) => e.stopPropagation()}>
             <div className="ic-cheque-actions-bar">
               <button className="ic-modal-close" onClick={() => setShowSuccessModal(false)}>
                 <i className="fas fa-times"></i>

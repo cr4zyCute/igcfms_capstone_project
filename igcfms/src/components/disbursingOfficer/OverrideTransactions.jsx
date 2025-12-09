@@ -703,7 +703,7 @@ const DisbursingSidebarOverrideTransactions = () => {
             <div className="receipt-issued-by">
               <p className="issued-by-name">
                 {user?.name || 'N/A'}
-                {user?.role ? ` • ${user.role}` : ''}
+                {/* {user?.role ? ` • ${user.role}` : ''} */}
               </p>
             </div>
           )}

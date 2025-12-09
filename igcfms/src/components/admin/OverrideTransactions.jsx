@@ -661,7 +661,7 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
 
           ${(user && (user.name || user.role)) ? `
           <div class="receipt-issued-by">
-            <p class="issued-by-name">${user?.name || 'N/A'}${user?.role ? ` • ${user.role}` : ''}</p>
+            <p class="issued-by-name">${user?.name || 'N/A'}</p>
           </div>` : ''}
         </div>
       </div>`;
@@ -1057,7 +1057,7 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
             <div className="receipt-issued-by">
               <p className="issued-by-name">
                 {user?.name || 'N/A'}
-                {user?.role ? ` • ${user.role}` : ''}
+                {/* {user?.role ? ` • ${user.role}` : ''} */}
               </p>
             </div>
           )}

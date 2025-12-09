@@ -218,7 +218,6 @@ const DisbursementCreatedSuccessfully = ({
     <div className="success-modal-overlay" onClick={onClose}>
       <div className="success-modal-container" onClick={(e) => e.stopPropagation()}>
         <div className="success-modal-header">
-          <i className="fas fa-check-circle success-icon"></i>
           <h3 className="success-modal-title">Disbursement Created</h3>
         </div>
         <div className="success-modal-body">

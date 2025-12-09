@@ -15,15 +15,16 @@
 .success-modal-container {
   background: #ffffff;
   border-radius: 16px;
-  max-width: 600px;
-  width: 90%;
+  max-width: 1200px;
+  height: 100%;
+  width: 95%;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }
 
 .success-modal-header {
   background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
-  padding: 24px 28px;
+  padding: 10px 10px;
   display: flex;
   align-items: center;
   gap: 12px;

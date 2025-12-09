@@ -1202,7 +1202,9 @@
   justify-content: center;
   z-index: 1000;
   backdrop-filter: blur(4px);
+  
 }
+
 
 /* Confirmation modal should appear on top of form modal */
 .ic-confirmation-modal-overlay {
@@ -2239,6 +2241,13 @@
   overflow-y: auto;
   position: relative;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+/* Success Modal - Wide version */
+.ic-cheque-success-modal-wide {
+  width: 100% !important;
+  max-width: 1400px;
+  max-height: 92vh;
 }
 
 /* ========================================
