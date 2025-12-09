@@ -85,9 +85,10 @@ export const useAccountTransactions = (accountId, options = {}) => {
       }
     },
     enabled: enabled && !!accountId,
-    staleTime: 30 * 1000, // Consider stale after 30 seconds for real-time
-    cacheTime: 2 * 60 * 1000, // Keep in cache for 2 minutes
-    refetchInterval: 3000, // Refetch every 3 seconds when viewing transactions
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
+    refetchOnWindowFocus: false,
     retry: 2,
   });
 };
@@ -115,7 +116,9 @@ export const useLatestTransaction = (accountId, enabled = true) => {
       }
     },
     enabled: enabled && !!accountId,
-    staleTime: 30 * 1000, // Consider stale after 30 seconds
-    cacheTime: 2 * 60 * 1000, // Keep in cache for 2 minutes
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
+    refetchOnWindowFocus: false,
   });
 };

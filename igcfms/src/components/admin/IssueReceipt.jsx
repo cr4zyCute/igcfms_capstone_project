@@ -13,6 +13,7 @@ import {
   useCreateReceipt,
   useDeleteReceipt
 } from '../../hooks/useReceipts';
+import { useIssueReceiptWebSocket } from '../../hooks/useIssueReceiptWebSocket';
 
 // Chart.js
 import Chart from 'chart.js/auto';
@@ -167,6 +168,9 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [pdfFileName, setPdfFileName] = useState("");
+
+  // WebSocket for real-time updates
+  useIssueReceiptWebSocket();
 
   const {
     data: receiptsData = [],

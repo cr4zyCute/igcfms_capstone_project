@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './css/activitydashboard.css';
 import { useRecentActivities, useActivityStatistics } from '../../hooks/useActivityDashboard.js';
+import { useActivityWebSocket } from '../../hooks/useActivityWebSocket.js';
 import ActivityDashboardLoading from '../ui/activityDashboardLoading';
 
 const ActivityDashboard = () => {
@@ -13,6 +14,9 @@ const ActivityDashboard = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [activeStatFilter, setActiveStatFilter] = useState(null);
+
+  // WebSocket for real-time updates
+  useActivityWebSocket(filters);
 
   // TanStack Query hooks
   const { 

@@ -14,6 +14,7 @@ import {
   useRecipientAccountsForDisbursement,
   useCreateDisbursement 
 } from '../../hooks/useDisbursements';
+import { useIssueMoneyWebSocket } from '../../hooks/useIssueMoneyWebSocket';
 import { printCompleteCheque } from '../pages/print/chequeSimplePrint.jsx';
 import * as XLSX from 'xlsx';
 import { generateDisbursementPDF } from '../reports/export/pdf/disbursementExport.jsx';
@@ -46,6 +47,9 @@ const cloneDefaultChequeLayout = () => JSON.parse(JSON.stringify(DEFAULT_CHEQUE_
 const IssueMoney = ({ filterByUserId = null, hideKpiDashboard = false }) => {
   // Auth hook
   const { user } = useAuth();
+  
+  // WebSocket for real-time updates
+  useIssueMoneyWebSocket();
   
   // TanStack Query hooks
   const queryClient = useQueryClient();

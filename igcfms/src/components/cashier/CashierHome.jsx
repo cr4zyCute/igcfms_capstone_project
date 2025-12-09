@@ -569,112 +569,7 @@ const CashierHome = () => {
       </div> */}
 
       {/* Today's Collections Summary */}
-      <div className="mb-8 rounded-2xl border-2 border-black bg-white p-8 shadow-lg">
-        <div className="flex items-start justify-between gap-8">
-          {/* Left Side - Main Amount */}
-          <div className="flex-1">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center text-2xl">
-                <i className="fas fa-calendar-check text-black" />
-              </div>
-              <div>
-                <h3 className="font-bold text-xl text-black">Today's Collections</h3>
-                <p className="text-sm text-gray-600">{formatDate(currentTime)}</p>
-              </div>
-            </div>
-            
-            <div className="text-6xl font-black text-black mb-8">
-              ₱{(() => {
-                const today = new Date().toDateString();
-                return transactions
-                  .filter(tx => tx.type === "Collection" && new Date(tx.created_at).toDateString() === today)
-                  .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0)
-                  .toLocaleString();
-              })()}
-            </div>
-
-            {/* Bottom Stats */}
-            <div className="grid grid-cols-3 gap-6 border-t-2 border-gray-300 pt-6">
-              <div>
-                <div className="text-xs text-gray-600 font-bold uppercase tracking-wide mb-2">Transactions</div>
-                <div className="text-3xl font-bold text-black">
-                  {(() => {
-                    const today = new Date().toDateString();
-                    return transactions.filter(tx => tx.type === "Collection" && new Date(tx.created_at).toDateString() === today).length;
-                  })()}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-600 font-bold uppercase tracking-wide mb-2">vs Yesterday</div>
-                <div className="text-2xl font-bold">
-                  {(() => {
-                    const today = new Date().toDateString();
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toDateString();
-                    
-                    const todayAmount = transactions
-                      .filter(tx => tx.type === "Collection" && new Date(tx.created_at).toDateString() === today)
-                      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-                    
-                    const yesterdayAmount = transactions
-                      .filter(tx => tx.type === "Collection" && new Date(tx.created_at).toDateString() === yesterdayStr)
-                      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-                    
-                    const percentChange = yesterdayAmount === 0 ? 0 : ((todayAmount - yesterdayAmount) / yesterdayAmount * 100).toFixed(1);
-                    
-                    return (
-                      <span className={percentChange >= 0 ? 'text-black' : 'text-red-600'}>
-                        {percentChange >= 0 ? '+' : ''}{percentChange}% <i className="fas fa-arrow-up text-xs" />
-                      </span>
-                    );
-                  })()}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-600 font-bold uppercase tracking-wide mb-2">Yesterday</div>
-                <div className="text-2xl font-bold text-black">
-                  ₱{(() => {
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toDateString();
-                    
-                    return transactions
-                      .filter(tx => tx.type === "Collection" && new Date(tx.created_at).toDateString() === yesterdayStr)
-                      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0)
-                      .toLocaleString();
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Side - Summary Stats */}
-          <div className="flex flex-col gap-6 text-right min-w-max">
-            <div>
-              <div className="text-sm text-gray-600 font-semibold">Total Transaction</div>
-              <div className="text-2xl font-bold text-black">
-                {(() => {
-                  const today = new Date().toDateString();
-                  return transactions.filter(tx => tx.type === "Collection" && new Date(tx.created_at).toDateString() === today).length;
-                })()}
-              </div>
-            </div>
-            <div>
-              <div className="text-4xl font-black text-black">
-                ₱{(() => {
-                  const today = new Date().toDateString();
-                  return transactions
-                    .filter(tx => tx.type === "Collection" && new Date(tx.created_at).toDateString() === today)
-                    .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0)
-                    .toLocaleString();
-                })()}
-              </div>
-              <div className="text-sm text-gray-600 font-semibold">Total Amount</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      
 
       {/* Issued Receipts Summary */}
       <div className="mb-8 rounded-2xl border-2 border-black bg-white p-8 shadow-lg">
@@ -737,60 +632,7 @@ const CashierHome = () => {
         </div>
 
         {/* Recent Receipts Table */}
-        <div className="mt-8 overflow-x-auto">
-          <h4 className="font-bold text-lg text-black mb-4">Recent Receipts</h4>
-          <table className="min-w-full text-left">
-            <thead className="bg-gray-200 text-black text-sm border-b-2 border-black">
-              <tr>
-                <th className="px-5 py-3 font-bold">
-                  <i className="fas fa-hashtag" /> Receipt #
-                </th>
-                <th className="px-5 py-3 font-bold">
-                  <i className="fas fa-user" /> Payer Name
-                </th>
-                <th className="px-5 py-3 font-bold">
-                  <i className="fas fa-calendar" /> Issued Date
-                </th>
-                <th className="px-5 py-3 font-bold">
-                  <i className="fas fa-tag" /> Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-300 text-sm">
-              {receipts.slice(0, 5).length > 0 ? (
-                receipts.slice(0, 5).map((receipt) => (
-                  <tr key={receipt.id} className="hover:bg-gray-100 transition-colors duration-200">
-                    <td className="px-5 py-3 font-semibold">#{receipt.receipt_number}</td>
-                    <td className="px-5 py-3 text-gray-800">{receipt.payer_name || "N/A"}</td>
-                    <td className="px-5 py-3 text-gray-800">
-                      {new Date(receipt.issued_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-bold border-2 ${
-                          receipt.status === 'Cancelled'
-                            ? 'bg-red-100 text-red-700 border-red-700'
-                            : receipt.status === 'Pending'
-                            ? 'bg-orange-100 text-orange-700 border-orange-700'
-                            : 'bg-green-100 text-green-700 border-green-700'
-                        }`}
-                      >
-                        {receipt.status || 'Active'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" className="px-5 py-8 text-center text-gray-600">
-                    <i className="fas fa-inbox text-2xl block mb-2" />
-                    <p className="font-bold">No receipts found.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        
       </div>
 
       {/* Secondary KPIs */}
@@ -807,19 +649,7 @@ const CashierHome = () => {
           </h3>
           <div className="flex items-center gap-3">
             {/* Search */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="pl-9 pr-3 py-2 text-sm rounded-md border-2 border-white bg-black text-white placeholder-gray-400 focus:bg-white focus:text-black transition-all duration-300 w-48"
-              />
-              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-white" />
-            </div>
+           
             {/* Filter */}
             <select
               value={filterType}

@@ -93,37 +93,17 @@ const fetchRecipientAccounts = async () => {
 // Hook to fetch disbursements
 export const useDisbursements = (options = {}) => {
   const { 
-    enabled = true,
-    refetchInterval = false // Disable auto-refresh for faster load
+    enabled = true
   } = options;
-
-  const queryClient = useQueryClient();
-
-  // Real-time subscription: refresh disbursements (and fund accounts) when a disbursement event is broadcast
-  useEffect(() => {
-    const unsubscribe = subscribeToFundTransactions((event) => {
-      if (!event) return;
-      if (event.type === 'disbursement') {
-        // Invalidate queries so React Query refetches latest data
-        queryClient.invalidateQueries({ queryKey: DISBURSEMENTS_KEYS.all });
-        queryClient.invalidateQueries({ queryKey: ['fundAccounts'] });
-      }
-    });
-
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
-  }, [queryClient]);
 
   return useQuery({
     queryKey: DISBURSEMENTS_KEYS.list({}),
     queryFn: fetchDisbursements,
     enabled,
-    refetchInterval,
-    staleTime: 10 * 60 * 1000, // 10 minutes to avoid frequent refetches
-    cacheTime: 15 * 60 * 1000, // 15 minutes cache
-    refetchOnWindowFocus: false, // Do not refetch on focus to reduce load
-    keepPreviousData: true,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -135,8 +115,10 @@ export const useFundAccountsForDisbursement = (options = {}) => {
     queryKey: ['fundAccounts', 'disbursement'],
     queryFn: fetchFundAccounts,
     enabled,
-    staleTime: 30000,
-    cacheTime: 300000,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -148,8 +130,10 @@ export const useRecipientAccountsForDisbursement = (options = {}) => {
     queryKey: ['recipientAccounts', 'disbursement'],
     queryFn: fetchRecipientAccounts,
     enabled,
-    staleTime: 30000,
-    cacheTime: 300000,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
+    refetchOnWindowFocus: false,
   });
 };
 

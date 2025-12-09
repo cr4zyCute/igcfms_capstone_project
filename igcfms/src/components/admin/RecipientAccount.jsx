@@ -902,7 +902,7 @@ const RecipientAccount = () => {
             {/* Transaction Summary Statistics */}
             {transactions.length > 0 && (
               <div className="transaction-summary-stats">
-                <div className="summary-stat-item total">
+                {/* <div className="summary-stat-item total">
                   <div className="stat-icon">
                     <i className="fas fa-coins"></i>
                   </div>
@@ -910,7 +910,7 @@ const RecipientAccount = () => {
                     <div className="stat-label">Total Amount</div>
                     <div className="stat-value">₱{Math.abs(transactions.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)).toLocaleString()}</div>
                   </div>
-                </div>
+                </div> */}
                 <div className="summary-stat-item collection">
                   <div className="stat-icon">
                     <i className="fas fa-arrow-up"></i>

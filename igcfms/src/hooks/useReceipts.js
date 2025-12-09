@@ -25,10 +25,11 @@ export const useReceipts = (options = {}) => {
     queryKey: RECEIPT_KEYS.list(filters),
     queryFn: () => getReceipts(filters),
     enabled,
-    staleTime: 60 * 1000,
-    cacheTime: 5 * 60 * 1000,
-    retry: 2,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     refetchOnWindowFocus: false,
+    retry: 2,
     ...queryOptions,
   });
 };
@@ -40,11 +41,11 @@ export const useCollectionTransactions = (options = {}) => {
     queryKey: RECEIPT_KEYS.collectionTransactions(params),
     queryFn: () => getCollectionTransactions(params),
     enabled,
-    staleTime: 30 * 1000,
-    cacheTime: 2 * 60 * 1000,
-    retry: 2,
-    refetchInterval: queryOptions.refetchInterval ?? false,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     refetchOnWindowFocus: false,
+    retry: 2,
     ...queryOptions,
   });
 };

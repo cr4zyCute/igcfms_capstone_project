@@ -26,11 +26,11 @@ export const useCheques = (options = {}) => {
     queryKey: CHEQUE_KEYS.list(filters),
     queryFn: () => getCheques(filters),
     enabled,
-    staleTime: 5 * 60 * 1000, // 5 minutes - increased for better performance
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
+    refetchOnWindowFocus: false,
     retry: 2,
-    refetchInterval: queryOptions.refetchInterval ?? false, // Disable auto-refresh for faster load
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
     ...queryOptions,
   });
 };
@@ -42,10 +42,11 @@ export const useDisbursementTransactions = (options = {}) => {
     queryKey: CHEQUE_KEYS.disbursementTransactions(params),
     queryFn: () => getDisbursementTransactions(params),
     enabled,
-    staleTime: 60 * 1000, // 1 minute
-    cacheTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     refetchOnWindowFocus: false,
+    retry: 2,
     ...queryOptions,
   });
 };

@@ -3,6 +3,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { subscribeToFundTransactions } from '../../services/fundTransactionChannel';
 import { useFundAccounts, useCreateFundAccount, useUpdateFundAccount, useDeleteFundAccount, FUND_ACCOUNTS_KEYS } from '../../hooks/useFundAccounts';
 import { useAccountTransactions } from '../../hooks/useAccountTransactions';
+import { useFundsAccountsWebSocket } from '../../hooks/useFundsAccountsWebSocket';
 import { useQueryClient } from '@tanstack/react-query';
 import { SkeletonSectionHeader, SkeletonAccountGrid, SkeletonTransactionTable } from '../ui/LoadingSkeleton';
 import { exportFundAccountsPDF, exportTransactionHistoryPDF } from '../reports/FundsaccountreportGenerator';
@@ -38,6 +39,9 @@ const FundsAccounts = () => {
   
   // React Query client for manual cache updates
   const queryClient = useQueryClient();
+  
+  // WebSocket for real-time updates
+  useFundsAccountsWebSocket();
   
   // React Query hooks
   const { 

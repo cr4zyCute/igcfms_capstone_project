@@ -12,7 +12,7 @@ const CashierGenerateReports = () => {
       currentUser={user}
       hideTransactionTab={false}
       hideOverrideTab={false}
-      hideCollectionReportTab={true}
+      hideCollectionReportTab={false}
       filterTransactionsByCreator={true}
       hideTransactionActions={true}
     />

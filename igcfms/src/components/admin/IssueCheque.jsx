@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "rea
 import { useCheques, useCreateCheque, useUpdateCheque } from "../../hooks/useCheques";
 import { useDisbursements } from "../../hooks/useDisbursements";
 import { useFundAccounts } from "../../hooks/useFundAccounts";
+import { useIssueChequeWebSocket } from "../../hooks/useIssueChequeWebSocket";
 import IssueChequeSkeleton from "../ui/chequeSL";
 import { ErrorModal, SuccessModal } from "../common/Modals/IssueChequeModals";
 import { printCompleteCheque } from "../pages/print/chequeSimplePrint.jsx";
@@ -18,6 +19,29 @@ const pulseAnimation = `
     50% { opacity: 0.5; }
   }
 `;
+
+// Cheque preview constants
+const CHEQUE_FIELD_LABELS = {
+  dateIssued: "Date Issued",
+  payeeName: "Payee Name",
+  amountNumber: "Amount (Numeric)",
+  amountWords: "Amount in Words"
+};
+
+const DEFAULT_CHEQUE_FIELD_POSITIONS = {
+  dateIssued: { x: 420, y: 0 },
+  payeeName: { x: 60, y: 36 },
+  amountNumber: { x: 420, y: 76 },
+  amountWords: { x: 60, y: 106 }
+};
+
+const CHEQUE_DATE_FORMATS = [
+  { id: 'long', name: 'Month Day, Year', formatter: new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) },
+  { id: 'numeric', name: 'MM/DD/YYYY', formatter: new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) },
+  { id: 'iso', name: 'YYYY-MM-DD', formatter: new Intl.DateTimeFormat('en-CA') }
+];
+
+const cloneDefaultChequeLayout = () => JSON.parse(JSON.stringify(DEFAULT_CHEQUE_FIELD_POSITIONS));
 
 // Lazy load analytics components for better performance
 const AverageClearanceTime = lazy(() => import("../analytics/chequeAnalysis/AverageClearanceTime"));
@@ -77,6 +101,9 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
   } = useDisbursements();
 
   const { user } = useAuth();
+
+  // WebSocket for real-time updates
+  useIssueChequeWebSocket();
 
   const effectiveUserId = useMemo(() => {
     const idFromProp = filterByUserId ? parseInt(filterByUserId) : null;
@@ -165,6 +192,66 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
   const exportDropdownRef = useRef(null);
   const fundAccountDropdownRef = useRef(null);
   const disbursementDropdownRef = useRef(null);
+  const chequePreviewRef = useRef(null);
+  
+  // Cheque preview state
+  const [chequePreviewPositions, setChequePreviewPositions] = useState({
+    dateIssued: { x: 420, y: 0 },
+    payeeName: { x: 60, y: 36 },
+    amountNumber: { x: 420, y: 76 },
+    amountWords: { x: 60, y: 106 }
+  });
+  const [dragState, setDragState] = useState(null);
+  const [chequeDateFormatIndex, setChequeDateFormatIndex] = useState(0);
+
+  // Reset cheque preview when modal opens/closes
+  useEffect(() => {
+    if (showSuccessModal && chequeResult) {
+      setChequePreviewPositions(cloneDefaultChequeLayout());
+    } else if (!showSuccessModal) {
+      setDragState(null);
+      setChequeDateFormatIndex(0);
+    }
+  }, [showSuccessModal, chequeResult]);
+
+  // Handle cheque field dragging
+  useEffect(() => {
+    if (!dragState?.field) {
+      return undefined;
+    }
+
+    const handlePointerMove = (event) => {
+      event.preventDefault();
+      if (!chequePreviewRef.current) return;
+      const rect = chequePreviewRef.current.getBoundingClientRect();
+      const rawX = event.clientX - rect.left - (dragState.offsetX || 0);
+      const rawY = event.clientY - rect.top - (dragState.offsetY || 0);
+      const maxX = rect.width - 60;
+      const maxY = rect.height - 30;
+      const clampedX = Math.min(Math.max(rawX, 0), maxX);
+      const clampedY = Math.min(Math.max(rawY, 0), maxY);
+
+      setChequePreviewPositions(prev => ({
+        ...prev,
+        [dragState.field]: {
+          x: Math.round(clampedX),
+          y: Math.round(clampedY)
+        }
+      }));
+    };
+
+    const handlePointerUp = () => {
+      setDragState(null);
+    };
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [dragState]);
 
   // Defer analytics loading for faster initial render
   useEffect(() => {
@@ -580,17 +667,53 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
 
   const viewChequeDetails = (cheque) => {
     console.log('Cheque data:', cheque); // Debug log
+    // Get amount from multiple possible sources
+    const amount = Math.abs(parseFloat(
+      cheque.amount || 
+      cheque.cheque_amount || 
+      cheque.transaction?.amount || 
+      0
+    ));
+    
     setChequeResult({
       id: cheque.id,
       chequeNumber: cheque.cheque_number,
       payeeName: cheque.payee_name,
-      amount: Math.abs(parseFloat(cheque.amount) || 0),
+      amount: amount,
       bankName: cheque.bank_name,
       accountNumber: cheque.account_number,
       issueDate: cheque.issue_date || cheque.created_at,
       memo: cheque.memo
     });
     setShowSuccessModal(true);
+  };
+
+  // Helper function to convert numbers to words (simplified)
+  const numberToWords = (num) => {
+    // Convert to integer (whole pesos only)
+    const wholeNum = Math.floor(Math.abs(parseFloat(num) || 0));
+    
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    const convertBelowThousand = (n) => {
+      if (n === 0) return '';
+      if (n < 10) return ones[n];
+      if (n < 20) return teens[n - 10];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+      return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertBelowThousand(n % 100) : '');
+    };
+    
+    if (wholeNum === 0) return 'Zero';
+    if (wholeNum < 1000) return convertBelowThousand(wholeNum);
+    if (wholeNum < 1000000) {
+      const thousands = Math.floor(wholeNum / 1000);
+      const remainder = wholeNum % 1000;
+      return convertBelowThousand(thousands) + ' Thousand' + (remainder !== 0 ? ' ' + convertBelowThousand(remainder) : '');
+    }
+    
+    return wholeNum.toString(); // Fallback for very large numbers
   };
 
   // Print cheque using custom template
@@ -613,6 +736,129 @@ const IssueCheque = ({ showKpiSections = true, useSkeletonLoader = true, filterB
     };
     
     printCompleteCheque(chequeData);
+  };
+
+  // Cheque preview helper functions
+  const selectedChequeDateFormatter = useMemo(() => (
+    CHEQUE_DATE_FORMATS[chequeDateFormatIndex]?.formatter || new Intl.DateTimeFormat('en-US')
+  ), [chequeDateFormatIndex]);
+
+  const currentChequeDateFormatName = useMemo(() => (
+    CHEQUE_DATE_FORMATS[chequeDateFormatIndex]?.name || 'Custom'
+  ), [chequeDateFormatIndex]);
+
+  const chequeFieldValues = useMemo(() => {
+    if (!chequeResult) {
+      return {};
+    }
+
+    const amountNumeric = parseFloat(chequeResult.amount || 0) || 0;
+    const formattedAmount = `₱${amountNumeric.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+
+    const issuedDate = chequeResult.issueDate
+      ? new Date(chequeResult.issueDate)
+      : new Date();
+
+    return {
+      dateIssued: selectedChequeDateFormatter.format(issuedDate),
+      payeeName: chequeResult.payeeName || '—',
+      amountNumber: formattedAmount,
+      amountWords: `${numberToWords(amountNumeric)} Pesos Only`
+    };
+  }, [chequeResult, selectedChequeDateFormatter]);
+
+  const handleCycleChequeDateFormat = () => {
+    setChequeDateFormatIndex(prev => (prev + 1) % CHEQUE_DATE_FORMATS.length);
+  };
+
+  const handleStartDrag = (fieldKey, event) => {
+    if (!chequePreviewRef.current) return;
+    event.preventDefault();
+    const containerRect = chequePreviewRef.current.getBoundingClientRect();
+    const currentPosition = chequePreviewPositions[fieldKey] || { x: 0, y: 0 };
+    const offsetX = event.clientX - (containerRect.left + currentPosition.x);
+    const offsetY = event.clientY - (containerRect.top + currentPosition.y);
+
+    if (event.currentTarget?.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
+    setDragState({ field: fieldKey, offsetX, offsetY });
+  };
+
+  const handleResetChequeLayout = () => {
+    setChequePreviewPositions(cloneDefaultChequeLayout());
+  };
+
+  const sanitizeForHtml = (value) => (value || '').toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const handlePrintChequeLayout = () => {
+    if (typeof window === 'undefined') return;
+    const printWindow = window.open('', '_blank', 'width=900,height=600');
+    if (!printWindow) return;
+
+    const positionedFields = Object.keys(CHEQUE_FIELD_LABELS).map((key) => {
+      const position = chequePreviewPositions[key] || { x: 0, y: 0 };
+      const value = sanitizeForHtml(chequeFieldValues[key] || '');
+      return `<div class="print-field print-field-${key}" style="left:${position.x}px;top:${position.y}px;">${value}</div>`;
+    }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Cheque Layout</title>
+          <style>
+            * { box-sizing: border-box; }
+            @page { size: 6.25in 2.75in; margin: 0; }
+            html, body {
+              width: 6.25in;
+              height: 2.75in;
+              margin: 0;
+              padding: 0;
+            }
+            body {
+              font-family: 'Inter', 'Segoe UI', sans-serif;
+              background: #ffffff;
+              margin: 0;
+              padding: 0;
+            }
+            .cheque-doc {
+              width: 6.25in;
+              height: 2.75in;
+              position: relative;
+            }
+            .print-field {
+              position: absolute;
+              font-size: 15px;
+              color: #0f172a;
+              font-weight: 600;
+              white-space: nowrap;
+            }
+            .print-field-payeeName {
+              white-space: nowrap;
+            }
+            @media print {
+              body { margin: 0; }
+              .cheque-doc { box-shadow: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="cheque-doc">
+            ${positionedFields}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
   // Handle PDF export for all cheques
@@ -721,34 +967,6 @@ const downloadPDFFromPreview = () => {
     setShowPDFPreview(false);
     setPdfPreviewUrl(null);
     setPdfFileName('');
-  };
-
-  // Helper function to convert numbers to words (simplified)
-  const numberToWords = (num) => {
-    // Convert to integer (whole pesos only)
-    const wholeNum = Math.floor(Math.abs(parseFloat(num) || 0));
-    
-    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-    
-    const convertBelowThousand = (n) => {
-      if (n === 0) return '';
-      if (n < 10) return ones[n];
-      if (n < 20) return teens[n - 10];
-      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
-      return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertBelowThousand(n % 100) : '');
-    };
-    
-    if (wholeNum === 0) return 'Zero';
-    if (wholeNum < 1000) return convertBelowThousand(wholeNum);
-    if (wholeNum < 1000000) {
-      const thousands = Math.floor(wholeNum / 1000);
-      const remainder = wholeNum % 1000;
-      return convertBelowThousand(thousands) + ' Thousand' + (remainder !== 0 ? ' ' + convertBelowThousand(remainder) : '');
-    }
-    
-    return wholeNum.toString(); // Fallback for very large numbers
   };
 
   // Generate next cheque number
@@ -1557,104 +1775,52 @@ const downloadPDFFromPreview = () => {
                 <i className="fas fa-print"></i> Print
               </button>
             </div>
-            
-            {/* Official Cheque Document */}
-            <div className="official-cheque" id="cheque-document">
-              {/* Cheque Header */}
-              <div className="cheque-header">
-                <div className="cheque-logo-section">
-                  <div className="logo-placeholder">
-                    <i className="fas fa-university"></i>
-                  </div>
-                  <div className="cheque-bank-info">
-                    <h1 className="bank-name">{chequeResult.bankName}</h1>
-                    <p className="bank-address">Government Banking Division</p>
-                    <p className="bank-contact">IGCFMS Account Services</p>
-                  </div>
-                </div>
-                
-                <div className="cheque-number-section">
-                  <div className="cheque-number-box">
-                    <span className="cheque-number-label">CHEQUE NO.</span>
-                    <span className="cheque-number-value">{chequeResult.chequeNumber}</span>
-                  </div>
-                </div>
+
+            {/* Cheque Preview Panel */}
+            <div className="cheque-preview-panel" style={{ marginBottom: '20px', borderBottom: '1px solid #e5e7eb', paddingBottom: '20px' }}>
+              <div className="cheque-preview-header" style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
+                <button type="button" className="cheque-preview-btn secondary" onClick={handleCycleChequeDateFormat} style={{ padding: '8px 12px', fontSize: '14px', border: '1px solid #d1d5db', borderRadius: '6px', background: '#f3f4f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fas fa-calendar-alt"></i> Change Date Format
+                  <span style={{ fontSize: '12px', color: '#6b7280' }}>({currentChequeDateFormatName})</span>
+                </button>
+                <button type="button" className="cheque-preview-btn ghost" onClick={handleResetChequeLayout} style={{ padding: '8px 12px', fontSize: '14px', border: '1px solid #d1d5db', borderRadius: '6px', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fas fa-undo"></i> Reset Layout
+                </button>
+                <button type="button" className="cheque-preview-btn outline" onClick={handlePrintChequeLayout} style={{ padding: '8px 12px', fontSize: '14px', border: '1px solid #d1d5db', borderRadius: '6px', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fas fa-print"></i> Print Layout
+                </button>
               </div>
-
-              {/* Cheque Body */}
-              <div className="cheque-body">
-                <div className="cheque-date-section">
-                  <span className="date-label">Date:</span>
-                  <span className="date-value">{new Date(chequeResult.issueDate).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}</span>
-                </div>
-
-                <div className="cheque-payee-section">
-                  <div className="payee-line">
-                    <span className="payee-label">Pay to the order of:</span>
-                    <span className="payee-name">{chequeResult.payeeName}</span>
-                  </div>
-                </div>
-
-                <div className="cheque-amount-section">
-                  <div className="amount-words-line">
-                    <span className="amount-words-label">The sum of:</span>
-                    <span className="amount-in-words">
-                      {numberToWords(chequeResult.amount || 0)} Pesos Only
-                    </span>
-                  </div>
-                  
-                  <div className="amount-figures-section">
-                    <span className="currency-symbol">₱</span>
-                    <span className="amount-figures">{parseFloat(chequeResult.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                </div>
-
-                {chequeResult.memo && (
-                  <div className="cheque-memo-section">
-                    <span className="memo-label">Memo:</span>
-                    <span className="memo-text">{chequeResult.memo}</span>
-                  </div>
-                )}
+              <div className="cheque-preview-canvas" ref={chequePreviewRef} style={{ position: 'relative', width: '6.25in', height: '2.75in', background: '#f9fafb', border: '2px dashed #d1d5db', borderRadius: '8px', overflow: 'hidden', margin: '0 auto' }}>
+                <div className="cheque-preview-guides" aria-hidden="true" style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(90deg, #e5e7eb 1px, transparent 1px), linear-gradient(#e5e7eb 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.3, pointerEvents: 'none' }} />
+                {Object.keys(CHEQUE_FIELD_LABELS).map((key) => {
+                  const position = chequePreviewPositions[key] || { x: 0, y: 0 };
+                  return (
+                    <div
+                      key={key}
+                      className={`cheque-preview-field cheque-field-${key}`}
+                      style={{ 
+                        position: 'absolute', 
+                        left: position.x, 
+                        top: position.y,
+                        padding: '4px 8px',
+                        background: '#fff',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '4px',
+                        cursor: 'move',
+                        userSelect: 'none',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        color: '#0f172a',
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                      }}
+                      onPointerDown={(event) => handleStartDrag(key, event)}
+                    >
+                      <span className="field-value">{chequeFieldValues[key]}</span>
+                    </div>
+                  );
+                })}
               </div>
-
-              {/* Cheque Footer */}
-              <div className="cheque-footer">
-                <div className="cheque-account-info">
-                  <div className="account-number">
-                    <span className="account-label">Account No:</span>
-                    <span className="account-value">{chequeResult.accountNumber}</span>
-                  </div>
-                  <div className="routing-info">
-                    <span className="routing-label">Routing:</span>
-                    <span className="routing-value">IGCF-001-2024</span>
-                  </div>
-                </div>
-
-                <div className="cheque-signature-section">
-                  <div className="signature-line"></div>
-                  <div className="signature-label">Authorized Signature</div>
-                  <div className="signature-title">IGCFMS Disbursing Officer</div>
-                </div>
-
-                <div className="cheque-security-features">
-                  <div className="security-line"></div>
-                  <div className="micr-line">
-                    ⑆001⑆ {chequeResult.accountNumber} ⑆ {chequeResult.chequeNumber}⑆
-                  </div>
-                </div>
-              </div>
-
-              {/* Cheque Watermark */}
-              <div className="cheque-watermark">
-                <span>IGCFMS</span>
-              </div>
-
-              {/* Security Features */}
-              <div className="cheque-security-border"></div>
             </div>
           </div>
         </div>

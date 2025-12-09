@@ -53,11 +53,11 @@ export const useRecentActivities = (options = {}) => {
     queryKey: ACTIVITY_KEYS.list(filters),
     queryFn: () => getRecentActivities(filters),
     enabled,
-    staleTime: 30 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 2,
     refetchOnWindowFocus: false,
-    refetchInterval: 30000, // Auto-refetch every 30 seconds
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     ...queryOptions,
   });
 };
@@ -69,11 +69,11 @@ export const useActivityStatistics = (options = {}) => {
     queryKey: ACTIVITY_KEYS.stats(filters),
     queryFn: () => getActivityStatistics(filters),
     enabled,
-    staleTime: 30 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 2,
     refetchOnWindowFocus: false,
-    refetchInterval: 30000, // Auto-refetch every 30 seconds
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     ...queryOptions,
   });
 };

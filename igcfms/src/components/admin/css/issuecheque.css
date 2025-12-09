@@ -2245,8 +2245,8 @@
 
 /* Success Modal - Wide version */
 .ic-cheque-success-modal-wide {
-  width: 100% !important;
-  max-width: 1400px;
+  width: 95% !important;
+  max-width: 1200px;
   max-height: 92vh;
 }
 

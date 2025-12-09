@@ -23,8 +23,7 @@ export const useFundAccounts = (options = {}) => {
     page = 1, 
     limit = 20, 
     search = '', 
-    enabled = true,
-    refetchInterval = 10000 // Refetch every 10 seconds to reduce load
+    enabled = true
   } = options;
 
   return useQuery({
@@ -141,9 +140,10 @@ export const useFundAccounts = (options = {}) => {
       };
     },
     enabled,
-    refetchInterval,
-    staleTime: 30 * 1000, // Consider data stale after 30 seconds
-    cacheTime: 2 * 60 * 1000, // Keep in cache for 2 minutes
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
+    refetchOnWindowFocus: false,
   });
 };
 
