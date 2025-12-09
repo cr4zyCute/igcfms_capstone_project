@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import API_BASE_URL from '../../config/api';
 import TrendsAnalysis from '../analytics/adminanalytics/TrendsAnalysis';
+import AdminDashboardHomeSkeleton from '../ui/adminDashboardHomeSL';
+import { SkeletonLine } from '../ui/LoadingSkeleton';
 import './css/admindashboardhome.css';
 
 const AdminDashboardHome = ({ selectedYear }) => {
@@ -36,6 +38,8 @@ const AdminDashboardHome = ({ selectedYear }) => {
     topAccounts: true,
     activityByRole: true
   });
+
+  // Don't show full skeleton - let individual cards show their loading states
   
   const wsRef = useRef(null);
   const updateTimeoutsRef = useRef({});
@@ -517,7 +521,24 @@ const AdminDashboardHome = ({ selectedYear }) => {
                   </div>
                 </div>
                 {loadingStates.transactions ? (
-                  <div className="box6-loading">Loading...</div>
+                  <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', overflowY: 'auto' }}>
+                      {Array.from({ length: 5 }).map((_, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '8px', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                          <div style={{ flex: 0.3 }}><SkeletonLine width="40px" height={11} /></div>
+                          <div style={{ flex: 0.4 }}><SkeletonLine width="60px" height={11} /></div>
+                          <div style={{ flex: 0.5 }}><SkeletonLine width="70px" height={11} /></div>
+                          <div style={{ flex: 0.4 }}><SkeletonLine width="60px" height={11} /></div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <SkeletonLine width="80px" height={12} />
+                              <SkeletonLine width="60px" height={10} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : recentTransactions.length > 0 ? (
                   <div className="box6-table-wrapper">
                     <table className="box6-table">
@@ -569,9 +590,22 @@ const AdminDashboardHome = ({ selectedYear }) => {
                 <div className="box7-header">
                   <h3 className="box7-title">Top 4 Funded Accounts</h3>
                 </div>
-                <div className="box7-accounts-grid">
-                  {topFundedAccounts.length > 0 ? (
-                    topFundedAccounts.map((account, index) => (
+                {loadingStates.topAccounts ? (
+                  <div className="box7-accounts-grid">
+                    {Array.from({ length: 4 }).map((_, idx) => (
+                      <div key={idx} className="box7-account-card" style={{ opacity: 0.7 }}>
+                        <div style={{ width: '32px', height: '32px', background: '#e0e0e0', borderRadius: '50%', marginBottom: '8px' }}></div>
+                        <div className="box7-account-info">
+                          <SkeletonLine width="80px" height={11} />
+                          <SkeletonLine width="100px" height={14} style={{ marginTop: '6px' }} />
+                          <SkeletonLine width="70px" height={10} style={{ marginTop: '6px' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : topFundedAccounts.length > 0 ? (
+                  <div className="box7-accounts-grid">
+                    {topFundedAccounts.map((account, index) => (
                       <div key={account.id} className="box7-account-card">
                         <div className="box7-account-rank">{index + 1}</div>
                         <div className="box7-account-info">
@@ -580,11 +614,11 @@ const AdminDashboardHome = ({ selectedYear }) => {
                           <div className="box7-account-count">{account.transactionCount} transactions</div>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="box7-empty">No accounts found</div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="box7-empty">No accounts found</div>
+                )}
               </div>
             )}
             {card.id === 8 && (
@@ -594,7 +628,17 @@ const AdminDashboardHome = ({ selectedYear }) => {
                   <h3 className="box8-title">Activity by Role</h3>
                 </div>
                 {loadingStates.activityByRole ? (
-                  <div className="box8-loading">Loading...</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, paddingRight: '3px' }}>
+                    {Array.from({ length: 4 }).map((_, idx) => (
+                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '85px 1fr 35px', alignItems: 'center', gap: '6px', padding: '4px 0', boxSizing: 'border-box' }}>
+                        <SkeletonLine width="70px" height={10} />
+                        <div style={{ height: '10px', background: '#e0e0e0', borderRadius: '5px', overflow: 'hidden' }}>
+                          <SkeletonLine height="100%" style={{ borderRadius: '0' }} />
+                        </div>
+                        <SkeletonLine width="25px" height={10} />
+                      </div>
+                    ))}
+                  </div>
                 ) : activityByRole.length > 0 ? (
                   <>
                     <div className="box8-roles-list">

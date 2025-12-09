@@ -1,5 +1,5 @@
 import React from "react";
-import DashboardHome from "./DashboardHome";
+import DashboardHome from "./admindashboardhome";
 import AdminDashboardHome from "./admindashboardhome";
 import ReceiveMoney from "./ReceiveMoney";
 import IssueReceipt from "./IssueReceipt";
@@ -23,7 +23,7 @@ const AdminDashboard = ({ user, activeTab, selectedYear }) => {
   const renderTabContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <DashboardHome user={user} />;
+        return <AdminDashboardHome user={user} selectedYear={selectedYear} />;
       case "notifications":
         return <NotificationBar />;
       case "adminDashboardHome":

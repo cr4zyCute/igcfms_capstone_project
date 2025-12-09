@@ -456,19 +456,33 @@ const DailyKPI = ({ transactions = [], reports = [] }) => {
     const fileName = `Report_History_${selectedDate}.pdf`;
     doc.save(fileName);
   };
-
   const handleRowClick = (report) => {
     // Get the date of the report
     const reportDate = new Date(report.created_at).toISOString().split('T')[0];
     
+    // Get user info from report
+    const userData = report.generated_by && typeof report.generated_by === 'object'
+      ? report.generated_by
+      : null;
+    const isAdmin = userData?.role === 'Admin';
+    const reportGeneratorId = userData?.id;
+    
     // Filter transactions for that date
-    const dateTransactions = transactions.filter(t => {
+    let dateTransactions = transactions.filter(t => {
       const createdAt = new Date(t.created_at || t.createdAt || t.created_at_local);
       if (Number.isNaN(createdAt.getTime())) return false;
       const transactionDate = createdAt.toISOString().split('T')[0];
       return transactionDate === reportDate;
     });
-
+    
+    // If not admin, filter to only show transactions created by this user
+    if (!isAdmin && reportGeneratorId) {
+      dateTransactions = dateTransactions.filter(t => {
+        const txCreatorId = t.created_by?.id || t.creator?.id || t.user?.id;
+        return txCreatorId === reportGeneratorId;
+      });
+    }
+    
     // Calculate transaction stats
     const collections = dateTransactions
       .filter(t => (t.transaction_type || t.type || '').toLowerCase() === 'collection')
@@ -491,7 +505,9 @@ const DailyKPI = ({ transactions = [], reports = [] }) => {
       collections,
       collectionCount,
       disbursements,
-      disbursementCount
+      disbursementCount,
+      isAdmin,
+      reportGeneratorId
     };
 
     setSelectedReport(enrichedReport);
@@ -852,10 +868,10 @@ const DailyKPI = ({ transactions = [], reports = [] }) => {
           <i className="fas fa-calendar-day"></i>
           <h3>DAILY REPORT (Operational Monitoring)</h3>
         </div>
-        <button className="history-button" onClick={handleOpenHistory}>
+        {/* <button className="history-button" onClick={handleOpenHistory}>
           <i className="fas fa-history"></i>
           History
-        </button>
+        </button> */}
       </div>
       
       <div className="daily-kpi-metrics">

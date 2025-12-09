@@ -168,7 +168,7 @@ const Login = () => {
       <div className="left-panel">
         <div className="left-content">
           <div className="header">
-            <h1>ICGFMS</h1>
+            <h1>IGCFMS</h1>
             <p> Integrated Government Cashiering and Financial Management System </p>
           </div>
 

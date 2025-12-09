@@ -83,7 +83,7 @@ const Navbar = ({ userRole, user, onNavigate, isSidebarCollapsed, activeTab, sel
               <span className="breadcrumb-separator">/</span>
               <span className="current-section">{getTabDisplayName(activeTab)}</span>
           </div>
-            {userRole === 'Admin' && selectedYear && years && activeTab === 'adminDashboardHome' && (
+            {userRole === 'Admin' && selectedYear && years && (activeTab === 'adminDashboardHome' || activeTab === 'dashboard') && (
               <div className="year-selector-navbar" ref={yearDropdownRef}>
                 <button 
                   className="year-selector-btn-navbar"

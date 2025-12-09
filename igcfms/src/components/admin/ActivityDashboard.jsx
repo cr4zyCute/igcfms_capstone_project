@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './css/activitydashboard.css';
 import { useRecentActivities, useActivityStatistics } from '../../hooks/useActivityDashboard.js';
+import ActivityDashboardLoading from '../ui/activityDashboardLoading';
 
 const ActivityDashboard = () => {
   const [filters, setFilters] = useState({
@@ -160,12 +161,7 @@ const ActivityDashboard = () => {
   };
 
   if (loading) {
-    return (
-      <div className="activity-dashboard-loading">
-        <div className="spinner"></div>
-        <p>Loading activity dashboard...</p>
-      </div>
-    );
+    return <ActivityDashboardLoading />;
   }
 
   return (
