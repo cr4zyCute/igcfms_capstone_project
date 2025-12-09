@@ -4,8 +4,21 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import axios from 'axios';
 import './css/dailyKPI.css';
+import { useKPITransactions, useKPIReports } from '../../../hooks/useKPIData';
+import { useKPIWebSocket } from '../../../hooks/useKPIWebSocket';
 
-const DailyKPI = ({ transactions = [], reports = [] }) => {
+const DailyKPI = ({ transactions: transactionsProp = [], reports: reportsProp = [] }) => {
+  // WebSocket for real-time updates
+  useKPIWebSocket();
+
+  // TanStack Query hooks
+  const { data: transactionsData = [] } = useKPITransactions();
+  const { data: reportsData = [] } = useKPIReports();
+
+  // Use TanStack Query data, fallback to props if not available
+  const transactions = transactionsData.length > 0 ? transactionsData : transactionsProp;
+  const reports = reportsData.length > 0 ? reportsData : reportsProp;
+
   const [dailyData, setDailyData] = useState({
     totalCollections: 0,
     totalDisbursements: 0,

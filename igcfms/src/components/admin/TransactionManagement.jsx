@@ -6,6 +6,8 @@ import "../analytics/TransactionAnalytics.jsx/css/transaction-kpis.css";
 import { generateTransactionManagementPDF } from "../reports/export/pdf/TransactionManagementExport";
 import * as XLSX from 'xlsx';
 import TransactionManagementSL from '../ui/TransactionManagementSL';
+import { useTransactionManagementTransactions, useTransactionManagementOverrideRequests } from "../../hooks/useTransactionManagement";
+import { useTransactionManagementWebSocket } from "../../hooks/useTransactionManagementWebSocket";
 
 // Lazy load chart components for better performance
 const TrendChart = lazy(() => import('../analytics/TransactionAnalytics.jsx/TrendChart'));
@@ -17,11 +19,19 @@ const ChartSkeleton = () => (
 );
 
 const TransactionManagement = ({ role = "Admin" }) => {
-  const [loading, setLoading] = useState(true);
+  // WebSocket for real-time updates
+  useTransactionManagementWebSocket();
+
+  // TanStack Query hooks
+  const { data: transactionsData = [], isLoading: transactionsLoading, error: transactionsError } = useTransactionManagementTransactions();
+  const { data: overrideRequestsData = [], isLoading: overridesLoading, error: overridesError } = useTransactionManagementOverrideRequests();
+
+  const transactions = Array.isArray(transactionsData) ? transactionsData : transactionsData?.data || [];
+  const overrideRequests = Array.isArray(overrideRequestsData) ? overrideRequestsData : overrideRequestsData?.data || [];
+
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [transactions, setTransactions] = useState([]);
-  const [overrideRequests, setOverrideRequests] = useState([]);
   const [stats, setStats] = useState({
     totalTransactions: 0,
     totalCollections: 0,
@@ -71,9 +81,100 @@ const TransactionManagement = ({ role = "Admin" }) => {
 
   const API_BASE = API_BASE_URL;
 
+  // Update loading state based on query status
   useEffect(() => {
-    fetchTransactionData();
-  }, []);
+    setLoading(transactionsLoading || overridesLoading);
+    if (transactionsError) setError(transactionsError.message || 'Failed to load transactions');
+    if (overridesError) setError(overridesError.message || 'Failed to load override requests');
+  }, [transactionsLoading, overridesLoading, transactionsError, overridesError]);
+
+  // Calculate stats whenever transactions or overrides change
+  useEffect(() => {
+    if (transactions.length === 0 && overrideRequests.length === 0) return;
+
+    const today = new Date().toDateString();
+    const thisMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    const todayTxs = transactions.filter(tx => 
+      new Date(tx.created_at).toDateString() === today
+    );
+    const todayTransactionsCount = todayTxs.length;
+    const todayAmount = todayTxs.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount || 0)), 0);
+
+    const thisMonthTransactionsCount = transactions.filter(tx => {
+      const txDate = new Date(tx.created_at);
+      return txDate.getMonth() === thisMonth && txDate.getFullYear() === currentYear;
+    }).length;
+
+    const totalCollections = transactions
+      .filter(tx => tx.type === 'Collection')
+      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+
+    const totalDisbursements = transactions
+      .filter(tx => tx.type === 'Disbursement')
+      .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+
+    const pendingOverrides = overrideRequests.filter(req => req.status === 'pending').length;
+    
+    const netBalance = totalCollections - totalDisbursements;
+    const averageTransactionValue = transactions.length > 0 
+      ? (totalCollections + totalDisbursements) / transactions.length 
+      : 0;
+    
+    const collectionRate = transactions.length > 0
+      ? (transactions.filter(tx => tx.type === 'Collection').length / transactions.length) * 100
+      : 0;
+    
+    const daysInMonth = new Date(currentYear, thisMonth + 1, 0).getDate();
+    const monthlyDisbursements = transactions.filter(tx => {
+      const txDate = new Date(tx.created_at);
+      return tx.type === 'Disbursement' && 
+             txDate.getMonth() === thisMonth && 
+             txDate.getFullYear() === currentYear;
+    }).reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+    const monthlyBurnRate = monthlyDisbursements / daysInMonth;
+    
+    const last30Days = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayCollections = transactions
+        .filter(tx => tx.type === 'Collection' && tx.created_at.startsWith(dateStr))
+        .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      
+      const dayDisbursements = transactions
+        .filter(tx => tx.type === 'Disbursement' && tx.created_at.startsWith(dateStr))
+        .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      
+      last30Days.push({
+        date: dateStr,
+        collections: dayCollections,
+        disbursements: dayDisbursements
+      });
+    }
+
+    setStats({
+      totalTransactions: transactions.length,
+      totalCollections,
+      totalDisbursements,
+      netBalance,
+      pendingOverrides,
+      todayTransactions: todayTransactionsCount,
+      todayAmount,
+      thisMonthTransactions: thisMonthTransactionsCount,
+      averageTransactionValue,
+      collectionRate,
+      monthlyBurnRate,
+    });
+    
+    setTrendData({
+      collections: last30Days.map(d => ({ date: d.date, value: d.collections })),
+      disbursements: last30Days.map(d => ({ date: d.date, value: d.disbursements })),
+    });
+  }, [transactions, overrideRequests]);
   
   // Defer chart loading for faster initial render
   useEffect(() => {
@@ -96,129 +197,6 @@ const TransactionManagement = ({ role = "Admin" }) => {
   }, []);
 
 
-  const fetchTransactionData = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        return;
-      }
-
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      // Fetch all transaction-related data
-      const [transactionsRes, overrideRes] = await Promise.all([
-        axios.get(`${API_BASE}/transactions`, { headers }),
-        axios.get(`${API_BASE}/override-requests`, { headers }).catch(() => ({ data: [] }))
-      ]);
-
-      const allTransactions = transactionsRes.data || [];
-      const allOverrides = overrideRes.data || [];
-
-      setTransactions(allTransactions);
-      setOverrideRequests(allOverrides);
-
-      // Calculate statistics
-      const today = new Date().toDateString();
-      const thisMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-
-      const todayTxs = allTransactions.filter(tx => 
-        new Date(tx.created_at).toDateString() === today
-      );
-      const todayTransactions = todayTxs.length;
-      const todayAmount = todayTxs.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount || 0)), 0);
-
-      const thisMonthTransactions = allTransactions.filter(tx => {
-        const txDate = new Date(tx.created_at);
-        return txDate.getMonth() === thisMonth && txDate.getFullYear() === currentYear;
-      }).length;
-
-      const totalCollections = allTransactions
-        .filter(tx => tx.type === 'Collection')
-        .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-
-      const totalDisbursements = allTransactions
-        .filter(tx => tx.type === 'Disbursement')
-        .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-
-      const pendingOverrides = allOverrides.filter(req => req.status === 'pending').length;
-      
-      // Calculate additional KPIs
-      const netBalance = totalCollections - totalDisbursements;
-      const averageTransactionValue = allTransactions.length > 0 
-        ? (totalCollections + totalDisbursements) / allTransactions.length 
-        : 0;
-      
-      // Collection Rate (collections vs total transactions)
-      const collectionRate = allTransactions.length > 0
-        ? (allTransactions.filter(tx => tx.type === 'Collection').length / allTransactions.length) * 100
-        : 0;
-      
-      // Monthly Burn Rate (average daily disbursements * 30)
-      const daysInMonth = new Date(currentYear, thisMonth + 1, 0).getDate();
-      const monthlyDisbursements = allTransactions.filter(tx => {
-        const txDate = new Date(tx.created_at);
-        return tx.type === 'Disbursement' && 
-               txDate.getMonth() === thisMonth && 
-               txDate.getFullYear() === currentYear;
-      }).reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-      const monthlyBurnRate = monthlyDisbursements / daysInMonth;
-      
-      // Calculate trend data (last 30 days)
-      const last30Days = [];
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        const dayCollections = allTransactions
-          .filter(tx => tx.type === 'Collection' && tx.created_at.startsWith(dateStr))
-          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-        
-        const dayDisbursements = allTransactions
-          .filter(tx => tx.type === 'Disbursement' && tx.created_at.startsWith(dateStr))
-          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-        
-        last30Days.push({
-          date: dateStr,
-          collections: dayCollections,
-          disbursements: dayDisbursements
-        });
-      }
-
-      setStats({
-        totalTransactions: allTransactions.length,
-        totalCollections,
-        totalDisbursements,
-        netBalance,
-        pendingOverrides,
-        todayTransactions,
-        todayAmount,
-        thisMonthTransactions,
-        averageTransactionValue,
-        collectionRate,
-        monthlyBurnRate,
-      });
-      
-      setTrendData({
-        collections: last30Days.map(d => ({ date: d.date, value: d.collections })),
-        disbursements: last30Days.map(d => ({ date: d.date, value: d.disbursements })),
-      });
-
-    } catch (err) {
-      console.error('Transaction management error:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load transaction data');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Memoized filtered and sorted transactions
   const filteredTransactions = useMemo(() => {

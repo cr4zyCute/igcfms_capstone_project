@@ -2,8 +2,16 @@ import React, { useState, useEffect } from 'react';
 import notificationService from '../../services/notificationService';
 import balanceService from '../../services/balanceService';
 import './css/WorkflowDashboard.css';
+import { useKPITransactions, useKPIReports } from '../../hooks/useKPIData';
+import { useKPIWebSocket } from '../../hooks/useKPIWebSocket';
 
 const WorkflowDashboard = () => {
+  // WebSocket for real-time updates
+  useKPIWebSocket();
+
+  // TanStack Query hooks
+  const { data: transactionsData = [] } = useKPITransactions();
+  const { data: reportsData = [] } = useKPIReports();
   const [systemStats, setSystemStats] = useState({
     totalFunds: 0,
     totalBalance: 0,

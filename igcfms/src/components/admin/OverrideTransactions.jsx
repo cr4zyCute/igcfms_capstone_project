@@ -16,6 +16,7 @@ import {
   useCreateOverrideRequest,
   useReviewOverrideRequest
 } from "../../hooks/useOverrideTransactions";
+import { useOverrideTransactionsWebSocket } from "../../hooks/useOverrideTransactionsWebSocket";
 import { useCreateReceipt } from "../../hooks/useReceipts";
 import { getReceiptPrintHTML } from '../pages/print/recieptPrint.jsx';
 import { useAuth } from "../../contexts/AuthContext";
@@ -23,6 +24,9 @@ import "./css/overridetransactions.css";
 
 const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDashboard = false }) => {
   const { user } = useAuth();
+  
+  // WebSocket for real-time updates
+  useOverrideTransactionsWebSocket();
   
   // TanStack Query hooks
   const {

@@ -4,8 +4,20 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import axios from 'axios';
 import './css/monthlyKPI.css';
+import { useKPITransactions, useKPIReports } from '../../../hooks/useKPIData';
+import { useKPIWebSocket } from '../../../hooks/useKPIWebSocket';
 
-const MonthlyKPI = ({ transactions = [], reports = [] }) => {
+const MonthlyKPI = ({ transactions: transactionsProp = [], reports: reportsProp = [] }) => {
+  // WebSocket for real-time updates
+  useKPIWebSocket();
+
+  // TanStack Query hooks
+  const { data: transactionsData = [] } = useKPITransactions();
+  const { data: reportsData = [] } = useKPIReports();
+
+  // Use TanStack Query data, fallback to props if not available
+  const transactions = transactionsData.length > 0 ? transactionsData : transactionsProp;
+  const reports = reportsData.length > 0 ? reportsData : reportsProp;
   const [monthlyData, setMonthlyData] = useState({
     totalCollections: 0,
     totalDisbursements: 0,

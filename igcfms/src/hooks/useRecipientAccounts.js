@@ -140,10 +140,11 @@ export const useRecipientAccounts = (options = {}) => {
   return useQuery({
     queryKey: RECIPIENT_ACCOUNTS_KEYS.list(options),
     queryFn: fetchRecipientAccounts,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
-    retry: 3,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     refetchOnWindowFocus: false,
+    retry: 3,
     ...options
   });
 };
@@ -153,8 +154,9 @@ export const useRecipientTransactions = (recipientId, options = {}) => {
     queryKey: RECIPIENT_ACCOUNTS_KEYS.transactions(recipientId),
     queryFn: () => fetchRecipientTransactions(recipientId),
     enabled: !!recipientId && options.enabled !== false,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     retry: 2,
     ...options
   });

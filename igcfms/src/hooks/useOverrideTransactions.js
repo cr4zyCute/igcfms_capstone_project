@@ -47,49 +47,49 @@ const fetchMyOverrideRequests = async () => {
 
 // Hook to fetch transactions
 export const useTransactions = (options = {}) => {
-  const { enabled = true, refetchInterval = 30000 } = options;
+  const { enabled = true } = options;
 
   return useQuery({
     queryKey: OVERRIDE_TRANSACTIONS_KEYS.transactions(),
     queryFn: fetchTransactions,
     enabled,
-    refetchInterval,
-    staleTime: 10000,
-    cacheTime: 300000,
-    retry: 2,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     refetchOnWindowFocus: false,
+    retry: 2,
   });
 };
 
 // Hook to fetch override requests (Admin)
 export const useOverrideRequests = (options = {}) => {
-  const { enabled = true, refetchInterval = 30000 } = options;
+  const { enabled = true } = options;
 
   return useQuery({
     queryKey: OVERRIDE_TRANSACTIONS_KEYS.list({}),
     queryFn: fetchOverrideRequests,
     enabled,
-    refetchInterval,
-    staleTime: 10000,
-    cacheTime: 300000,
-    retry: 2,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     refetchOnWindowFocus: false,
+    retry: 2,
   });
 };
 
 // Hook to fetch my override requests (Cashier)
 export const useMyOverrideRequests = (options = {}) => {
-  const { enabled = true, refetchInterval = 30000 } = options;
+  const { enabled = true } = options;
 
   return useQuery({
     queryKey: OVERRIDE_TRANSACTIONS_KEYS.myRequests(),
     queryFn: fetchMyOverrideRequests,
     enabled,
-    refetchInterval,
-    staleTime: 10000,
-    cacheTime: 300000,
-    retry: 2,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     refetchOnWindowFocus: false,
+    retry: 2,
   });
 };
 

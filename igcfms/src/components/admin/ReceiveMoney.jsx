@@ -11,10 +11,15 @@ import { printCompleteCheque } from '../pages/print/chequeSimplePrint';
 import { useAuth } from "../../contexts/AuthContext";
 import { useFundAccounts } from "../../hooks/useFundAccounts";
 import { useRecipientAccounts } from "../../hooks/useRecipientAccounts";
+import { useReceiveMoneyWebSocket } from "../../hooks/useReceiveMoneyWebSocket";
 import { SkeletonLine } from "../ui/LoadingSkeleton";
 
 const ReceiveMoney = ({ isCollectingOfficer = false, currentUserId = null }) => {
   const { user } = useAuth();
+  
+  // WebSocket for real-time updates
+  useReceiveMoneyWebSocket();
+  
   const [payerName, setPayerName] = useState("");
   const [receiptNo, setReceiptNo] = useState("");
   const [description, setDescription] = useState("");

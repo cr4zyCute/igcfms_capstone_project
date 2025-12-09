@@ -24,10 +24,11 @@ export const useStaffMembers = (options = {}) => {
     queryKey: STAFF_KEYS.list(filters),
     queryFn: () => getUsers(filters),
     enabled,
-    staleTime: 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-    retry: 2,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     refetchOnWindowFocus: false,
+    retry: 2,
     ...queryOptions,
   });
 };

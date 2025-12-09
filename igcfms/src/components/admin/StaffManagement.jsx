@@ -16,9 +16,13 @@ import {
   useToggleStaffStatus,
   useDeleteStaff,
 } from "../../hooks/useStaffManagement";
+import { useStaffManagementWebSocket } from "../../hooks/useStaffManagementWebSocket";
 
 const StaffManagement = () => {
   const chartRefs = useRef({ pie: null, newUsers: null, activeTrend: null });
+
+  // WebSocket for real-time updates
+  useStaffManagementWebSocket();
 
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
