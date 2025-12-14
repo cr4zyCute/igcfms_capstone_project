@@ -49,6 +49,12 @@ class AuthController extends Controller
             'access_token' => $token,
             'token_type' => 'Bearer',
             'role' => $user->role,
+            'force_password_change' => $user->force_password_change,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
         ]);
     }
 

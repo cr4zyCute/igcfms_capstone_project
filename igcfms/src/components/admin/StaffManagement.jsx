@@ -29,6 +29,15 @@ const StaffManagement = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  
+  // OTP States
+  const [otpValue, setOtpValue] = useState(['', '', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const otpInputRefs = useRef([]);
   
   // Form States
   const [formData, setFormData] = useState({
@@ -201,17 +210,135 @@ const StaffManagement = () => {
     setErrors({});
   };
 
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const validateForm = () => {
     const newErrors = {};
     
     if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    if (!formData.email.includes("@")) newErrors.email = "Valid email is required";
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!validateEmail(formData.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
     if (!formData.phone.trim()) newErrors.phone = "Phone is required";
-    if (!editingStaff && !formData.password.trim()) newErrors.password = "Password is required";
+    if (!emailVerified) newErrors.email = "Email must be verified";
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // OTP Functions
+  const handleSendOtp = async () => {
+    // Validate email first
+    if (!formData.email.trim()) {
+      setErrors(prev => ({ ...prev, email: "Email is required" }));
+      return;
+    }
+    if (!validateEmail(formData.email)) {
+      setErrors(prev => ({ ...prev, email: "Please enter a valid email address" }));
+      return;
+    }
+
+    setSendingOtp(true);
+    setErrors(prev => ({ ...prev, email: '' }));
+
+    try {
+      const apiUrl = import.meta?.env?.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/email/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, name: formData.name || 'User' }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setShowOtpModal(true);
+        setOtpValue(['', '', '', '', '']);
+        setOtpError('');
+      } else {
+        setErrors(prev => ({ ...prev, email: data.message || 'Failed to send OTP' }));
+      }
+    } catch (err) {
+      console.error('Send OTP error:', err);
+      setErrors(prev => ({ ...prev, email: 'Failed to send OTP. Please try again.' }));
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleOtpChange = (index, value) => {
+    if (!/^\d*$/.test(value)) return; // Only allow digits
+    
+    const newOtp = [...otpValue];
+    newOtp[index] = value.slice(-1); // Only keep last digit
+    setOtpValue(newOtp);
+    setOtpError('');
+
+    // Auto-focus next input
+    if (value && index < 4) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpValue[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 5);
+    if (pastedData.length === 5) {
+      setOtpValue(pastedData.split(''));
+      otpInputRefs.current[4]?.focus();
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const otp = otpValue.join('');
+    if (otp.length !== 5) {
+      setOtpError('Please enter the complete 5-digit OTP');
+      return;
+    }
+
+    setOtpLoading(true);
+    setOtpError('');
+
+    try {
+      const apiUrl = import.meta?.env?.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/email/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, otp }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setEmailVerified(true);
+        setShowOtpModal(false);
+        showNotification('success', 'Email Verified', 'Your email has been verified successfully.');
+      } else {
+        setOtpError(data.message || 'Invalid OTP');
+      }
+    } catch (err) {
+      console.error('Verify OTP error:', err);
+      setOtpError('Verification failed. Please try again.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setOtpValue(['', '', '', '', '']);
+    setOtpError('');
+    await handleSendOtp();
   };
 
   const handleFilterChange = (key, value) => {
@@ -221,24 +348,37 @@ const StaffManagement = () => {
     }));
   };
 
+  // Generate random password
+  const generateRandomPassword = () => {
+    const length = 12;
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return password;
+  };
+
   // CRUD Operations
   const handleAddStaff = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     try {
+      const generatedPassword = generateRandomPassword();
       const payload = {
         name: formData.name,
         email: formData.email,
         role: formData.role,
-        password: formData.password,
+        password: generatedPassword,
         phone: formData.phone,
         department: formData.department
       };
       await createStaffMutation.mutateAsync(payload);
       setShowAddModal(false);
       resetForm();
-      showNotification("success", "Staff Added", `${formData.name} has been successfully added to the system.`);
+      setEmailVerified(false);
+      showNotification("success", "Staff Added", `${formData.name} has been successfully added to the system. A temporary password has been sent to their email.`);
     } catch (err) {
       console.error("Add staff error", err);
       showNotification("error", "Add Failed", "Unable to add staff. Please try again.");
@@ -1005,15 +1145,33 @@ const StaffManagement = () => {
                     </select>
                   </div>
                   <div className="form-group full-width">
-                    <label className="form-label">Password *</label>
-                    <input
-                      type="password"
-                      className={`form-input ${errors.password ? 'error' : ''}`}
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      placeholder="Enter password"
-                    />
-                    {errors.password && <div className="form-error">{errors.password}</div>}
+                    <label className="form-label">Email Verification</label>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={formData.email}
+                        disabled
+                        placeholder="Email will be verified"
+                        style={{ flex: 1, backgroundColor: '#f3f4f6' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handleSendOtp}
+                        disabled={sendingOtp || !formData.email || emailVerified}
+                        style={{ whiteSpace: 'nowrap', minWidth: '120px' }}
+                      >
+                        {sendingOtp ? (
+                          <><i className="fas fa-spinner fa-spin"></i> Sending...</>
+                        ) : emailVerified ? (
+                          <><i className="fas fa-check"></i> Verified</>
+                        ) : (
+                          <><i className="fas fa-envelope"></i> Send OTP</>
+                        )}
+                      </button>
+                    </div>
+                    {emailVerified && <div style={{ color: '#10b981', fontSize: '12px', marginTop: '4px' }}>✓ Email verified successfully</div>}
                   </div>
                 </div>
               </div>
@@ -1142,6 +1300,121 @@ const StaffManagement = () => {
         confirmText="Delete Staff"
         cancelText="Cancel"
       />
+
+      {/* OTP Verification Modal */}
+      {showOtpModal && createPortal(
+        (
+          <div
+            className="modal-overlay sm-blur-overlay"
+            onClick={() => setShowOtpModal(false)}
+          >
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+              <div className="modal-header">
+                <h3 className="modal-title">
+                  <i className="fas fa-lock"></i> Verify Email with OTP
+                </h3>
+                <button className="modal-close" onClick={() => setShowOtpModal(false)}>
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+              <div className="modal-body">
+                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                  <p style={{ color: '#6b7280', marginBottom: '8px' }}>
+                    A 5-digit OTP has been sent to:
+                  </p>
+                  <p style={{ fontWeight: '600', color: '#111827', fontSize: '14px' }}>
+                    {formData.email}
+                  </p>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="form-label" style={{ marginBottom: '12px', display: 'block' }}>
+                    Enter OTP Code *
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '12px' }}>
+                    {otpValue.map((digit, index) => (
+                      <input
+                        key={index}
+                        ref={(el) => (otpInputRefs.current[index] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength="1"
+                        value={digit}
+                        onChange={(e) => handleOtpChange(index, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                        onPaste={handleOtpPaste}
+                        className="form-input"
+                        style={{
+                          width: '50px',
+                          height: '50px',
+                          textAlign: 'center',
+                          fontSize: '24px',
+                          fontWeight: 'bold',
+                          border: otpError ? '2px solid #ef4444' : '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          padding: 0,
+                        }}
+                        placeholder="0"
+                      />
+                    ))}
+                  </div>
+                  {otpError && (
+                    <div style={{ color: '#ef4444', fontSize: '12px', textAlign: 'center', marginTop: '8px' }}>
+                      <i className="fas fa-exclamation-circle"></i> {otpError}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ fontSize: '12px', color: '#6b7280', textAlign: 'center', marginBottom: '16px' }}>
+                  <p>OTP expires in 10 minutes</p>
+                </div>
+
+                <div style={{ textAlign: 'center', fontSize: '13px' }}>
+                  <p style={{ marginBottom: '8px', color: '#6b7280' }}>Didn't receive the code?</p>
+                  <button
+                    type="button"
+                    onClick={handleResendOtp}
+                    disabled={sendingOtp}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#3b82f6',
+                      cursor: sendingOtp ? 'not-allowed' : 'pointer',
+                      fontWeight: '600',
+                      textDecoration: 'underline',
+                      opacity: sendingOtp ? 0.6 : 1,
+                    }}
+                  >
+                    {sendingOtp ? <i className="fas fa-spinner fa-spin"></i> : 'Resend OTP'}
+                  </button>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowOtpModal(false)}
+                >
+                  <i className="fas fa-times"></i> Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleVerifyOtp}
+                  disabled={otpLoading || otpValue.join('').length !== 5}
+                >
+                  {otpLoading ? (
+                    <><i className="fas fa-spinner fa-spin"></i> Verifying...</>
+                  ) : (
+                    <><i className="fas fa-check"></i> Verify OTP</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        ),
+        document.body
+      )}
 
       {/* Notification Modal */}
       {showNotificationModal && (

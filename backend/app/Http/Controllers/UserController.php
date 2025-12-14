@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Mail\StaffWelcomeMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -37,6 +40,31 @@ class UserController extends Controller
             'department' => $request->department,
             'status' => 'active'
         ]);
+
+        // Send welcome email with credentials
+        try {
+            Log::info('=== SENDING WELCOME EMAIL ===', [
+                'name' => $user->name,
+                'email' => $user->email,
+                'password' => $request->password,
+                'role' => $user->role,
+            ]);
+            
+            Mail::to($user->email)->send(new StaffWelcomeMail(
+                $user->name,
+                $user->email,
+                $request->password, // Send the plain password (before hashing)
+                $user->role
+            ));
+            
+            Log::info('Welcome email sent successfully to: ' . $user->email);
+        } catch (\Exception $e) {
+            // Log error but don't fail the user creation
+            Log::error('Failed to send welcome email: ' . $e->getMessage(), [
+                'email' => $user->email,
+                'exception' => $e,
+            ]);
+        }
 
         return response()->json($user, 201);
     }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../common/Navbar';
 import NotificationBell from '../common/NotificationBell';
@@ -8,12 +8,12 @@ import CollectingDashboard from '../collectingOfficer/CollectiingDashboard';
 import DisbursingODashboard from '../disbursingOfficer/DisbursementDashboard';
 import Sidebar from '../common/Sidebar';
 import Loading from './Loading';
+import ForcePasswordChangeModal from '../modals/ForcePasswordChangeModal';
 import '../pages/css/Dashboard.css';
-  
+
 const AccessDenied = ({ role }) => (
   <div className="access-denied">
     <h2>Access Denied</h2>
-    <p>Invalid user role: {role}</p>
   </div>
 );
 
@@ -32,10 +32,18 @@ const Dashboard = () => {
   });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [showForcePasswordModal, setShowForcePasswordModal] = useState(false);
 
   // Generate years from 2023 to current year
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 2023 + 1 }, (_, i) => 2023 + i).reverse();
+
+  // Check if user needs to change password on first load
+  useEffect(() => {
+    if (user && user.force_password_change) {
+      setShowForcePasswordModal(true);
+    }
+  }, [user]);
 
   // Wrapper function to save to localStorage when tab changes
   const setActiveTab = (tab) => {
@@ -45,6 +53,11 @@ const Dashboard = () => {
 
   const handleYearChange = (year) => {
     setSelectedYear(year);
+  };
+
+  const handlePasswordChanged = () => {
+    setShowForcePasswordModal(false);
+    // Optionally refresh user data or show success message
   };
 
   if (loading) {
@@ -82,6 +95,12 @@ const Dashboard = () => {
   
   return (
     <div className="dashboard-page">
+      <ForcePasswordChangeModal 
+        isOpen={showForcePasswordModal}
+        userName={user?.name}
+        onPasswordChanged={handlePasswordChanged}
+      />
+
       <Navbar 
         userRole={userRole} 
         user={user} 

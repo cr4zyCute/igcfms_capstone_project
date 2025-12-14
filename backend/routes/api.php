@@ -17,6 +17,12 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\RecipientAccountController;
 use App\Http\Controllers\SystemSettingsController;
+use App\Http\Controllers\EmailOtpController;
+use App\Http\Controllers\PasswordChangeController;
+
+// Email OTP verification routes (no auth required for staff registration)
+Route::post('/email/send-otp', [EmailOtpController::class, 'sendOtp'])->middleware('throttle:5,1');
+Route::post('/email/verify-otp', [EmailOtpController::class, 'verifyOtp'])->middleware('throttle:10,1');
 
 // Authentication routes with rate limiting for security
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1'); // 5 attempts per minute
@@ -45,6 +51,10 @@ use App\Http\Controllers\SystemSettingsController;
         // User profile routes
         Route::get('/user/profile', [UserController::class, 'getProfile']);
         Route::put('/user/profile', [UserController::class, 'updateProfile']);
+
+        // Password change routes
+        Route::get('/password/status', [PasswordChangeController::class, 'getStatus']);
+        Route::post('/password/change', [PasswordChangeController::class, 'changePassword']);
 
         // System settings routes
         Route::get('/system/settings', [SystemSettingsController::class, 'index']);

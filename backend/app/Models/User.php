@@ -27,6 +27,7 @@ class User extends Authenticatable
         'department',
         'phone',
         'status',
+        'force_password_change',
     ];
 
     /**
