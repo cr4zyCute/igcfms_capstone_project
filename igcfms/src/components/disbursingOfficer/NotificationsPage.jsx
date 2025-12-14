@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNotifications, useMarkAsRead, useMarkAllAsRead } from '../../hooks/useNotifications';
+import { useNotificationsWebSocket } from '../../hooks/useNotificationsWebSocket';
 import '../admin/css/notificationbar.css';
 
 const NotificationsPage = () => {
@@ -11,6 +12,9 @@ const NotificationsPage = () => {
   const filterDropdownRef = useRef(null);
   const hasProcessedLocalStorage = useRef(false);
   const lastProcessedIdRef = useRef(null);
+
+  // Initialize WebSocket for real-time updates
+  useNotificationsWebSocket();
 
   // TanStack Query hooks
   const {

@@ -1,12 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import "./css/disburserdashboard.css";
 import axios from "axios";
 import OverrideRequestTrendanalaytics from "../analytics/OverrideTransactionsAnalystics/OverrideRequestTrendanalaytics";
 import ChequeReconciliationRate from "../analytics/chequeAnalysis/ChequeReconciliationRate";
 import OutstandingChequesRatio from "../analytics/chequeAnalysis/OutstandingChequesRatio";
 import { useCheques } from "../../hooks/useCheques";
+import { useMyOverrideRequests } from "../../hooks/useOverrideTransactions";
+import { useDisbursements, useFundAccountsForDisbursement } from "../../hooks/useDisbursementData";
+import { useDisbursementWebSocket } from "../../hooks/useDisbursementWebSocket";
+import { useAuth } from "../../contexts/AuthContext";
 
 const DisburserHome = () => {
+  const { user } = useAuth();
+  
+  const creatorId = useMemo(() => {
+    if (!user) return null;
+    const possible = [user.id, user.user_id, user.userId];
+    const parsed = possible
+      .map(id => parseInt(id, 10))
+      .find(Number.isFinite);
+    return parsed ?? null;
+  }, [user]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [disbursementStats, setDisbursementStats] = useState({
@@ -26,8 +41,31 @@ const DisburserHome = () => {
   const [pendingRequests, setPendingRequests] = useState([]);
   
   const [overrideRequests, setOverrideRequests] = useState([]);
-  const { data: cheques = [] } = useCheques();
-const [fundBalances, setFundBalances] = useState([]);
+  
+  // Filter cheques by current user
+  const { data: cheques = [] } = useCheques({ 
+    filters: { created_by: creatorId },
+    enabled: Number.isFinite(creatorId)
+  });
+
+  // Get current user's override requests
+  const { data: myOverrideRequests = [] } = useMyOverrideRequests({
+    enabled: Number.isFinite(creatorId)
+  });
+
+  // Get disbursements and fund accounts via TanStack Query
+  const { data: allTransactions = [], isLoading: transactionsLoading } = useDisbursements({
+    enabled: Number.isFinite(creatorId)
+  });
+
+  const { data: allFunds = [], isLoading: fundsLoading } = useFundAccountsForDisbursement({
+    enabled: Number.isFinite(creatorId)
+  });
+
+  // Initialize WebSocket for real-time updates
+  useDisbursementWebSocket();
+  
+  const [fundBalances, setFundBalances] = useState([]);
   const [dashboardMetrics, setDashboardMetrics] = useState({
     dpo: {
       average: 0,
@@ -51,178 +89,163 @@ const [fundBalances, setFundBalances] = useState([]);
       breakdown: []
     }
   });
-const overrideTotal = overrideRequests.length;
-  const overridePending = overrideRequests.filter(req => req.status === "pending").length;
-  const overrideApproved = overrideRequests.filter(req => req.status === "approved").length;
-  const overrideRejected = overrideRequests.filter(req => req.status === "rejected").length;
+const overrideTotal = myOverrideRequests.length;
+  const overridePending = myOverrideRequests.filter(req => req.status === "pending").length;
+  const overrideApproved = myOverrideRequests.filter(req => req.status === "approved").length;
+  const overrideRejected = myOverrideRequests.filter(req => req.status === "rejected").length;
 
+  // Helper function to check if object matches current user
+  const matchesCreator = (obj = {}) => {
+    if (!Number.isFinite(creatorId)) return false;
+    const candidates = [
+      obj.created_by, obj.user_id, obj.issued_by, obj.disburser_id, obj.creator_id,
+      obj.createdBy, obj.userId, obj.issuedBy, obj.disburserId, obj.creatorId,
+      obj.user?.id, obj.creator?.id
+    ];
+    return candidates
+      .map(v => parseInt(v, 10))
+      .some(id => Number.isFinite(id) && id === creatorId);
+  };
+
+  const getWeekStart = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const numDaysPastSunday = dayOfWeek === 0 ? 0 : dayOfWeek;
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - numDaysPastSunday);
+    weekStart.setHours(0, 0, 0, 0);
+    return weekStart;
+  };
+
+  const getMonthStart = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  };
+
+  // Calculate stats whenever data changes (real-time)
   useEffect(() => {
-    const fetchDisburserData = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setError("Authentication required. Please log in.");
-          setLoading(false);
-          return;
-        }
+    // Only show loading if data is actually being fetched
+    if (transactionsLoading || fundsLoading) {
+      setLoading(true);
+      return;
+    }
 
-        const headers = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        };
+    // If data fetch is complete but empty, that's OK - show empty state
+    setLoading(false);
 
-        // Fetch transactions (disbursements only), fund accounts, and override requests
-        const [transactionsRes, fundsRes, overrideRes] = await Promise.all([
-          axios.get('/api/transactions', { headers }),
-          axios.get('/api/fund-accounts', { headers }),
-          axios.get('/api/override-requests', { headers }).catch(() => ({ data: [] }))
-        ]);
+    try {
+      setError("");
 
-        const allTransactions = transactionsRes.data || [];
-        const allFunds = fundsRes.data || [];
-        const allOverrides = overrideRes.data || [];
+      // Filter only disbursement transactions created by current user
+      const disbursements = allTransactions
+        .filter(tx => tx.type === 'Disbursement')
+        .filter(tx => matchesCreator(tx));
 
-        // Filter only disbursement transactions
-        const disbursements = allTransactions.filter(tx => tx.type === 'Disbursement');
+      // Calculate date ranges
+      const today = new Date().toDateString();
+      const weekStart = getWeekStart();
+      const monthStart = getMonthStart();
 
-        // Calculate date ranges
-        const today = new Date().toDateString();
-        const weekStart = getWeekStart();
-        const monthStart = getMonthStart();
+      // Calculate disbursement statistics
+      const todayDisbursements = disbursements
+        .filter(tx => new Date(tx.created_at).toDateString() === today)
+        .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
 
-        // Calculate disbursement statistics
-        const todayDisbursements = disbursements
-          .filter(tx => new Date(tx.created_at).toDateString() === today)
-          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      const weeklyDisbursements = disbursements
+        .filter(tx => new Date(tx.created_at) >= weekStart)
+        .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
 
-        const weeklyDisbursements = disbursements
-          .filter(tx => new Date(tx.created_at) >= weekStart)
-          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      const monthlyDisbursements = disbursements
+        .filter(tx => new Date(tx.created_at) >= monthStart)
+        .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
 
-        const monthlyDisbursements = disbursements
-          .filter(tx => new Date(tx.created_at) >= monthStart)
-          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      const totalDisbursements = disbursements
+        .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
 
-        const totalDisbursements = disbursements
-          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+      const averageDisbursement = disbursements.length > 0 ? totalDisbursements / disbursements.length : 0;
 
-        const averageDisbursement = disbursements.length > 0 ? totalDisbursements / disbursements.length : 0;
+      // Find top disbursement department
+      const departmentTotals = {};
+      disbursements.forEach(tx => {
+        const dept = tx.department || 'Other';
+        departmentTotals[dept] = (departmentTotals[dept] || 0) + parseFloat(tx.amount || 0);
+      });
+      const topDepartment = Object.keys(departmentTotals).reduce((a, b) => 
+        departmentTotals[a] > departmentTotals[b] ? a : b, 'None');
 
-        // Override/approval statistics
-        const pendingApprovals = allOverrides.filter(req => req.status === 'pending').length;
-        const approvedDisbursements = allOverrides.filter(req => req.status === 'approved').length;
+      setDisbursementStats({
+        todayDisbursements,
+        weeklyDisbursements,
+        monthlyDisbursements,
+        totalDisbursements,
+        pendingApprovals: 0, // Will be calculated from myOverrideRequests hook
+        approvedDisbursements: 0, // Will be calculated from myOverrideRequests hook
+        averageDisbursement,
+        topDepartment,
+      });
 
-        // Find top disbursement department
-        const departmentTotals = {};
-        disbursements.forEach(tx => {
-          const dept = tx.department || 'Other';
-          departmentTotals[dept] = (departmentTotals[dept] || 0) + parseFloat(tx.amount || 0);
-        });
-        const topDepartment = Object.keys(departmentTotals).reduce((a, b) => 
-          departmentTotals[a] > departmentTotals[b] ? a : b, 'None');
+      // Disbursements by category
+      const categoryTotals = {};
+      disbursements.forEach(tx => {
+        const category = tx.category || 'Operational';
+        categoryTotals[category] = (categoryTotals[category] || 0) + parseFloat(tx.amount || 0);
+      });
+      const categoryData = Object.entries(categoryTotals).map(([category, amount]) => ({
+        category,
+        amount,
+        count: disbursements.filter(tx => (tx.category || 'Operational') === category).length
+      })).sort((a, b) => b.amount - a.amount);
+      setDisbursementsByCategory(categoryData);
 
-        setDisbursementStats({
-          todayDisbursements,
-          weeklyDisbursements,
-          monthlyDisbursements,
-          totalDisbursements,
-          pendingApprovals,
-          approvedDisbursements,
-          averageDisbursement,
-          topDepartment,
-        });
-
-
-        // Disbursements by category
-        const categoryTotals = {};
-        disbursements.forEach(tx => {
-          const category = tx.category || 'Operational';
-          categoryTotals[category] = (categoryTotals[category] || 0) + parseFloat(tx.amount || 0);
-        });
-        const categoryData = Object.entries(categoryTotals).map(([category, amount]) => ({
-          category,
-          amount,
-          count: disbursements.filter(tx => (tx.category || 'Operational') === category).length
-        })).sort((a, b) => b.amount - a.amount);
-        setDisbursementsByCategory(categoryData);
-
-        // Daily disbursement trend (last 7 days)
-        const dailyTrend = [];
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          const dateStr = date.toDateString();
-          
-          const dayDisbursements = disbursements
-            .filter(tx => new Date(tx.created_at).toDateString() === dateStr)
-            .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-          
-          dailyTrend.push({
-            date: date.toLocaleDateString(),
-            amount: dayDisbursements,
-            count: disbursements.filter(tx => new Date(tx.created_at).toDateString() === dateStr).length
-          });
-        }
-        setDailyDisbursementTrend(dailyTrend);
-
-        // Create a mapping of fund account IDs to names
-        const fundAccountMap = {};
-        allFunds.forEach(fund => {
-          fundAccountMap[fund.id] = fund.name;
-        });
-
-        // Recent disbursements (last 10) with fund account names
-        const recentData = disbursements
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 10)
-          .map(tx => ({
-            ...tx,
-            fundAccountName: fundAccountMap[tx.fund_account_id] || 'N/A'
-          }));
-        setRecentDisbursements(recentData);
-
-        // Pending override requests
-        const pendingData = allOverrides
-          .filter(req => req.status === 'pending')
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 8);
-        setPendingRequests(pendingData);
+      // Daily disbursement trend (last 7 days)
+      const dailyTrend = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toDateString();
         
-        setOverrideRequests(allOverrides);
-// Fund balances (focus on expense and asset accounts)
-        const relevantFunds = allFunds
-          .filter(fund => fund.account_type === 'Expense' || fund.account_type === 'Asset')
-          .sort((a, b) => parseFloat(b.current_balance || 0) - parseFloat(a.current_balance || 0))
-          .slice(0, 8);
-        setFundBalances(relevantFunds);
-
-      } catch (err) {
-        console.error('Disburser dashboard error:', err);
-        setError(err.response?.data?.message || err.message || 'Failed to load disburser data');
-      } finally {
-        setLoading(false);
+        const dayDisbursements = disbursements
+          .filter(tx => new Date(tx.created_at).toDateString() === dateStr)
+          .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        
+        dailyTrend.push({
+          date: date.toLocaleDateString(),
+          amount: dayDisbursements,
+          count: disbursements.filter(tx => new Date(tx.created_at).toDateString() === dateStr).length
+        });
       }
-    };
+      setDailyDisbursementTrend(dailyTrend);
 
-    const getWeekStart = () => {
-      const now = new Date();
-      const dayOfWeek = now.getDay();
-      const numDaysPastSunday = dayOfWeek === 0 ? 0 : dayOfWeek;
-      const weekStart = new Date(now);
-      weekStart.setDate(weekStart.getDate() - numDaysPastSunday);
-      weekStart.setHours(0, 0, 0, 0);
-      return weekStart;
-    };
+      // Create a mapping of fund account IDs to names
+      const fundAccountMap = {};
+      allFunds.forEach(fund => {
+        fundAccountMap[fund.id] = fund.name;
+      });
 
-    const getMonthStart = () => {
-      const now = new Date();
-      return new Date(now.getFullYear(), now.getMonth(), 1);
-    };
+      // Recent disbursements (last 10) with fund account names
+      const recentData = disbursements
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 10)
+        .map(tx => ({
+          ...tx,
+          fundAccountName: fundAccountMap[tx.fund_account_id] || 'N/A'
+        }));
+      setRecentDisbursements(recentData);
 
-    fetchDisburserData();
-  }, []);
+      // Fund balances (focus on expense and asset accounts)
+      const relevantFunds = allFunds
+        .filter(fund => fund.account_type === 'Expense' || fund.account_type === 'Asset')
+        .sort((a, b) => parseFloat(b.current_balance || 0) - parseFloat(a.current_balance || 0))
+        .slice(0, 8);
+      setFundBalances(relevantFunds);
+
+      setLoading(false);
+    } catch (err) {
+      console.error('Disburser dashboard error:', err);
+      setError(err.message || 'Failed to load disburser data');
+      setLoading(false);
+    }
+  }, [allTransactions, allFunds, creatorId, transactionsLoading, fundsLoading]);
 
   if (loading) {
     return (

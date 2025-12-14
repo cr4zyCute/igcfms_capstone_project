@@ -1278,11 +1278,22 @@
   animation: dropdownSlideIn 0.2s ease-out;
 }
 
-.gr-no-data-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+/* Dropdown positioned above when near bottom */
+.gr-action-dropdown-menu.gr-dropdown-above {
+  top: auto;
+  bottom: calc(100% + 4px);
+  animation: dropdownSlideInUp 0.2s ease-out;
+}
+
+@keyframes dropdownSlideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .gr-no-data-content i {

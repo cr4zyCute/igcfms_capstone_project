@@ -3,6 +3,7 @@ import './css/notificationbell.css';
 import notificationService from '../../services/notificationService';
 import NotificationPanel from './NotificationPanel';
 import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead } from '../../hooks/useNotifications';
+import { useNotificationsWebSocket } from '../../hooks/useNotificationsWebSocket';
 
 const NotificationBell = ({ onNavigate }) => {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -10,6 +11,9 @@ const NotificationBell = ({ onNavigate }) => {
   const bellRef = useRef(null);
 
   const token = localStorage.getItem("token");
+
+  // WebSocket hook for real-time updates
+  useNotificationsWebSocket();
 
   // TanStack Query hooks
   const {
@@ -22,6 +26,9 @@ const NotificationBell = ({ onNavigate }) => {
     data: unreadCount = 0,
     refetch: refetchUnreadCount
   } = useUnreadCount({ enabled: !!token });
+
+  // Calculate unread count from notifications (for current user only)
+  const calculatedUnreadCount = notifications.filter(n => !n.is_read && !n.read).length;
 
   const markAsReadMutation = useMarkAsRead();
   const markAllAsReadMutation = useMarkAllAsRead();

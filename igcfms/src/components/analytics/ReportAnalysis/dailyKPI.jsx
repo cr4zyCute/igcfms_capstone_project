@@ -906,14 +906,14 @@ const DailyKPI = ({ transactions: transactionsProp = [], reports: reportsProp = 
           </div>
         </div>
 
-        <div className="kpi-metric-card">
+        {/* <div className="kpi-metric-card">
           <div className="metric-info">
             <div className="metric-label">Net Balance</div>
             <div className="metric-value net-balance">
               {formatCurrency(dailyData.netBalance)}
             </div>
           </div>
-        </div>
+        </div> */}
 
         <div className="kpi-metric-card">
           <div className="metric-info">

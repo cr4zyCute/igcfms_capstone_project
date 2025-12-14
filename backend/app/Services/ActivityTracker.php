@@ -67,6 +67,7 @@ class ActivityTracker
                 return;
             }
 
+            // Only create notifications for Admin users
             $adminUsers = User::where('role', 'Admin')->get();
             
             // Decode details if stored as JSON string
@@ -84,6 +85,12 @@ class ActivityTracker
             }
 
             foreach ($adminUsers as $admin) {
+                Log::info("Creating notification for admin user", [
+                    'admin_id' => $admin->id,
+                    'admin_role' => $admin->role,
+                    'activity_type' => $activityLog->activity_type,
+                ]);
+                
                 Notification::create([
                     'user_id' => $admin->id,
                     'type' => 'user_activity',

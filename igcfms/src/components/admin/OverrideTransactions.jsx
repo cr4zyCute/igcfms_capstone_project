@@ -398,30 +398,8 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
                 description: fallbackTx?.description || fallbackTx?.remarks || transaction?.description || transaction?.remarks || ''
               });
               
-              // Auto-create receipt record in IssueReceipt with approved amount
-              try {
-                const receiptPayload = {
-                  transaction_id: appliedTxId,
-                  receipt_no: `OVR-${Date.now()}`, // Auto-generate receipt number
-                  payment_method: transaction?.mode_of_payment || 'Cash',
-                  amount: approvedAmount,
-                  payer_name: defaultPayer,
-                  description: `Override: ${(fallbackTx?.description || fallbackTx?.remarks || transaction?.description || transaction?.remarks || '')}`
-                };
-                
-                console.log('Creating receipt with payload:', receiptPayload);
-                
-                createReceiptMutation.mutate(receiptPayload, {
-                  onSuccess: () => {
-                    console.log('Receipt record created for override transaction:', appliedTxId, 'with amount:', approvedAmount);
-                  },
-                  onError: (err) => {
-                    console.error('Failed to create receipt record:', err);
-                  }
-                });
-              } catch (receiptError) {
-                console.error('Error creating receipt record:', receiptError);
-              }
+              // Don't auto-create receipt here - let user input receipt number in modal
+              // The manual receipt modal will be shown and user can input the receipt number
               
               setShowManualReceiptModal(true);
             }
@@ -488,8 +466,37 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
       return;
     }
 
-    // Instead of saving, print the receipt
-    await handlePrintReceipt();
+    // Create the receipt record with the user-provided receipt number
+    try {
+      const receiptPayload = {
+        transaction_id: manualReceiptTxId,
+        receipt_number: manualReceiptNo.trim(),
+        payer_name: manualPayerName.trim(),
+        amount: receiptData?.totalAmount || 0,
+        payment_method: 'Cash',
+        description: receiptData?.description || 'Override Receipt'
+      };
+
+      console.log('Creating receipt with payload:', receiptPayload);
+
+      createReceiptMutation.mutate(receiptPayload, {
+        onSuccess: () => {
+          console.log('Receipt record created for override transaction:', manualReceiptTxId);
+          showMessage('Receipt created successfully!');
+          // Print the receipt after creation
+          setTimeout(() => {
+            handlePrintReceipt();
+          }, 500);
+        },
+        onError: (err) => {
+          console.error('Failed to create receipt record:', err);
+          setManualReceiptError(err?.response?.data?.message || 'Failed to create receipt record');
+        }
+      });
+    } catch (receiptError) {
+      console.error('Error creating receipt record:', receiptError);
+      setManualReceiptError('Error creating receipt record');
+    }
   };
 
   const handlePrintReceipt = async () => {
@@ -643,6 +650,7 @@ const OverrideTransactions = ({ role = "Admin", filterByUserId = null, hideKpiDa
           </div>
 
           <div class="receipt-payer-info">
+            <p><strong>RECEIPT NUMBER:</strong> ${manualReceiptNo || 'N/A'}</p>
             <p><strong>RECEIVED FROM:</strong> ${manualPayerName || 'N/A'}</p>
             <p><strong>DATE:</strong> ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
             <p><strong>TRANSACTION ID:</strong> #${manualReceiptTxId || 'N/A'}</p>

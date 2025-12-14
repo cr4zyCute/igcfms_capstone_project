@@ -405,33 +405,7 @@ const ProfileSettings = () => {
           </div>
         </div>
 
-        <div className="form-section">
-          <h3>Feature Settings</h3>
-          <div className="form-grid">
-            <div className="form-group checkbox-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={systemSettings.twoFactorAuth}
-                  onChange={(e) => setSystemSettings(prev => ({ ...prev, twoFactorAuth: e.target.checked }))}
-                />
-                <span className="checkmark"></span>
-                Enable Two-Factor Authentication
-              </label>
-            </div>
-            <div className="form-group checkbox-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={systemSettings.emailNotifications}
-                  onChange={(e) => setSystemSettings(prev => ({ ...prev, emailNotifications: e.target.checked }))}
-                />
-                <span className="checkmark"></span>
-                Enable Email Notifications
-              </label>
-            </div>
-          </div>
-        </div>
+   
 
         <div className="form-actions">
           <button type="submit" className="btn-primary" disabled={loading}>
@@ -460,6 +434,7 @@ const ProfileSettings = () => {
               <i className="fas fa-user"></i>
               Profile Settings
             </button>
+            {/* System Settings tab - Commented out nikki gwapo
             {authUser?.role === 'Admin' && (
               <button
                 className={`nav-item ${activeSection === "system-settings" ? "active" : ""}`}
@@ -469,6 +444,7 @@ const ProfileSettings = () => {
                 System Settings
               </button>
             )}
+            */}
           </div>
         </div>
 

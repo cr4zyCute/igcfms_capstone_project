@@ -11,6 +11,7 @@ import {
   useCreateOverrideRequest,
   useReviewOverrideRequest
 } from "../../hooks/useOverrideTransactions";
+import { useDisbursingSidebarOverrideTransactionsWebSocket } from "../../hooks/useDisbursingSidebarOverrideTransactionsWebSocket";
 import { useCreateReceipt } from "../../hooks/useReceipts";
 import { getReceiptPrintHTML } from '../pages/print/recieptPrint';
 import { useAuth } from "../../contexts/AuthContext";
@@ -18,6 +19,9 @@ import "../admin/css/overridetransactions.css";
 
 const DisbursingSidebarOverrideTransactions = () => {
   const { user } = useAuth();
+  
+  // Initialize WebSocket for real-time updates
+  useDisbursingSidebarOverrideTransactionsWebSocket();
   
   // TanStack Query hooks - use myOverrideRequests to get only user's requests
   const {

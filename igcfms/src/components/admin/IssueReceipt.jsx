@@ -1138,6 +1138,39 @@ const IssueReceipt = ({ isCollectingOfficer = false, currentUserId = null, curre
       {/* Analytics Dashboard - Enhanced 3-Box Layout */}
       {isAdmin && (
         <div className="analytics-dashboard-section">
+          {/* Analytics Header with Refresh Button */}
+          {/* <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #e5e7eb' }}>
+            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#000000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <i className="fas fa-chart-bar" style={{ marginRight: '8px' }}></i>
+              Analytics Dashboard
+            </h2>
+            <button 
+              onClick={() => generateAnalyticsData()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                backgroundColor: '#000000',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#333333'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#000000'}
+              title="Refresh analytics data"
+            >
+              <i className="fas fa-sync-alt" style={{ fontSize: '12px' }}></i>
+              Refresh Data
+            </button>
+          </div> */}
+
           {/* 3-Box Grid Layout */}
           <div className="three-box-grid">
             {/* Left Column: Stats Cards + Box 1 */}

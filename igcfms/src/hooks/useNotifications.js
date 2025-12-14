@@ -7,11 +7,19 @@ const API_BASE = API_BASE_URL;
 // Query keys for consistent cache management
 export const NOTIFICATION_KEYS = {
   all: ['notifications'],
-  lists: () => [...NOTIFICATION_KEYS.all, 'list'],
+  lists: () => {
+    // Include user token in cache key to ensure different users have separate caches
+    const token = localStorage.getItem('token');
+    return [...NOTIFICATION_KEYS.all, 'list', { token }];
+  },
   list: (filters) => [...NOTIFICATION_KEYS.lists(), { filters }],
   details: () => [...NOTIFICATION_KEYS.all, 'detail'],
   detail: (id) => [...NOTIFICATION_KEYS.details(), id],
-  unreadCount: () => [...NOTIFICATION_KEYS.all, 'unreadCount'],
+  unreadCount: () => {
+    // Include user token in cache key to ensure different users have separate caches
+    const token = localStorage.getItem('token');
+    return [...NOTIFICATION_KEYS.all, 'unreadCount', { token }];
+  },
 };
 
 // Fetch all notifications
@@ -63,16 +71,16 @@ const markAllNotificationsAsRead = async () => {
 
 // Hook to fetch notifications
 export const useNotifications = (options = {}) => {
-  const { enabled = true, refetchInterval = 30000, limit } = options;
+  const { enabled = true, limit } = options;
 
   return useQuery({
     // Always use same cache key regardless of limit (for shared cache)
     queryKey: NOTIFICATION_KEYS.list({}),
     queryFn: () => fetchNotifications({}), // Always fetch all notifications
     enabled,
-    refetchInterval,
-    staleTime: 10000, // 10 seconds
-    cacheTime: 300000, // 5 minutes
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     retry: 2,
     refetchOnWindowFocus: false,
     // Transform data to apply limit on client side if needed
@@ -82,15 +90,15 @@ export const useNotifications = (options = {}) => {
 
 // Hook to fetch unread count
 export const useUnreadCount = (options = {}) => {
-  const { enabled = true, refetchInterval = 30000 } = options;
+  const { enabled = true } = options;
 
   return useQuery({
     queryKey: NOTIFICATION_KEYS.unreadCount(),
     queryFn: fetchUnreadCount,
     enabled,
-    refetchInterval,
-    staleTime: 10000,
-    cacheTime: 300000,
+    staleTime: Infinity, // Never stale - WebSocket keeps data fresh
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchInterval: false, // NO auto-refresh - WebSocket only
     retry: 2,
     refetchOnWindowFocus: false,
   });

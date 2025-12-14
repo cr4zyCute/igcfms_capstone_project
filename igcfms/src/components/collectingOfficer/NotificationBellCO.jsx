@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import '../common/css/notificationbell.css';
 import notificationService from '../../services/notificationService';
 import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead } from '../../hooks/useNotifications';
+import { useNotificationsWebSocket } from '../../hooks/useNotificationsWebSocket';
 
 const NotificationBellCO = ({ onNavigate }) => {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -9,6 +10,9 @@ const NotificationBellCO = ({ onNavigate }) => {
   const bellRef = useRef(null);
 
   const token = localStorage.getItem("token");
+
+  // WebSocket hook for real-time updates
+  useNotificationsWebSocket();
 
   // TanStack Query hooks - fetches notifications for current user only
   const {

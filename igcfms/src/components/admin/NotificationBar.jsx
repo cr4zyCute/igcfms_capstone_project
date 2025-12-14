@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import "./css/notificationbar.css";
 import { useNotifications, useMarkAsRead, useMarkAllAsRead } from '../../hooks/useNotifications';
+import { useNotificationsWebSocket } from '../../hooks/useNotificationsWebSocket';
 import { useFundAccounts } from '../../hooks/useFundAccounts';
 
 const NotificationBar = () => {
@@ -21,6 +22,9 @@ const NotificationBar = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const token = localStorage.getItem("token");
+
+  // WebSocket hook for real-time updates
+  useNotificationsWebSocket();
 
   // TanStack Query hooks
   const {
@@ -1199,7 +1203,7 @@ const NotificationBar = () => {
                   )}
                 </div>
 
-                <div className="notification-actions">
+                {/* <div className="notification-actions">
                   <button className="primary-action-btn">
                     <i className="fas fa-check"></i>
                     Mark as Handled
@@ -1208,7 +1212,7 @@ const NotificationBar = () => {
                     <i className="fas fa-external-link-alt"></i>
                     View Related Item
                   </button>
-                </div>
+                </div> */}
               </div>
             </div>
           ) : (

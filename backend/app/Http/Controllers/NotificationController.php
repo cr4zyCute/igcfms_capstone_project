@@ -4,10 +4,18 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Notification;
+use App\Services\WebSocketBroadcaster;
 use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
 {
+    protected $broadcaster;
+
+    public function __construct(WebSocketBroadcaster $broadcaster)
+    {
+        $this->broadcaster = $broadcaster;
+    }
+
     // Get notifications for the authenticated user
     public function index(Request $request)
     {
@@ -65,9 +73,16 @@ class NotificationController extends Controller
     // Get unread count
     public function getUnreadCount()
     {
-        $count = Notification::where('user_id', Auth::id())
+        $user = Auth::user();
+        $count = Notification::where('user_id', $user->id)
             ->unread()
             ->count();
+
+        \Log::info("Unread count for user", [
+            'user_id' => $user->id,
+            'user_role' => $user->role,
+            'unread_count' => $count,
+        ]);
 
         return response()->json(['unread_count' => $count]);
     }

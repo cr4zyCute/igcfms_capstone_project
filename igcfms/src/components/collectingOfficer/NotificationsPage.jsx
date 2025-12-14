@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "../admin/css/notificationbar.css";
 import { useNotifications, useMarkAsRead, useMarkAllAsRead } from '../../hooks/useNotifications';
+import { useNotificationsWebSocket } from '../../hooks/useNotificationsWebSocket';
 
 const NotificationsPage = () => {
   const [selectedNotification, setSelectedNotification] = useState(null);
@@ -12,6 +13,9 @@ const NotificationsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const token = localStorage.getItem("token");
+
+  // WebSocket hook for real-time updates
+  useNotificationsWebSocket();
 
   // TanStack Query hooks
   const {
@@ -294,9 +298,9 @@ const NotificationsPage = () => {
             <i className="fas fa-check-double"></i>
             Mark all as read
           </button>
-          <button className="settings-btn">
+          {/* <button className="settings-btn">
             <i className="fas fa-cog"></i>
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -417,7 +421,7 @@ const NotificationsPage = () => {
                     <span className="preview-category">• {selectedNotification.category || selectedNotification.type || 'System'}</span>
                   </div>
                 </div>
-                <div className="preview-actions">
+                {/* <div className="preview-actions">
                   <button className="action-btn">
                     <i className="fas fa-bookmark"></i>
                   </button>
@@ -427,7 +431,7 @@ const NotificationsPage = () => {
                   <button className="action-btn">
                     <i className="fas fa-ellipsis-h"></i>
                   </button>
-                </div>
+                </div> */}
               </div>
 
               <div className="preview-body">

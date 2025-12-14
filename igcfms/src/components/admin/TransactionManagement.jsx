@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import axios from "axios";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import API_BASE_URL from "../../config/api";
 import "./css/transactionmanagement.css";
 import "../analytics/TransactionAnalytics.jsx/css/transaction-kpis.css";
@@ -408,6 +410,159 @@ const TransactionManagement = ({ role = "Admin" }) => {
     setPdfFileName('');
   };
 
+  // Download transaction details as PDF
+  const downloadTransactionDetailsPDF = () => {
+    if (!selectedTransaction) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Header - Black background
+    doc.setFillColor(0, 0, 0);
+    doc.rect(0, 0, pageWidth, 35, 'F');
+
+    // Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TRANSACTION DETAILS', pageWidth / 2, 15, { align: 'center' });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('IGCFMS - Integrated Government Collections and Funds Management System', pageWidth / 2, 25, { align: 'center' });
+
+    let yPos = 45;
+
+    // Transaction Summary Section
+    doc.setTextColor(0, 0, 0);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TRANSACTION SUMMARY', 15, yPos + 5.5);
+
+    yPos += 15;
+
+    // Summary table
+    const amountValue = parseFloat(selectedTransaction.amount || 0);
+    const displayType = selectedTransaction.type === 'Override' ? 'Cancelled' : 
+                       (selectedTransaction.receipt_no?.startsWith('OVR-') ? 'Override' : 
+                       selectedTransaction.type || 'Unknown');
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Field', 'Value']],
+      body: [
+        ['Transaction ID', `#${selectedTransaction.id}`],
+        ['Type', displayType],
+        ['Amount', `₱${Math.abs(amountValue).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        ['Recipient/Payer', selectedTransaction.recipient || 'N/A'],
+        ['Department', selectedTransaction.department || 'N/A'],
+        ['Category', selectedTransaction.category || 'N/A'],
+        ['Payment Mode', selectedTransaction.mode_of_payment || 'N/A'],
+        ['Reference', selectedTransaction.reference || 'N/A'],
+        ['Receipt/Reference No', selectedTransaction.receipt_no || selectedTransaction.reference_no || 'N/A']
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9
+      },
+      columnStyles: {
+        0: { cellWidth: 50, fontStyle: 'bold', textColor: [107, 114, 128] },
+        1: { cellWidth: 'auto' }
+      },
+      margin: { left: 15, right: 15 }
+    });
+
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    // Description section if available
+    if (selectedTransaction.description) {
+      doc.setFillColor(0, 0, 0);
+      doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DESCRIPTION', 15, yPos + 5.5);
+
+      yPos += 12;
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      
+      const descriptionLines = doc.splitTextToSize(selectedTransaction.description, pageWidth - 30);
+      doc.text(descriptionLines, 15, yPos);
+      yPos += descriptionLines.length * 5 + 10;
+    }
+
+    // Timeline section
+    doc.setFillColor(0, 0, 0);
+    doc.rect(10, yPos, pageWidth - 20, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TIMELINE', 15, yPos + 5.5);
+
+    yPos += 15;
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Event', 'Date & Time']],
+      body: [
+        ['Created', new Date(selectedTransaction.created_at).toLocaleString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit'
+        })],
+        ['Last Updated', new Date(selectedTransaction.updated_at).toLocaleString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit'
+        })]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10
+      },
+      bodyStyles: {
+        fontSize: 9
+      },
+      columnStyles: {
+        0: { cellWidth: 50, fontStyle: 'bold', textColor: [107, 114, 128] },
+        1: { cellWidth: 'auto' }
+      },
+      margin: { left: 15, right: 15 }
+    });
+
+    // Footer
+    const footerY = pageHeight - 15;
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleString('en-US')}`, 15, footerY);
+    doc.text(`Page 1 of 1`, pageWidth - 15, footerY, { align: 'right' });
+
+    // Save PDF
+    const fileName = `Transaction_Details_#${selectedTransaction.id}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+  };
 
   const departments = [
     "Finance", "Administration", "Operations", "HR", "IT", "Legal",
@@ -1094,9 +1249,9 @@ const TransactionManagement = ({ role = "Admin" }) => {
                 <i className="fas fa-times"></i>
                 Close
               </button>
-              <button className="tm-modal-btn tm-btn-primary" onClick={() => window.print()}>
-                <i className="fas fa-print"></i>
-                Print Details
+              <button className="tm-modal-btn tm-btn-primary" onClick={downloadTransactionDetailsPDF}>
+                <i className="fas fa-download"></i>
+                Download PDF
               </button>
             </div>
           </div>
