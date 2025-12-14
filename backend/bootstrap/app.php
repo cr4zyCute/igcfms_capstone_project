@@ -19,6 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'login',
             'logout'
         ]);
+        
+        // Add SQL injection protection middleware to API routes
+        $middleware->api(append: [
+            \App\Http\Middleware\SanitizeInput::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

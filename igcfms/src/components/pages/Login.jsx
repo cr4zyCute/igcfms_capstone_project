@@ -4,7 +4,7 @@ import { loginUser } from "../../services/api";
 import { Link, useNavigate } from "react-router-dom";
 import "./css/Login.css"; 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+import { faEye, faEyeSlash, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
 import loginImageOne from "../../assets/images/login/login1.png";
 import loginImageTwo from "../../assets/images/login/login2.png";
 
@@ -28,6 +28,7 @@ const Login = () => {
   const [passwordError, setPasswordError] = useState("");
   const [currentSlide, setCurrentSlide] = useState(INITIAL_SLIDE_INDEX);
   const [isTransitioning, setIsTransitioning] = useState(true);
+  const [showRateLimitModal, setShowRateLimitModal] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -153,6 +154,9 @@ const Login = () => {
         if (errors.password) {
           setPasswordError(errors.password[0]);
         }
+      } else if (err.response && err.response.status === 429) {
+        // Too many attempts - rate limited
+        setShowRateLimitModal(true);
       } else {
         // Network or other errors
         setPasswordError("Login error. Please try again.");
@@ -255,6 +259,26 @@ const Login = () => {
           </div>
         </div>
       </div>
+
+      {/* Rate Limit Modal */}
+      {showRateLimitModal && (
+        <div className="rate-limit-modal-overlay">
+          <div className="rate-limit-modal">
+            <div className="rate-limit-modal-icon">
+              <FontAwesomeIcon icon={faExclamationTriangle} />
+            </div>
+            <h2>Too Many Attempts</h2>
+            <p>You have exceeded the maximum number of login attempts.</p>
+            <p>Please try again in <strong>1 minute</strong>.</p>
+            <button 
+              className="rate-limit-modal-btn"
+              onClick={() => setShowRateLimitModal(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

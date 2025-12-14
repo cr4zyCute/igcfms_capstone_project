@@ -17,11 +17,15 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|string|email',
-            'password' => 'required|string',
+            'email' => 'required|string|email|max:255',
+            'password' => 'required|string|max:255',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        // Sanitize email input
+        $email = filter_var(strtolower(trim($request->email)), FILTER_SANITIZE_EMAIL);
+        
+        // Use parameterized query (Eloquent already does this, but being explicit)
+        $user = User::where('email', $email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             // Track failed login attempt
@@ -63,16 +67,20 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'name' => 'required|string',
-            'email' => 'required|email|unique:users|unique:registration_requests',
-            'password' => 'required|string|min:6|confirmed',
+            'name' => 'required|string|max:100|regex:/^[a-zA-Z\s\-\.]+$/',
+            'email' => 'required|email|max:255|unique:users|unique:registration_requests',
+            'password' => 'required|string|min:6|max:255|confirmed',
             'role' => 'required|in:Collecting Officer,Disbursing Officer,Cashier,Admin'
         ]);
 
+        // Sanitize inputs
+        $name = trim(strip_tags($request->name));
+        $email = filter_var(strtolower(trim($request->email)), FILTER_SANITIZE_EMAIL);
+
         // Create registration request
         $registrationRequest = RegistrationRequest::create([
-            'name' => $request->name,
-            'email' => $request->email,
+            'name' => $name,
+            'email' => $email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
             'status' => 'pending'

@@ -29,9 +29,13 @@ class RecipientAccountController extends Controller
             $query->where('status', $request->status);
         }
 
-        // Search functionality
+        // Search functionality with sanitized input
         if ($request->has('search')) {
+            // Sanitize search input - escape special LIKE characters and limit length
             $search = $request->search;
+            $search = substr($search, 0, 100); // Limit search length
+            $search = addcslashes($search, '%_\\'); // Escape LIKE wildcards
+            
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('contact_person', 'like', "%{$search}%")

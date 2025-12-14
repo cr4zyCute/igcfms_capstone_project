@@ -18,8 +18,8 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\RecipientAccountController;
 use App\Http\Controllers\SystemSettingsController;
 
-// Authentication routes
-    Route::post('/login', [AuthController::class, 'login']);
+// Authentication routes with rate limiting for security
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1'); // 5 attempts per minute
     Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
         Route::get('/test', function () {
             return response()->json(['message' => 'API working!']);
@@ -27,7 +27,9 @@ use App\Http\Controllers\SystemSettingsController;
         Route::get('/health', function () {
             return response()->json(['status' => 'healthy']);
     });
-    Route::post('/register', [AuthController::class, 'register'])->withoutMiddleware('auth:sanctum');
+    Route::post('/register', [AuthController::class, 'register'])
+        ->withoutMiddleware('auth:sanctum')
+        ->middleware('throttle:3,1'); // 3 registration attempts per minute
     Route::prefix('admin')->group(function () {
         Route::get('/approve/{id}', [AdminController::class, 'approve']);
         Route::get('/reject/{id}', [AdminController::class, 'reject']);
