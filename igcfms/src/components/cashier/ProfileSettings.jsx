@@ -33,7 +33,6 @@ const ProfileSettings = () => {
     confirmPassword: ""
   });
   
-  // Placeholder to show dots representing existing password
   const passwordPlaceholder = "••••••••••••";
 
   const API_BASE = API_BASE_URL;
@@ -65,7 +64,6 @@ const ProfileSettings = () => {
       }));
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      // Use authUser as fallback
       if (authUser) {
         setUser(authUser);
         setProfileData(prev => ({
@@ -77,17 +75,14 @@ const ProfileSettings = () => {
     }
   };
 
+
   const fetchActivityData = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       const response = await axios.get(`${API_BASE}/transactions`, { headers });
       const allTransactions = response.data || [];
       
-      // Filter transactions for current user only (created_by matches current user ID)
-      const currentUserId = user?.id || authUser?.id;
-      const userTransactions = allTransactions.filter(tx => tx.created_by === currentUserId);
-      
-      // Get last 90 days of activity (3 months)
+      // Cashier sees all transactions (collections and disbursements)
       const dailyData = {};
       const now = new Date();
       
@@ -95,16 +90,17 @@ const ProfileSettings = () => {
         const date = new Date(now);
         date.setDate(date.getDate() - i);
         const dateKey = date.toISOString().split('T')[0];
-        dailyData[dateKey] = { collections: 0, receipts: 0 };
+        dailyData[dateKey] = { collections: 0, disbursements: 0 };
       }
 
-      userTransactions.forEach(tx => {
+      allTransactions.forEach(tx => {
         const txDate = new Date(tx.created_at).toISOString().split('T')[0];
         if (dailyData[txDate]) {
           const amount = Math.abs(parseFloat(tx.amount || 0));
           if (tx.type === 'Collection') {
             dailyData[txDate].collections += amount;
-            dailyData[txDate].receipts += 1;
+          } else if (tx.type === 'Disbursement') {
+            dailyData[txDate].disbursements += amount;
           }
         }
       });
@@ -112,7 +108,7 @@ const ProfileSettings = () => {
       setActivityData(Object.entries(dailyData).map(([date, data]) => ({
         date,
         collections: data.collections,
-        receipts: data.receipts
+        disbursements: data.disbursements
       })));
     } catch (error) {
       console.error("Error fetching activity data:", error);
@@ -129,7 +125,6 @@ const ProfileSettings = () => {
       const response = await axios.get(`${API_BASE}/activity-logs/user/${currentUserId}`, { headers });
       const allActivities = response.data?.data || response.data || [];
       
-      // Filter for login activities only in the last 90 days (3 months)
       const loginActivities = allActivities.filter(activity => {
         const activityType = activity.activity_type || '';
         const isLogin = activityType.toLowerCase() === 'login';
@@ -137,7 +132,6 @@ const ProfileSettings = () => {
         return isLogin && isWithin90Days;
       });
       
-      // Count logins per day
       const loginCountByDate = {};
       loginActivities.forEach(activity => {
         const dateKey = new Date(activity.created_at).toISOString().split('T')[0];
@@ -152,7 +146,7 @@ const ProfileSettings = () => {
     }
   };
 
-  // Initialize activity chart
+
   useEffect(() => {
     if (activityData.length > 0 && chartRef.current) {
       if (chartInstance.current) {
@@ -181,15 +175,15 @@ const ProfileSettings = () => {
               yAxisID: 'y',
             },
             {
-              label: 'Receipts',
-              data: activityData.map(d => d.receipts),
+              label: 'Disbursements',
+              data: activityData.map(d => d.disbursements),
               borderColor: '#ef4444',
               backgroundColor: 'rgba(239, 68, 68, 0.1)',
               fill: true,
               tension: 0.4,
               pointRadius: 0,
               pointHoverRadius: 4,
-              yAxisID: 'y1',
+              yAxisID: 'y',
             },
             {
               label: 'Login',
@@ -200,7 +194,7 @@ const ProfileSettings = () => {
               tension: 0.4,
               pointRadius: 0,
               pointHoverRadius: 4,
-              yAxisID: 'y2',
+              yAxisID: 'y1',
             }
           ]
         },
@@ -208,9 +202,7 @@ const ProfileSettings = () => {
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: {
-              display: false
-            },
+            legend: { display: false },
             tooltip: {
               mode: 'index',
               intersect: false,
@@ -222,10 +214,8 @@ const ProfileSettings = () => {
               padding: 12,
               callbacks: {
                 label: function(context) {
-                  if (context.dataset.label === 'Collections') {
+                  if (context.dataset.label === 'Collections' || context.dataset.label === 'Disbursements') {
                     return `${context.dataset.label}: ₱${context.parsed.y.toLocaleString()}`;
-                  } else if (context.dataset.label === 'Receipts') {
-                    return `${context.dataset.label}: ${context.parsed.y}`;
                   } else if (context.dataset.label === 'Login') {
                     return context.parsed.y > 0 ? `${context.dataset.label}: ${context.parsed.y}` : '';
                   }
@@ -237,38 +227,13 @@ const ProfileSettings = () => {
           scales: {
             x: {
               display: true,
-              grid: {
-                display: false
-              },
-              ticks: {
-                color: '#6b7280',
-                font: { size: 10 },
-                maxRotation: 0,
-                autoSkip: true,
-                maxTicksLimit: 8
-              }
+              grid: { display: false },
+              ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }
             },
-            y: {
-              display: false,
-              beginAtZero: true,
-              position: 'left'
-            },
-            y1: {
-              display: false,
-              beginAtZero: true,
-              position: 'right'
-            },
-            y2: {
-              display: false,
-              beginAtZero: true,
-              position: 'right'
-            }
+            y: { display: false, beginAtZero: true, position: 'left' },
+            y1: { display: false, beginAtZero: true, position: 'right' }
           },
-          interaction: {
-            mode: 'nearest',
-            axis: 'x',
-            intersect: false
-          }
+          interaction: { mode: 'nearest', axis: 'x', intersect: false }
         }
       });
     }
@@ -280,9 +245,9 @@ const ProfileSettings = () => {
     };
   }, [activityData, loginData]);
 
+
   const handleUpdateClick = (e) => {
     if (e) e.preventDefault();
-    // Initialize modal with current values
     setModalData({
       email: profileData.email,
       currentPassword: "",
@@ -304,7 +269,6 @@ const ProfileSettings = () => {
         email: modalData.email,
       };
 
-      // If password is being changed
       if (modalData.newPassword) {
         if (modalData.newPassword !== modalData.confirmPassword) {
           setMessage({ type: "error", text: "New passwords do not match" });
@@ -324,7 +288,6 @@ const ProfileSettings = () => {
       await axios.put(`${API_BASE}/user/profile`, updateData, { headers });
       setMessage({ type: "success", text: "Profile updated successfully" });
       
-      // Update the main form data
       setProfileData(prev => ({
         ...prev,
         email: modalData.email,
@@ -374,7 +337,6 @@ const ProfileSettings = () => {
       )}
 
       <div className="co-profile-grid">
-        {/* Left Card - Profile Info */}
         <div className="co-profile-card co-profile-info-card">
           <div className="co-profile-avatar">
             {getInitials(displayUser?.name)}
@@ -382,11 +344,10 @@ const ProfileSettings = () => {
           <div className="co-profile-details">
             <h2 className="co-profile-name">{displayUser?.name || 'User'}</h2>
             <p className="co-profile-email">{displayUser?.email}</p>
-            <span className="co-profile-role-badge">{displayUser?.role || 'Collecting Officer'}</span>
+            <span className="co-profile-role-badge">{displayUser?.role || 'Cashier'}</span>
           </div>
         </div>
 
-        {/* Right Card - Update Form */}
         <div className="co-profile-card co-profile-form-card">
           <form onSubmit={handleUpdateClick}>
             <div className="co-form-group">
@@ -427,16 +388,12 @@ const ProfileSettings = () => {
         </div>
       </div>
 
-      {/* Update Modal with Form */}
       {showUpdateModal && (
         <div className="co-modal-overlay">
           <div className="co-modal co-modal-form">
             <div className="co-modal-header">
               <h3>Update Profile</h3>
-              <button 
-                className="co-modal-close" 
-                onClick={() => setShowUpdateModal(false)}
-              >
+              <button className="co-modal-close" onClick={() => setShowUpdateModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -500,17 +457,10 @@ const ProfileSettings = () => {
               )}
             </div>
             <div className="co-modal-footer">
-              <button 
-                className="co-modal-btn co-modal-btn-cancel" 
-                onClick={() => setShowUpdateModal(false)}
-              >
+              <button className="co-modal-btn co-modal-btn-cancel" onClick={() => setShowUpdateModal(false)}>
                 Cancel
               </button>
-              <button 
-                className="co-modal-btn co-modal-btn-confirm" 
-                onClick={handleModalUpdate}
-                disabled={loading}
-              >
+              <button className="co-modal-btn co-modal-btn-confirm" onClick={handleModalUpdate} disabled={loading}>
                 {loading ? "Updating..." : "Update"}
               </button>
             </div>
@@ -518,7 +468,6 @@ const ProfileSettings = () => {
         </div>
       )}
 
-      {/* Activity Chart */}
       <div className="co-profile-card co-activity-card">
         <div className="co-activity-chart-container">
           <canvas ref={chartRef}></canvas>
@@ -530,7 +479,7 @@ const ProfileSettings = () => {
           </span>
           <span className="co-legend-item">
             <span className="co-legend-color red"></span>
-            Receipts
+            Disbursements
           </span>
           <span className="co-legend-item">
             <span className="co-legend-color blue"></span>

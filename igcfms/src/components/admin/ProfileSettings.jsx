@@ -1,51 +1,55 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import Chart from 'chart.js/auto';
 import API_BASE_URL from "../../config/api";
 import "./css/profilesettings.css";
 import { useAuth } from "../../contexts/AuthContext";
 
 const ProfileSettings = () => {
   const { user: authUser } = useAuth();
-  const [activeTab, setActiveTab] = useState("profile");
-  const [activeSection, setActiveSection] = useState("profile-settings");
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
-
-  // Profile form data
-  const [profileData, setProfileData] = useState({
-    name: "",
+  const [showPassword, setShowPassword] = useState(false);
+  const [showModalPassword, setShowModalPassword] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [activityData, setActivityData] = useState([]);
+  const [loginData, setLoginData] = useState([]);
+  const [passwordChangeData, setPasswordChangeData] = useState([]);
+  const [modalData, setModalData] = useState({
     email: "",
-    role: "",
-    department: "",
-    phone: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: ""
   });
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
 
-  // System settings data
-  const [systemSettings, setSystemSettings] = useState({
-    systemName: "IGCFMS",
-    timezone: "Asia/Manila",
-    dateFormat: "DD/MM/YYYY",
-    currency: "PHP",
-    language: "en",
-    sessionTimeout: 30,
-    passwordMinLength: 8,
-    maxLoginAttempts: 5,
-    twoFactorAuth: false,
-    emailNotifications: true,
-    auditLogRetention: 365
+  const [profileData, setProfileData] = useState({
+    name: "",
+    email: "",
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
   });
+  
+  const passwordPlaceholder = "••••••••••••";
 
   const API_BASE = API_BASE_URL;
   const token = localStorage.getItem("token");
 
   useEffect(() => {
     fetchUserProfile();
-    fetchSystemSettings();
+    fetchActivityData();
   }, []);
+
+  // Fetch login data when user is available
+  useEffect(() => {
+    const currentUserId = user?.id || authUser?.id;
+    if (currentUserId) {
+      fetchLoginData();
+    }
+  }, [user, authUser]);
 
   const fetchUserProfile = async () => {
     try {
@@ -53,91 +57,246 @@ const ProfileSettings = () => {
       const response = await axios.get(`${API_BASE}/user/profile`, { headers });
       const userData = response.data;
       setUser(userData);
-      setProfileData({
+      setProfileData(prev => ({
+        ...prev,
         name: userData.name || "",
         email: userData.email || "",
-        role: userData.role || "",
-        department: userData.department || "",
-        phone: userData.phone || "",
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: ""
-      });
+      }));
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      if (error.response?.status === 404) {
-        setMessage({ type: "error", text: "Profile endpoint not found. Please contact administrator." });
-      } else if (error.response?.status === 401) {
-        setMessage({ type: "error", text: "Authentication failed. Please login again." });
-        // Optionally redirect to login
-      } else {
-        setMessage({ type: "error", text: "Failed to load profile data. Please try again later." });
+      if (authUser) {
+        setUser(authUser);
+        setProfileData(prev => ({
+          ...prev,
+          name: authUser.name || "",
+          email: authUser.email || "",
+        }));
       }
     }
   };
 
-  const fetchSystemSettings = async () => {
+
+  const fetchActivityData = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.get(`${API_BASE}/system/settings`, { headers });
-      if (response.data) {
-        setSystemSettings(prev => ({ ...prev, ...response.data }));
+      const response = await axios.get(`${API_BASE}/transactions`, { headers });
+      const allTransactions = response.data || [];
+      
+      // Admin sees all transactions (collections and disbursements)
+      const dailyData = {};
+      const now = new Date();
+      
+      for (let i = 89; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const dateKey = date.toISOString().split('T')[0];
+        dailyData[dateKey] = { collections: 0, disbursements: 0 };
       }
+
+      allTransactions.forEach(tx => {
+        const txDate = new Date(tx.created_at).toISOString().split('T')[0];
+        if (dailyData[txDate]) {
+          const amount = Math.abs(parseFloat(tx.amount || 0));
+          if (tx.type === 'Collection') {
+            dailyData[txDate].collections += amount;
+          } else if (tx.type === 'Disbursement') {
+            dailyData[txDate].disbursements += amount;
+          }
+        }
+      });
+
+      setActivityData(Object.entries(dailyData).map(([date, data]) => ({
+        date,
+        collections: data.collections,
+        disbursements: data.disbursements
+      })));
     } catch (error) {
-      console.error("Error fetching system settings:", error);
-      if (error.response?.status === 404) {
-        console.warn("System settings endpoint not found, using default values");
-        // Keep default values, no error message for system settings
-      } else if (error.response?.status === 401) {
-        setMessage({ type: "error", text: "Authentication failed. Please login again." });
-      } else {
-        console.warn("Failed to load system settings, using defaults");
-      }
+      console.error("Error fetching activity data:", error);
     }
   };
 
-  const handleProfileUpdate = async (e) => {
-    e.preventDefault();
+  const fetchLoginData = async () => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const currentUserId = user?.id || authUser?.id;
+      
+      if (!currentUserId) return;
+      
+      const response = await axios.get(`${API_BASE}/activity-logs/user/${currentUserId}`, { headers });
+      const allActivities = response.data?.data || response.data || [];
+      
+      const loginActivities = allActivities.filter(activity => {
+        const activityType = activity.activity_type || '';
+        const isLogin = activityType.toLowerCase() === 'login';
+        const isWithin90Days = new Date(activity.created_at) >= new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+        return isLogin && isWithin90Days;
+      });
+      
+      const loginCountByDate = {};
+      loginActivities.forEach(activity => {
+        const dateKey = new Date(activity.created_at).toISOString().split('T')[0];
+        loginCountByDate[dateKey] = (loginCountByDate[dateKey] || 0) + 1;
+      });
+      
+      console.log('Login activities found (last 90 days):', loginActivities.length);
+      console.log('Login counts by date:', loginCountByDate);
+      setLoginData(loginCountByDate);
+    } catch (error) {
+      console.error("Error fetching login data:", error);
+    }
+  };
+
+
+  useEffect(() => {
+    if (activityData.length > 0 && chartRef.current) {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+      }
+
+      const ctx = chartRef.current.getContext('2d');
+      
+      chartInstance.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: activityData.map(d => {
+            const date = new Date(d.date);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          }),
+          datasets: [
+            {
+              label: 'Collections',
+              data: activityData.map(d => d.collections),
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Disbursements',
+              data: activityData.map(d => d.disbursements),
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Login',
+              data: activityData.map(d => loginData[d.date] || 0),
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              yAxisID: 'y1',
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              backgroundColor: '#1f2937',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: '#374151',
+              borderWidth: 1,
+              padding: 12,
+              callbacks: {
+                label: function(context) {
+                  if (context.dataset.label === 'Collections' || context.dataset.label === 'Disbursements') {
+                    return `${context.dataset.label}: ₱${context.parsed.y.toLocaleString()}`;
+                  } else if (context.dataset.label === 'Login') {
+                    return context.parsed.y > 0 ? `${context.dataset.label}: ${context.parsed.y}` : '';
+                  }
+                  return `${context.dataset.label}: ${context.parsed.y}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              display: true,
+              grid: { display: false },
+              ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }
+            },
+            y: { display: false, beginAtZero: true, position: 'left' },
+            y1: { display: false, beginAtZero: true, position: 'right' }
+          },
+          interaction: { mode: 'nearest', axis: 'x', intersect: false }
+        }
+      });
+    }
+
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+      }
+    };
+  }, [activityData, loginData]);
+
+
+  const handleUpdateClick = (e) => {
+    if (e) e.preventDefault();
+    setModalData({
+      email: profileData.email,
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: ""
+    });
+    setShowModalPassword(false);
+    setShowUpdateModal(true);
+  };
+
+  const handleModalUpdate = async () => {
     setLoading(true);
     setMessage({ type: "", text: "" });
 
     try {
       const headers = { Authorization: `Bearer ${token}` };
       const updateData = {
-        name: profileData.name,
-        email: profileData.email,
-        phone: profileData.phone,
-        department: profileData.department
+        name: profileData.name || displayUser?.name,
+        email: modalData.email,
       };
 
-      // If password is being changed
-      if (profileData.newPassword) {
-        if (profileData.newPassword !== profileData.confirmPassword) {
+      if (modalData.newPassword) {
+        if (modalData.newPassword !== modalData.confirmPassword) {
           setMessage({ type: "error", text: "New passwords do not match" });
           setLoading(false);
           return;
         }
-        if (!profileData.currentPassword) {
+        if (!modalData.currentPassword) {
           setMessage({ type: "error", text: "Current password is required to change password" });
           setLoading(false);
           return;
         }
-        updateData.current_password = profileData.currentPassword;
-        updateData.password = profileData.newPassword;
-        updateData.password_confirmation = profileData.confirmPassword;
+        updateData.current_password = modalData.currentPassword;
+        updateData.password = modalData.newPassword;
+        updateData.password_confirmation = modalData.confirmPassword;
       }
 
       await axios.put(`${API_BASE}/user/profile`, updateData, { headers });
       setMessage({ type: "success", text: "Profile updated successfully" });
       
-      // Clear password fields
       setProfileData(prev => ({
         ...prev,
+        email: modalData.email,
         currentPassword: "",
         newPassword: "",
         confirmPassword: ""
       }));
       
+      setShowUpdateModal(false);
       fetchUserProfile();
     } catch (error) {
       setMessage({ 
@@ -149,54 +308,50 @@ const ProfileSettings = () => {
     }
   };
 
-  const handleSystemSettingsUpdate = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage({ type: "", text: "" });
-
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.put(`${API_BASE}/system/settings`, systemSettings, { headers });
-      setMessage({ type: "success", text: "System settings updated successfully" });
-    } catch (error) {
-      setMessage({ 
-        type: "error", 
-        text: error.response?.data?.message || "Failed to update system settings" 
-      });
-    } finally {
-      setLoading(false);
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
     }
+    return name.substring(0, 2).toUpperCase();
   };
 
-  const renderProfileSection = () => (
-    <div className="settings-content">
-      <div className="settings-header">
-        <h2>Profile Settings</h2>
-        <p>Manage your account information and security settings</p>
-      </div>
+  const maskEmail = (email) => {
+    if (!email) return '';
+    const [local, domain] = email.split('@');
+    if (local.length <= 2) return email;
+    return `${local.charAt(0)}${'*'.repeat(local.length - 2)}${local.charAt(local.length - 1)}@${domain}`;
+  };
 
+  const displayUser = user || authUser;
+
+
+  return (
+    <div className="co-profile-container">
       {message.text && (
-        <div className={`message ${message.type}`}>
+        <div className={`co-profile-message ${message.type}`}>
           <i className={`fas ${message.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
           {message.text}
         </div>
       )}
 
-      <form onSubmit={handleProfileUpdate} className="settings-form">
-        <div className="form-section">
-          <h3>Personal Information</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                value={profileData.name}
-                onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Email Address</label>
+      <div className="co-profile-grid">
+        <div className="co-profile-card co-profile-info-card">
+          <div className="co-profile-avatar">
+            {getInitials(displayUser?.name)}
+          </div>
+          <div className="co-profile-details">
+            <h2 className="co-profile-name">{displayUser?.name || 'User'}</h2>
+            <p className="co-profile-email">{displayUser?.email}</p>
+            <span className="co-profile-role-badge">{displayUser?.role || 'Admin'}</span>
+          </div>
+        </div>
+
+        <div className="co-profile-card co-profile-form-card">
+          <form onSubmit={handleUpdateClick}>
+            <div className="co-form-group">
+              <label>Email:</label>
               <input
                 type="email"
                 value={profileData.email}
@@ -204,254 +359,132 @@ const ProfileSettings = () => {
                 required
               />
             </div>
-            <div className="form-group">
-              <label>Phone Number</label>
-              <input
-                type="tel"
-                value={profileData.phone}
-                onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
-              />
-            </div>
-            <div className="form-group">
-              <label>Department</label>
-              <select
-                value={profileData.department}
-                onChange={(e) => setProfileData(prev => ({ ...prev, department: e.target.value }))}
-              >
-                <option value="">Select Department</option>
-                <option value="Finance">Finance</option>
-                <option value="Administration">Administration</option>
-                <option value="Operations">Operations</option>
-                <option value="HR">Human Resources</option>
-                <option value="IT">Information Technology</option>
-                <option value="Legal">Legal</option>
-                <option value="Procurement">Procurement</option>
-              </select>
-            </div>
-          </div>
-        </div>
 
-        <div className="form-section">
-          <h3>Account Information</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Role</label>
-              <input
-                type="text"
-                value={profileData.role}
-                disabled
-                className="disabled-input"
-              />
-              <small>Contact administrator to change your role</small>
-            </div>
-            <div className="form-group">
-              <label>Account Status</label>
-              <div className="status-badge active">
-                <i className="fas fa-check-circle"></i>
-                Active
+            <div className="co-form-group">
+              <label>Password :</label>
+              <div className="co-password-input-wrapper">
+                <input
+                  type="password"
+                  value="••••••••••••"
+                  readOnly
+                  className="co-password-readonly"
+                  title="Password is securely stored and cannot be displayed"
+                />
+                <button 
+                  type="button" 
+                  className="co-password-toggle"
+                  onClick={handleUpdateClick}
+                  title="Click to change password"
+                >
+                  <i className="fas fa-pen"></i>
+                </button>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="form-section">
-          <h3>Change Password</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Current Password</label>
-              <input
-                type="password"
-                value={profileData.currentPassword}
-                onChange={(e) => setProfileData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                placeholder="Enter current password"
-              />
-            </div>
-            <div className="form-group">
-              <label>New Password</label>
-              <input
-                type="password"
-                value={profileData.newPassword}
-                onChange={(e) => setProfileData(prev => ({ ...prev, newPassword: e.target.value }))}
-                placeholder="Enter new password"
-              />
-            </div>
-            <div className="form-group">
-              <label>Confirm New Password</label>
-              <input
-                type="password"
-                value={profileData.confirmPassword}
-                onChange={(e) => setProfileData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                placeholder="Confirm new password"
-              />
-            </div>
-          </div>
+            <button type="button" className="co-update-btn" disabled={loading} onClick={handleUpdateClick}>
+              {loading ? "Updating..." : "Update"}
+            </button>
+          </form>
         </div>
-
-        <div className="form-actions">
-          <button type="submit" className="btn-primary" disabled={loading}>
-            <i className="fas fa-save"></i>
-            {loading ? "Updating..." : "Update Profile"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-
-  const renderSystemSettings = () => (
-    <div className="settings-content">
-      <div className="settings-header">
-        <h2>System Settings</h2>
-        <p>Configure system-wide preferences and security settings</p>
       </div>
 
-      {message.text && (
-        <div className={`message ${message.type}`}>
-          <i className={`fas ${message.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
-          {message.text}
+      {showUpdateModal && (
+        <div className="co-modal-overlay">
+          <div className="co-modal co-modal-form">
+            <div className="co-modal-header">
+              <h3>Update Profile</h3>
+              <button className="co-modal-close" onClick={() => setShowUpdateModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="co-modal-body">
+              <div className="co-form-group">
+                <label>Email:</label>
+                <input
+                  type="email"
+                  value={modalData.email}
+                  onChange={(e) => setModalData(prev => ({ ...prev, email: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="co-form-group">
+                <label>New Password:</label>
+                <div className="co-password-input-wrapper">
+                  <input
+                    type={showModalPassword ? "text" : "password"}
+                    value={modalData.newPassword}
+                    onChange={(e) => setModalData(prev => ({ ...prev, newPassword: e.target.value }))}
+                    placeholder="Enter new password"
+                  />
+                  <button 
+                    type="button" 
+                    className="co-password-toggle"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowModalPassword(!showModalPassword);
+                    }}
+                  >
+                    <i className={`fas ${showModalPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                  </button>
+                </div>
+              </div>
+
+              {modalData.newPassword && (
+                <>
+                  <div className="co-form-group">
+                    <label>Current Password:</label>
+                    <input
+                      type="password"
+                      value={modalData.currentPassword}
+                      onChange={(e) => setModalData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                      placeholder="Enter current password"
+                      required
+                    />
+                  </div>
+                  <div className="co-form-group">
+                    <label>Confirm New Password:</label>
+                    <input
+                      type="password"
+                      value={modalData.confirmPassword}
+                      onChange={(e) => setModalData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      placeholder="Confirm new password"
+                      required
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="co-modal-footer">
+              <button className="co-modal-btn co-modal-btn-cancel" onClick={() => setShowUpdateModal(false)}>
+                Cancel
+              </button>
+              <button className="co-modal-btn co-modal-btn-confirm" onClick={handleModalUpdate} disabled={loading}>
+                {loading ? "Updating..." : "Update"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <form onSubmit={handleSystemSettingsUpdate} className="settings-form">
-        <div className="form-section">
-          <h3>General Settings</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>System Name</label>
-              <input
-                type="text"
-                value={systemSettings.systemName}
-                onChange={(e) => setSystemSettings(prev => ({ ...prev, systemName: e.target.value }))}
-              />
-            </div>
-            <div className="form-group">
-              <label>Time Zone</label>
-              <select
-                value={systemSettings.timezone}
-                onChange={(e) => setSystemSettings(prev => ({ ...prev, timezone: e.target.value }))}
-              >
-                <option value="Asia/Manila">Asia/Manila (GMT+8)</option>
-                <option value="UTC">UTC (GMT+0)</option>
-                <option value="America/New_York">America/New_York (GMT-5)</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Date Format</label>
-              <select
-                value={systemSettings.dateFormat}
-                onChange={(e) => setSystemSettings(prev => ({ ...prev, dateFormat: e.target.value }))}
-              >
-                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Currency</label>
-              <select
-                value={systemSettings.currency}
-                onChange={(e) => setSystemSettings(prev => ({ ...prev, currency: e.target.value }))}
-              >
-                <option value="PHP">Philippine Peso (₱)</option>
-                <option value="USD">US Dollar ($)</option>
-                <option value="EUR">Euro (€)</option>
-              </select>
-            </div>
-          </div>
+      <div className="co-profile-card co-activity-card">
+        <div className="co-activity-chart-container">
+          <canvas ref={chartRef}></canvas>
         </div>
-
-        <div className="form-section">
-          <h3>Security Settings</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Session Timeout (minutes)</label>
-              <input
-                type="number"
-                value={systemSettings.sessionTimeout}
-                onChange={(e) => setSystemSettings(prev => ({ ...prev, sessionTimeout: parseInt(e.target.value) }))}
-                min="5"
-                max="480"
-              />
-            </div>
-            <div className="form-group">
-              <label>Password Minimum Length</label>
-              <input
-                type="number"
-                value={systemSettings.passwordMinLength}
-                onChange={(e) => setSystemSettings(prev => ({ ...prev, passwordMinLength: parseInt(e.target.value) }))}
-                min="6"
-                max="20"
-              />
-            </div>
-            <div className="form-group">
-              <label>Max Login Attempts</label>
-              <input
-                type="number"
-                value={systemSettings.maxLoginAttempts}
-                onChange={(e) => setSystemSettings(prev => ({ ...prev, maxLoginAttempts: parseInt(e.target.value) }))}
-                min="3"
-                max="10"
-              />
-            </div>
-            <div className="form-group">
-              <label>Audit Log Retention (days)</label>
-              <input
-                type="number"
-                value={systemSettings.auditLogRetention}
-                onChange={(e) => setSystemSettings(prev => ({ ...prev, auditLogRetention: parseInt(e.target.value) }))}
-                min="30"
-                max="3650"
-              />
-            </div>
-          </div>
-        </div>
-
-   
-
-        <div className="form-actions">
-          <button type="submit" className="btn-primary" disabled={loading}>
-            <i className="fas fa-save"></i>
-            {loading ? "Updating..." : "Update Settings"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-
-  return (
-    <div className="profile-settings-container">
-      <div className="settings-layout">
-        {/* Left Sidebar */}
-        <div className="settings-sidebar">
-          <div className="sidebar-header">
-            <h2>Settings</h2>
-          </div>
-          
-          <div className="sidebar-nav">
-            <button
-              className={`nav-item ${activeSection === "profile-settings" ? "active" : ""}`}
-              onClick={() => setActiveSection("profile-settings")}
-            >
-              <i className="fas fa-user"></i>
-              Profile Settings
-            </button>
-            {/* System Settings tab - Commented out nikki gwapo
-            {authUser?.role === 'Admin' && (
-              <button
-                className={`nav-item ${activeSection === "system-settings" ? "active" : ""}`}
-                onClick={() => setActiveSection("system-settings")}
-              >
-                <i className="fas fa-cog"></i>
-                System Settings
-              </button>
-            )}
-            */}
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="settings-main">
-          {activeSection === "profile-settings" && renderProfileSection()}
-          {activeSection === "system-settings" && renderSystemSettings()}
+        <div className="co-activity-legend">
+          <span className="co-legend-item">
+            <span className="co-legend-color green"></span>
+            Collections
+          </span>
+          <span className="co-legend-item">
+            <span className="co-legend-color red"></span>
+            Disbursements
+          </span>
+          <span className="co-legend-item">
+            <span className="co-legend-color blue"></span>
+            Login
+          </span>
         </div>
       </div>
     </div>

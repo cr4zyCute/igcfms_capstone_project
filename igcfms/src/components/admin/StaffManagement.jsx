@@ -387,28 +387,20 @@ const StaffManagement = () => {
 
   const handleEditStaff = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
 
     try {
       const payload = {
-        name: formData.name,
-        email: formData.email,
         role: formData.role,
-        phone: formData.phone,
-        department: formData.department
       };
-      if (formData.password && formData.password.trim()) {
-        payload.password = formData.password;
-      }
-      console.log("Updating staff with ID:", editingStaff.id, "Payload:", payload);
+      console.log("Updating staff role with ID:", editingStaff.id, "Payload:", payload);
       await updateStaffMutation.mutateAsync({ id: editingStaff.id, data: payload });
       setShowEditModal(false);
       setEditingStaff(null);
       resetForm();
-      showNotification("success", "Staff Updated", `${formData.name}'s information has been successfully updated.`);
+      showNotification("success", "Role Updated", `${editingStaff.name}'s role has been updated to ${formData.role}.`);
     } catch (err) {
       console.error("Edit staff error", err);
-      const errorMsg = err?.response?.data?.message || err?.message || "Unable to update staff. Please try again.";
+      const errorMsg = err?.response?.data?.message || err?.message || "Unable to update role. Please try again.";
       showNotification("error", "Update Failed", errorMsg);
     }
   };
@@ -970,7 +962,7 @@ const StaffManagement = () => {
                         role="menu"
                         aria-hidden="false"
                       >
-                        <button
+                        {/* <button
                           type="button"
                           className="action-menu-item"
                           onClick={() => {
@@ -980,7 +972,7 @@ const StaffManagement = () => {
                         >
                           <i className="fas fa-edit"></i>
                           Edit details
-                        </button>
+                        </button> */}
                         <button
                           type="button"
                           className="action-menu-item"
@@ -1201,7 +1193,7 @@ const StaffManagement = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">
-                <i className="fas fa-user-edit"></i> Edit Staff Member
+                <i className="fas fa-user-edit"></i> Edit Staff Role
               </h3>
               <button className="modal-close" onClick={() => setShowEditModal(false)}>
                 <i className="fas fa-times"></i>
@@ -1209,63 +1201,27 @@ const StaffManagement = () => {
             </div>
             <form onSubmit={handleEditStaff}>
               <div className="modal-body">
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label className="form-label">Full Name *</label>
-                    <input
-                      type="text"
-                      className={`form-input ${errors.name ? 'error' : ''}`}
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      placeholder="Enter full name"
-                    />
-                    {errors.name && <div className="form-error">{errors.name}</div>}
+                <div className="staff-info-display" style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <span className="staff-avatar" style={{ width: '48px', height: '48px', fontSize: '18px' }}>{getInitials(editingStaff?.name)}</span>
+                    <div>
+                      <div style={{ fontWeight: '600', color: '#111827' }}>{editingStaff?.name}</div>
+                      <div style={{ fontSize: '13px', color: '#6b7280' }}>{editingStaff?.email}</div>
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Email Address *</label>
-                    <input
-                      type="email"
-                      className={`form-input ${errors.email ? 'error' : ''}`}
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      placeholder="Enter email address"
-                    />
-                    {errors.email && <div className="form-error">{errors.email}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Phone Number *</label>
-                    <input
-                      type="tel"
-                      className={`form-input ${errors.phone ? 'error' : ''}`}
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      placeholder="Enter phone number"
-                    />
-                    {errors.phone && <div className="form-error">{errors.phone}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Role *</label>
-                    <select
-                      className="form-select"
-                      value={formData.role}
-                      onChange={(e) => setFormData({...formData, role: e.target.value})}
-                    >
-                      <option value="Cashier">Cashier</option>
-                      <option value="Collecting Officer">Collecting Officer</option>
-                      <option value="Disbursing Officer">Disbursing Officer</option>
-                      <option value="Admin">Administrator</option>
-                    </select>
-                  </div>
-                  <div className="form-group full-width">
-                    <label className="form-label">New Password (leave blank to keep current)</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      placeholder="Enter new password (optional)"
-                    />
-                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Role *</label>
+                  <select
+                    className="form-select"
+                    value={formData.role}
+                    onChange={(e) => setFormData({...formData, role: e.target.value})}
+                  >
+                    <option value="Cashier">Cashier</option>
+                    <option value="Collecting Officer">Collecting Officer</option>
+                    <option value="Disbursing Officer">Disbursing Officer</option>
+                    <option value="Admin">Administrator</option>
+                  </select>
                 </div>
               </div>
               <div className="modal-footer">
@@ -1274,7 +1230,7 @@ const StaffManagement = () => {
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
                   {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
-                  {loading ? 'Updating...' : 'Update Staff'}
+                  {loading ? 'Updating...' : 'Update Role'}
                 </button>
               </div>
             </form>

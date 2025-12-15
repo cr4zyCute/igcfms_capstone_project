@@ -5,7 +5,7 @@ import DisburserHome from './DisburserHome';
 import GenerateReports from './GenerateReports';
 import OverrideTransactions from './OverrideTransactions';
 import NotificationBellDO from './NotificationBellDO';
-import ProfileSettings from '../admin/ProfileSettings';
+import ProfileSettings from './ProfileSettings';
 
 const DisbursementDashboard = ({ user, activeTab }) => {
  

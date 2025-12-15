@@ -77,6 +77,7 @@ const ProfileSettings = () => {
     }
   };
 
+
   const fetchActivityData = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
@@ -95,24 +96,24 @@ const ProfileSettings = () => {
         const date = new Date(now);
         date.setDate(date.getDate() - i);
         const dateKey = date.toISOString().split('T')[0];
-        dailyData[dateKey] = { collections: 0, receipts: 0 };
+        dailyData[dateKey] = { disbursements: 0, cheques: 0 };
       }
 
       userTransactions.forEach(tx => {
         const txDate = new Date(tx.created_at).toISOString().split('T')[0];
         if (dailyData[txDate]) {
           const amount = Math.abs(parseFloat(tx.amount || 0));
-          if (tx.type === 'Collection') {
-            dailyData[txDate].collections += amount;
-            dailyData[txDate].receipts += 1;
+          if (tx.type === 'Disbursement') {
+            dailyData[txDate].disbursements += amount;
+            dailyData[txDate].cheques += 1;
           }
         }
       });
 
       setActivityData(Object.entries(dailyData).map(([date, data]) => ({
         date,
-        collections: data.collections,
-        receipts: data.receipts
+        disbursements: data.disbursements,
+        cheques: data.cheques
       })));
     } catch (error) {
       console.error("Error fetching activity data:", error);
@@ -152,6 +153,7 @@ const ProfileSettings = () => {
     }
   };
 
+
   // Initialize activity chart
   useEffect(() => {
     if (activityData.length > 0 && chartRef.current) {
@@ -170,8 +172,8 @@ const ProfileSettings = () => {
           }),
           datasets: [
             {
-              label: 'Collections',
-              data: activityData.map(d => d.collections),
+              label: 'Disbursements',
+              data: activityData.map(d => d.disbursements),
               borderColor: '#22c55e',
               backgroundColor: 'rgba(34, 197, 94, 0.1)',
               fill: true,
@@ -181,8 +183,8 @@ const ProfileSettings = () => {
               yAxisID: 'y',
             },
             {
-              label: 'Receipts',
-              data: activityData.map(d => d.receipts),
+              label: 'Cheques',
+              data: activityData.map(d => d.cheques),
               borderColor: '#ef4444',
               backgroundColor: 'rgba(239, 68, 68, 0.1)',
               fill: true,
@@ -222,9 +224,9 @@ const ProfileSettings = () => {
               padding: 12,
               callbacks: {
                 label: function(context) {
-                  if (context.dataset.label === 'Collections') {
+                  if (context.dataset.label === 'Disbursements') {
                     return `${context.dataset.label}: ₱${context.parsed.y.toLocaleString()}`;
-                  } else if (context.dataset.label === 'Receipts') {
+                  } else if (context.dataset.label === 'Cheques') {
                     return `${context.dataset.label}: ${context.parsed.y}`;
                   } else if (context.dataset.label === 'Login') {
                     return context.parsed.y > 0 ? `${context.dataset.label}: ${context.parsed.y}` : '';
@@ -279,6 +281,7 @@ const ProfileSettings = () => {
       }
     };
   }, [activityData, loginData]);
+
 
   const handleUpdateClick = (e) => {
     if (e) e.preventDefault();
@@ -364,6 +367,7 @@ const ProfileSettings = () => {
   const displayUser = user || authUser;
 
 
+
   return (
     <div className="co-profile-container">
       {message.text && (
@@ -382,7 +386,7 @@ const ProfileSettings = () => {
           <div className="co-profile-details">
             <h2 className="co-profile-name">{displayUser?.name || 'User'}</h2>
             <p className="co-profile-email">{displayUser?.email}</p>
-            <span className="co-profile-role-badge">{displayUser?.role || 'Collecting Officer'}</span>
+            <span className="co-profile-role-badge">{displayUser?.role || 'Disbursing Officer'}</span>
           </div>
         </div>
 
@@ -526,11 +530,11 @@ const ProfileSettings = () => {
         <div className="co-activity-legend">
           <span className="co-legend-item">
             <span className="co-legend-color green"></span>
-            Collections
+            Disbursements
           </span>
           <span className="co-legend-item">
             <span className="co-legend-color red"></span>
-            Receipts
+            Cheques
           </span>
           <span className="co-legend-item">
             <span className="co-legend-color blue"></span>

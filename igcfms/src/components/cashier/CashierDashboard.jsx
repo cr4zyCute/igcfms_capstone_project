@@ -5,6 +5,7 @@ import OverrideTransactions from './OverrideTransactions';
 import GenerateReports from './GenerateReports';
 import RecipientAccount from '../admin/RecipientAccount';
 import CashierHome from '../cashier/CashierHome';
+import ProfileSettings from './ProfileSettings';
 import '../pages/css/Dashboard.css';
 import '../common/css/Sidebar.css';
 
@@ -22,6 +23,8 @@ const CashierDashboard = ({ user,activeTab }) => {
       return <RecipientAccount />;
     case "funds-accounts":
       return <FundsAccounts/>;
+    case "profile-settings":
+      return <ProfileSettings />;
     case "daily-summary":
       return <div>Daily summary content here</div>;
     default:

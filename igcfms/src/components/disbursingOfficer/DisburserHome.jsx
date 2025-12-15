@@ -40,13 +40,20 @@ const DisburserHome = () => {
   const [dailyDisbursementTrend, setDailyDisbursementTrend] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   
-  const [overrideRequests, setOverrideRequests] = useState([]);
-  
   // Filter cheques by current user
-  const { data: cheques = [] } = useCheques({ 
+  const { data: rawCheques = [] } = useCheques({ 
     filters: { created_by: creatorId },
     enabled: Number.isFinite(creatorId)
   });
+
+  // Client-side filter to ensure only current user's cheques are shown
+  const cheques = useMemo(() => {
+    if (!Number.isFinite(creatorId)) return [];
+    return rawCheques.filter(cheque => {
+      const chequeCreator = parseInt(cheque.created_by || cheque.issued_by || cheque.user_id, 10);
+      return Number.isFinite(chequeCreator) && chequeCreator === creatorId;
+    });
+  }, [rawCheques, creatorId]);
 
   // Get current user's override requests
   const { data: myOverrideRequests = [] } = useMyOverrideRequests({
@@ -492,7 +499,7 @@ const overrideTotal = myOverrideRequests.length;
           <span className="table-subtitle">Volume trend</span>
         </div>
         <div style={{ height: '280px' }}>
-          <OverrideRequestTrendanalaytics overrideRequests={overrideRequests} isLoading={loading} error={error} />
+          <OverrideRequestTrendanalaytics overrideRequests={myOverrideRequests} isLoading={loading} error={error} />
         </div>
       </div>
 
