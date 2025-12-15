@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './css/activitydashboard.css';
-import { useRecentActivities, useActivityStatistics } from '../../hooks/useActivityDashboard.js';
-import { useActivityWebSocket } from '../../hooks/useActivityWebSocket.js';
-import ActivityDashboardLoading from '../ui/activityDashboardLoading';
+import { useRecentActivities, useActivityStatistics } from '../../hooks/useActivityDashboard';
+import { useActivityWebSocket } from '../../hooks/useActivityWebSocket';
+import ActivityDashboardLoading from '../ui/activityDashboardLoading.jsx';
 
 const ActivityDashboard = () => {
   const [filters, setFilters] = useState({
