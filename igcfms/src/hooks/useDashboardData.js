@@ -20,24 +20,57 @@ api.interceptors.request.use((config) => {
 // Query key factory
 export const DASHBOARD_KEYS = {
   all: ['dashboard'],
-  transactions: () => [...DASHBOARD_KEYS.all, 'transactions'],
-  overrides: () => [...DASHBOARD_KEYS.all, 'overrides'],
-  cheques: () => [...DASHBOARD_KEYS.all, 'cheques'],
-  collection: () => [...DASHBOARD_KEYS.all, 'collection'],
-  disburse: () => [...DASHBOARD_KEYS.all, 'disburse'],
-  topAccounts: () => [...DASHBOARD_KEYS.all, 'topAccounts'],
-  activityByRole: () => [...DASHBOARD_KEYS.all, 'activityByRole'],
+  transactions: (year) => [...DASHBOARD_KEYS.all, 'transactions', year],
+  overrides: (year) => [...DASHBOARD_KEYS.all, 'overrides', year],
+  cheques: (year) => [...DASHBOARD_KEYS.all, 'cheques', year],
+  collection: (year) => [...DASHBOARD_KEYS.all, 'collection', year],
+  disburse: (year) => [...DASHBOARD_KEYS.all, 'disburse', year],
+  topAccounts: (year) => [...DASHBOARD_KEYS.all, 'topAccounts', year],
+  activityByRole: (year) => [...DASHBOARD_KEYS.all, 'activityByRole', year],
+};
+
+// Helper to check if date is in selected year
+const isInYear = (dateStr, year) => {
+  if (!year) return true;
+  const date = new Date(dateStr);
+  return date.getFullYear() === parseInt(year, 10);
+};
+
+// Helper to check if date is today AND in selected year
+const isTodayInYear = (dateStr, year) => {
+  const date = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  
+  const isToday = date.getTime() === today.getTime();
+  const yearMatches = !year || date.getFullYear() === parseInt(year, 10);
+  
+  return isToday && yearMatches;
 };
 
 // API functions
-const getRecentTransactions = async () => {
-  const response = await api.get('/transactions', { params: { limit: 10 } });
-  return Array.isArray(response.data) ? response.data : response.data.data || [];
+const getRecentTransactions = async (year) => {
+  const response = await api.get('/transactions', { params: { limit: 100 } });
+  let transactions = Array.isArray(response.data) ? response.data : response.data.data || [];
+  
+  // Filter by year if provided
+  if (year) {
+    transactions = transactions.filter(t => isInYear(t.created_at, year));
+  }
+  
+  // Return only the 10 most recent after filtering
+  return transactions.slice(0, 10);
 };
 
-const getOverrideRequests = async () => {
+const getOverrideRequests = async (year) => {
   const response = await api.get('/override_requests');
-  const requests = Array.isArray(response.data) ? response.data : response.data.data || [];
+  let requests = Array.isArray(response.data) ? response.data : response.data.data || [];
+  
+  // Filter by year if provided
+  if (year) {
+    requests = requests.filter(r => isInYear(r.created_at, year));
+  }
   
   return {
     pending: requests.filter(r => r.status && r.status.toLowerCase() === 'pending').length,
@@ -46,14 +79,20 @@ const getOverrideRequests = async () => {
   };
 };
 
-const getChequesAndReceipts = async () => {
+const getChequesAndReceipts = async (year) => {
   const [receiptResponse, chequeResponse] = await Promise.all([
     api.get('/receipts'),
     api.get('/cheques')
   ]);
   
-  const receipts = Array.isArray(receiptResponse.data) ? receiptResponse.data : receiptResponse.data.data || [];
-  const cheques = Array.isArray(chequeResponse.data) ? chequeResponse.data : chequeResponse.data.data || [];
+  let receipts = Array.isArray(receiptResponse.data) ? receiptResponse.data : receiptResponse.data.data || [];
+  let cheques = Array.isArray(chequeResponse.data) ? chequeResponse.data : chequeResponse.data.data || [];
+  
+  // Filter by year if provided
+  if (year) {
+    receipts = receipts.filter(r => isInYear(r.created_at || r.date, year));
+    cheques = cheques.filter(c => isInYear(c.created_at || c.issue_date, year));
+  }
   
   return {
     cheque: cheques.length,
@@ -61,12 +100,18 @@ const getChequesAndReceipts = async () => {
   };
 };
 
-const getTodaysCollection = async () => {
+const getTodaysCollection = async (year) => {
   const response = await api.get('/transactions');
   const transactions = Array.isArray(response.data) ? response.data : response.data.data || [];
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Only show today's data if selected year matches current year (or no year filter)
+  const currentYear = today.getFullYear();
+  if (year && parseInt(year, 10) !== currentYear) {
+    return { count: 0, amount: 0 };
+  }
 
   const todayCollections = transactions.filter(t => {
     const transactionDate = new Date(t.created_at);
@@ -82,12 +127,18 @@ const getTodaysCollection = async () => {
   };
 };
 
-const getTodaysDisburse = async () => {
+const getTodaysDisburse = async (year) => {
   const response = await api.get('/transactions');
   const transactions = Array.isArray(response.data) ? response.data : response.data.data || [];
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Only show today's data if selected year matches current year (or no year filter)
+  const currentYear = today.getFullYear();
+  if (year && parseInt(year, 10) !== currentYear) {
+    return { count: 0, amount: 0 };
+  }
 
   const todayDisbursements = transactions.filter(t => {
     const transactionDate = new Date(t.created_at);
@@ -103,39 +154,57 @@ const getTodaysDisburse = async () => {
   };
 };
 
-const getTopFundedAccounts = async () => {
+const getTopFundedAccounts = async (year) => {
   const [accountsResponse, transactionsResponse] = await Promise.all([
     api.get('/fund-accounts'),
     api.get('/transactions')
   ]);
 
   let fundAccounts = Array.isArray(accountsResponse.data) ? accountsResponse.data : [];
-  const transactions = Array.isArray(transactionsResponse.data) ? transactionsResponse.data : transactionsResponse.data.data || [];
+  let transactions = Array.isArray(transactionsResponse.data) ? transactionsResponse.data : transactionsResponse.data.data || [];
 
-  const transactionCounts = {};
+  // Filter transactions by year if provided
+  if (year) {
+    transactions = transactions.filter(t => isInYear(t.created_at, year));
+  }
+
+  // Calculate transaction counts and amounts per account for the filtered year
+  const accountStats = {};
   transactions.forEach(t => {
     const accountId = t.fund_account_id;
     if (accountId) {
-      transactionCounts[accountId] = (transactionCounts[accountId] || 0) + 1;
+      if (!accountStats[accountId]) {
+        accountStats[accountId] = { count: 0, amount: 0 };
+      }
+      accountStats[accountId].count += 1;
+      accountStats[accountId].amount += parseFloat(t.amount || 0);
     }
   });
 
-  const topAccounts = fundAccounts
-    .sort((a, b) => parseFloat(b.current_balance || 0) - parseFloat(a.current_balance || 0))
-    .slice(0, 4)
-    .map(account => ({
-      id: account.id,
-      name: account.name || `Account ${account.id}`,
-      totalAmount: parseFloat(account.current_balance || 0),
-      transactionCount: transactionCounts[account.id] || 0
-    }));
+  // Map accounts with their year-filtered stats
+  const accountsWithStats = fundAccounts.map(account => ({
+    id: account.id,
+    name: account.name || `Account ${account.id}`,
+    totalAmount: accountStats[account.id]?.amount || 0,
+    transactionCount: accountStats[account.id]?.count || 0
+  }));
+
+  // Sort by total amount for the year and get top 4
+  const topAccounts = accountsWithStats
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .slice(0, 4);
 
   return topAccounts;
 };
 
-const getActivityByRole = async () => {
-  const response = await api.get('/activity-logs/recent', { params: { limit: 500 } });
-  const activities = Array.isArray(response.data) ? response.data : response.data.data || [];
+const getActivityByRole = async (year) => {
+  const response = await api.get('/activity-logs/recent', { params: { limit: 1000 } });
+  let activities = Array.isArray(response.data) ? response.data : response.data.data || [];
+
+  // Filter activities by year if provided
+  if (year) {
+    activities = activities.filter(a => isInYear(a.created_at, year));
+  }
 
   const roleMap = {};
   activities.forEach(activity => {
@@ -165,10 +234,10 @@ const getActivityByRole = async () => {
 };
 
 // Hooks
-export const useRecentTransactions = (options = {}) => {
+export const useRecentTransactions = (year, options = {}) => {
   return useQuery({
-    queryKey: DASHBOARD_KEYS.transactions(),
-    queryFn: getRecentTransactions,
+    queryKey: DASHBOARD_KEYS.transactions(year),
+    queryFn: () => getRecentTransactions(year),
     staleTime: Infinity, // Never stale - WebSocket keeps it fresh
     gcTime: 30 * 60 * 1000,
     retry: 2,
@@ -178,10 +247,10 @@ export const useRecentTransactions = (options = {}) => {
   });
 };
 
-export const useOverrideRequests = (options = {}) => {
+export const useOverrideRequests = (year, options = {}) => {
   return useQuery({
-    queryKey: DASHBOARD_KEYS.overrides(),
-    queryFn: getOverrideRequests,
+    queryKey: DASHBOARD_KEYS.overrides(year),
+    queryFn: () => getOverrideRequests(year),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     retry: 2,
@@ -191,10 +260,10 @@ export const useOverrideRequests = (options = {}) => {
   });
 };
 
-export const useChequesAndReceipts = (options = {}) => {
+export const useChequesAndReceipts = (year, options = {}) => {
   return useQuery({
-    queryKey: DASHBOARD_KEYS.cheques(),
-    queryFn: getChequesAndReceipts,
+    queryKey: DASHBOARD_KEYS.cheques(year),
+    queryFn: () => getChequesAndReceipts(year),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     retry: 2,
@@ -204,10 +273,10 @@ export const useChequesAndReceipts = (options = {}) => {
   });
 };
 
-export const useTodaysCollection = (options = {}) => {
+export const useTodaysCollection = (year, options = {}) => {
   return useQuery({
-    queryKey: DASHBOARD_KEYS.collection(),
-    queryFn: getTodaysCollection,
+    queryKey: DASHBOARD_KEYS.collection(year),
+    queryFn: () => getTodaysCollection(year),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     retry: 2,
@@ -217,10 +286,10 @@ export const useTodaysCollection = (options = {}) => {
   });
 };
 
-export const useTodaysDisburse = (options = {}) => {
+export const useTodaysDisburse = (year, options = {}) => {
   return useQuery({
-    queryKey: DASHBOARD_KEYS.disburse(),
-    queryFn: getTodaysDisburse,
+    queryKey: DASHBOARD_KEYS.disburse(year),
+    queryFn: () => getTodaysDisburse(year),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     retry: 2,
@@ -230,10 +299,10 @@ export const useTodaysDisburse = (options = {}) => {
   });
 };
 
-export const useTopFundedAccounts = (options = {}) => {
+export const useTopFundedAccounts = (year, options = {}) => {
   return useQuery({
-    queryKey: DASHBOARD_KEYS.topAccounts(),
-    queryFn: getTopFundedAccounts,
+    queryKey: DASHBOARD_KEYS.topAccounts(year),
+    queryFn: () => getTopFundedAccounts(year),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     retry: 2,
@@ -243,10 +312,10 @@ export const useTopFundedAccounts = (options = {}) => {
   });
 };
 
-export const useActivityByRole = (options = {}) => {
+export const useActivityByRole = (year, options = {}) => {
   return useQuery({
-    queryKey: DASHBOARD_KEYS.activityByRole(),
-    queryFn: getActivityByRole,
+    queryKey: DASHBOARD_KEYS.activityByRole(year),
+    queryFn: () => getActivityByRole(year),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     retry: 2,

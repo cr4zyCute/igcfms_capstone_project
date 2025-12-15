@@ -1,22 +1,20 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
-import API_BASE_URL from '../../config/api';
+import React from 'react';
 import TrendsAnalysis from '../analytics/adminanalytics/TrendsAnalysis';
-import AdminDashboardHomeSkeleton from '../ui/adminDashboardHomeSL';
 import { SkeletonLine } from '../ui/LoadingSkeleton';
 import { useRecentTransactions, useOverrideRequests, useChequesAndReceipts, useTodaysCollection, useTodaysDisburse, useTopFundedAccounts, useActivityByRole } from '../../hooks/useDashboardData';
 import { useDashboardWebSocket } from '../../hooks/useDashboardWebSocket';
 import './css/admindashboardhome.css';
 
 const AdminDashboardHome = ({ selectedYear }) => {
-  // TanStack Query hooks for real-time data
-  const { data: recentTransactions = [], isLoading: transactionsLoading } = useRecentTransactions();
-  const { data: overrideRequests = { pending: 0, approve: 0, reject: 0 }, isLoading: overridesLoading } = useOverrideRequests();
-  const { data: chequesAndReceipts = { cheque: 0, receipt: 0 }, isLoading: chequesLoading } = useChequesAndReceipts();
-  const { data: todaysCollection = { count: 0, amount: 0 }, isLoading: collectionLoading } = useTodaysCollection();
-  const { data: todaysDisburse = { count: 0, amount: 0 }, isLoading: disburseLoading } = useTodaysDisburse();
-  const { data: topFundedAccounts = [], isLoading: topAccountsLoading } = useTopFundedAccounts();
-  const { data: activityByRole = [], isLoading: activityByRoleLoading } = useActivityByRole();
+  // TanStack Query hooks for real-time data - filtered by year
+  const { data: recentTransactions = [], isLoading: transactionsLoading } = useRecentTransactions(selectedYear);
+  const { data: overrideRequests = { pending: 0, approve: 0, reject: 0 }, isLoading: overridesLoading } = useOverrideRequests(selectedYear);
+  const { data: chequesAndReceipts = { cheque: 0, receipt: 0 }, isLoading: chequesLoading } = useChequesAndReceipts(selectedYear);
+  const { data: todaysCollection = { count: 0, amount: 0 }, isLoading: collectionLoading } = useTodaysCollection(selectedYear);
+  const { data: todaysDisburse = { count: 0, amount: 0 }, isLoading: disburseLoading } = useTodaysDisburse(selectedYear);
+  // These two are also filtered by year
+  const { data: topFundedAccounts = [], isLoading: topAccountsLoading } = useTopFundedAccounts(selectedYear);
+  const { data: activityByRole = [], isLoading: activityByRoleLoading } = useActivityByRole(selectedYear);
 
   // WebSocket for real-time updates
   useDashboardWebSocket();
@@ -213,7 +211,7 @@ const AdminDashboardHome = ({ selectedYear }) => {
                       </div>
                     ))}
                   </div>
-                ) : topFundedAccounts.length > 0 ? (
+                ) : topFundedAccounts.length > 0 && topFundedAccounts.some(acc => acc.totalAmount > 0 || acc.transactionCount > 0) ? (
                   <div className="box7-accounts-grid">
                     {topFundedAccounts.map((account, index) => (
                       <div key={account.id} className="box7-account-card">
@@ -227,7 +225,7 @@ const AdminDashboardHome = ({ selectedYear }) => {
                     ))}
                   </div>
                 ) : (
-                  <div className="box7-empty">No accounts found</div>
+                  <div className="box7-empty">No data this year</div>
                 )}
               </div>
             )}
@@ -279,7 +277,7 @@ const AdminDashboardHome = ({ selectedYear }) => {
                     </div>
                   </>
                 ) : (
-                  <div className="box8-empty">No activity data</div>
+                  <div className="box8-empty">No data this year</div>
                 )}
               </div>
             )}
