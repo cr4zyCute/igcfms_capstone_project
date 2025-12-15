@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome to IGCFMS - Your Account Credentials</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -72,6 +73,10 @@
             margin-bottom: 8px;
             display: block;
         }
+        .credential-label i {
+            margin-right: 6px;
+            color: #1e40af;
+        }
         .credential-value { 
             background: #fff;
             padding: 14px 16px; 
@@ -97,6 +102,9 @@
             margin-bottom: 10px;
             font-size: 15px;
         }
+        .warning-title i {
+            margin-right: 8px;
+        }
         .warning-text { 
             color: #78350f; 
             font-size: 14px;
@@ -110,6 +118,10 @@
             font-size: 16px;
             font-weight: 700;
             margin-bottom: 15px;
+        }
+        .steps h3 i {
+            margin-right: 8px;
+            color: #1e40af;
         }
         .steps ol {
             margin-left: 20px;
@@ -156,6 +168,9 @@
             font-weight: 600;
             margin-top: 8px;
         }
+        .badge i {
+            margin-right: 4px;
+        }
     </style>
 </head>
 <body>
@@ -174,31 +189,31 @@
             
             <div class="credentials-box">
                 <div class="credential-item">
-                    <label class="credential-label">📧 Email Address</label>
+                    <label class="credential-label"><i class="fas fa-envelope"></i> Email Address</label>
                     <div class="credential-value">{{ $email }}</div>
                 </div>
                 
                 <div class="credential-item">
-                    <label class="credential-label">🔐 Temporary Password</label>
+                    <label class="credential-label"><i class="fas fa-lock"></i> Temporary Password</label>
                     <div class="credential-value">{{ $password }}</div>
-                    <span class="badge">⚠️ Change on first login</span>
+                    <span class="badge"><i class="fas fa-exclamation-triangle"></i> Change on first login</span>
                 </div>
                 
                 <div class="credential-item">
-                    <label class="credential-label">👤 Your Role</label>
+                    <label class="credential-label"><i class="fas fa-user"></i> Your Role</label>
                     <div class="credential-value">{{ $role }}</div>
                 </div>
             </div>
             
             <div class="warning">
-                <div class="warning-title">⚠️ Important Security Notice</div>
+                <div class="warning-title"><i class="fas fa-shield-alt"></i> Important Security Notice</div>
                 <div class="warning-text">
                     <strong>This is a temporary password.</strong> You <strong>MUST</strong> change it immediately upon your first login. Never share this password with anyone. If you did not request this account or have any concerns, please contact your system administrator immediately.
                 </div>
             </div>
             
             <div class="steps">
-                <h3>📋 Next Steps:</h3>
+                <h3><i class="fas fa-list-check"></i> Next Steps:</h3>
                 <ol>
                     <li>Visit the IGCFMS login page</li>
                     <li>Enter your email address and temporary password above</li>

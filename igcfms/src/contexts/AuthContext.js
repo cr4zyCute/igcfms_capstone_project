@@ -24,6 +24,7 @@ const buildUserProfile = (data = {}, fallback = {}) => {
     email,
     role,
     name: safe(data.name || data.full_name || data.fullName) || composedName || email || fallback.name || '',
+    force_password_change: data.force_password_change !== undefined ? data.force_password_change : (fallback.force_password_change || false),
     ...fallback,
     ...data,
   };
@@ -108,6 +109,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // Clear UI state to prevent showing previous user's data
+    localStorage.removeItem('igcfms_activeTab');
     setUser(null);
   };
 

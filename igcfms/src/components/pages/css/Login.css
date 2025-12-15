@@ -128,7 +128,6 @@
   font-size: 0.8rem;
   color: #aaa;
 }
-
 .terms a {
   color: #fff;
   text-decoration: underline;
@@ -147,6 +146,29 @@
 
 .continue-btn:hover {
   background: #333;
+}
+
+.forgot-password-btn {
+  padding: 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #3b82f6;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
+.forgot-password-btn:hover {
+  color: #2563eb;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.forgot-password-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .right-panel {

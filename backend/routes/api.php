@@ -19,10 +19,16 @@ use App\Http\Controllers\RecipientAccountController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\EmailOtpController;
 use App\Http\Controllers\PasswordChangeController;
+use App\Http\Controllers\PasswordResetController;
 
 // Email OTP verification routes (no auth required for staff registration)
 Route::post('/email/send-otp', [EmailOtpController::class, 'sendOtp'])->middleware('throttle:5,1');
 Route::post('/email/verify-otp', [EmailOtpController::class, 'verifyOtp'])->middleware('throttle:10,1');
+
+// Password reset routes (no auth required for request)
+Route::post('/password/reset-request', [PasswordResetController::class, 'requestReset'])->middleware('throttle:3,1');
+Route::get('/password/reset-status', [PasswordResetController::class, 'getStatus']);
+Route::middleware('auth:sanctum')->get('/admin/password-reset/pending', [PasswordResetController::class, 'getPendingRequests']);
 
 // Authentication routes with rate limiting for security
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1'); // 5 attempts per minute

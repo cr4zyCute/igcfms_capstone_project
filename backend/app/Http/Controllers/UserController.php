@@ -38,7 +38,8 @@ class UserController extends Controller
             'role' => $request->role,
             'phone' => $request->phone,
             'department' => $request->department,
-            'status' => 'active'
+            'status' => 'active',
+            'force_password_change' => true  // Force new users to change password on first login
         ]);
 
         // Send welcome email with credentials

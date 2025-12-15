@@ -89,10 +89,12 @@ const ForcePasswordChangeModal = ({ isOpen, userName, onPasswordChanged }) => {
           <div className="force-password-icon">
             <i className="fas fa-lock"></i>
           </div>
-          <h2>Change Your Password</h2>
-          <p className="force-password-subtitle">
-            Welcome, <strong>{userName}</strong>! You must change your temporary password before continuing.
-          </p>
+          <div className="force-password-header-content">
+            <h2>Change Your Password</h2>
+            <p className="force-password-subtitle">
+              Welcome, <strong>{userName}</strong>! You must change your temporary password before continuing.
+            </p>
+          </div>
         </div>
 
         <form onSubmit={handleChangePassword} className="force-password-form">

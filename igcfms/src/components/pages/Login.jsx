@@ -7,6 +7,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEye, faEyeSlash, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
 import loginImageOne from "../../assets/images/login/login1.png";
 import loginImageTwo from "../../assets/images/login/login2.png";
+import ForgotPasswordModal from "../modals/ForgotPasswordModal";
 
 
 const sliderImages = [loginImageOne, loginImageTwo];
@@ -29,6 +30,7 @@ const Login = () => {
   const [currentSlide, setCurrentSlide] = useState(INITIAL_SLIDE_INDEX);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [showRateLimitModal, setShowRateLimitModal] = useState(false);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -113,6 +115,9 @@ const Login = () => {
         const userData = {
           email,
           role: data.role,
+          force_password_change: data.force_password_change || false,
+          name: data.user?.name || email,
+          id: data.user?.id,
         };
 
         login(userData, token);
@@ -212,6 +217,14 @@ const Login = () => {
             <button type="submit" className="continue-btn" disabled={loading}>
               {loading ? "Logging in..." : "Log in"}
             </button>
+
+            <button 
+              type="button" 
+              className="forgot-password-btn"
+              onClick={() => setShowForgotPasswordModal(true)}
+            >
+              Forgot Password?
+            </button>
           </form>
 
           {/* <p className="register">
@@ -279,6 +292,13 @@ const Login = () => {
           </div>
         </div>
       )}
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal 
+        isOpen={showForgotPasswordModal}
+        onClose={() => setShowForgotPasswordModal(false)}
+        onSubmit={() => setShowForgotPasswordModal(false)}
+      />
     </div>
   );
 };
