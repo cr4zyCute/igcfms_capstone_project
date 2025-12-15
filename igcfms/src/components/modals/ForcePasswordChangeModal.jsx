@@ -92,7 +92,7 @@ const ForcePasswordChangeModal = ({ isOpen, userName, onPasswordChanged }) => {
           <div className="force-password-header-content">
             <h2>Change Your Password</h2>
             <p className="force-password-subtitle">
-              Welcome, <strong>{userName}</strong>! You must change your temporary password before continuing.
+              Welcome, <strong>{userName}</strong>! You must change your temporary password before continuing.This is a required security step
             </p>
           </div>
         </div>
@@ -102,7 +102,15 @@ const ForcePasswordChangeModal = ({ isOpen, userName, onPasswordChanged }) => {
             {error && (
               <div className="force-password-error">
                 <i className="fas fa-exclamation-circle"></i>
-                {error}
+                <span>{error}</span>
+                <button
+                  type="button"
+                  className="force-password-error-close"
+                  onClick={() => setError('')}
+                  aria-label="Close error message"
+                >
+                  <i className="fas fa-times"></i>
+                </button>
               </div>
             )}
 
@@ -181,12 +189,12 @@ const ForcePasswordChangeModal = ({ isOpen, userName, onPasswordChanged }) => {
               </div>
             </div>
 
-            <div className="force-password-info">
+            {/* <div className="force-password-info">
               <i className="fas fa-info-circle"></i>
               <p>
                 This is a required security step. Your temporary password must be changed before you can access the system.
               </p>
-            </div>
+            </div> */}
           </div>
 
           <div className="force-password-footer">

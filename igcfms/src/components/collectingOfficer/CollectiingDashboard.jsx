@@ -5,6 +5,7 @@ import CollectorHome from './CollectorHome';
 import GenerateReports from './GenerateReports';
 import OverrideTransactions from './OverrideTransactions';
 import NotificationsPage from './NotificationsPage';
+import ProfileSettings from './ProfileSettings';
 import ViewTransactions from '../admin/ViewTransactions';
 import '../pages/css/Dashboard.css';
 import '../common/css/Sidebar.css';
@@ -57,6 +58,8 @@ const CollectingDashboard = ({ user, activeTab }) => {
           filterByCreatorId={creatorId ?? undefined}
         />
       );
+    case "profile-settings":
+      return <ProfileSettings />;
     case "daily-summary":
       return <div>Daily Summary - Coming Soon</div>;
     default: 

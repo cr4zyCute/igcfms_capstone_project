@@ -50,6 +50,9 @@ class ActivityLog extends Model
     const ACTIVITY_USER_UPDATED = 'user_updated';
     const ACTIVITY_RECEIPT_ISSUED = 'receipt_issued';
     const ACTIVITY_CHEQUE_ISSUED = 'cheque_issued';
+    const ACTIVITY_PASSWORD_RESET_REQUEST = 'password_reset_request';
+    const ACTIVITY_PASSWORD_RESET_APPROVED = 'password_reset_approved';
+    const ACTIVITY_PASSWORD_RESET_REJECTED = 'password_reset_rejected';
 
     // Scope for recent activities
     public function scopeRecent($query, $days = 7)

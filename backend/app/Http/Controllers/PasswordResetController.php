@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\PasswordResetRequest;
 use App\Mail\PasswordResetRequestMail;
 use App\Mail\TemporaryPasswordMail;
+use App\Services\ActivityTracker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
@@ -54,6 +55,9 @@ class PasswordResetController extends Controller
             $approvalLink = $backendUrl . '/admin/password-reset/' . $resetRequest->id . '/approve';
 
             Mail::to($adminEmail)->send(new PasswordResetRequestMail($user, $resetRequest, $approvalLink));
+
+            // Create notification for all admin users
+            ActivityTracker::trackPasswordResetRequest($resetRequest, $user);
 
             return response()->json([
                 'success' => true,
@@ -104,6 +108,9 @@ class PasswordResetController extends Controller
             // Send temporary password to user
             Mail::to($user->email)->send(new TemporaryPasswordMail($user, $temporaryPassword));
 
+            // Track the approval
+            ActivityTracker::trackPasswordResetReview($resetRequest, 'approved');
+
             return response()->view('password-reset-response', [
                 'success' => true,
                 'message' => 'Password reset approved! Temporary password has been sent to ' . $user->email,
@@ -136,6 +143,9 @@ class PasswordResetController extends Controller
             $resetRequest->update([
                 'status' => 'rejected',
             ]);
+
+            // Track the rejection
+            ActivityTracker::trackPasswordResetReview($resetRequest, 'rejected');
 
             return response()->view('password-reset-response', [
                 'success' => false,

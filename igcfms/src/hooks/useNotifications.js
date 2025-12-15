@@ -28,9 +28,16 @@ const fetchNotifications = async (params = {}) => {
   if (!token) throw new Error('No authentication token found');
 
   const headers = { Authorization: `Bearer ${token}` };
-  const { limit } = params;
+  const { limit, fetchAll } = params;
   
-  const url = limit ? `${API_BASE}/notifications?limit=${limit}` : `${API_BASE}/notifications`;
+  // If fetchAll is true, get all notifications for the NotificationBar page
+  let url = `${API_BASE}/notifications`;
+  if (fetchAll) {
+    url = `${API_BASE}/notifications?all=true`;
+  } else if (limit) {
+    url = `${API_BASE}/notifications?limit=${limit}`;
+  }
+  
   const response = await axios.get(url, { headers });
   
   return response.data.notifications || response.data || [];
@@ -71,12 +78,12 @@ const markAllNotificationsAsRead = async () => {
 
 // Hook to fetch notifications
 export const useNotifications = (options = {}) => {
-  const { enabled = true, limit } = options;
+  const { enabled = true, limit, fetchAll = false } = options;
 
   return useQuery({
-    // Always use same cache key regardless of limit (for shared cache)
-    queryKey: NOTIFICATION_KEYS.list({}),
-    queryFn: () => fetchNotifications({}), // Always fetch all notifications
+    // Use different cache key for fetchAll to separate full list from limited list
+    queryKey: fetchAll ? NOTIFICATION_KEYS.list({ fetchAll: true }) : NOTIFICATION_KEYS.list({}),
+    queryFn: () => fetchNotifications({ fetchAll }),
     enabled,
     staleTime: Infinity, // Never stale - WebSocket keeps data fresh
     gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes

@@ -32,19 +32,55 @@ class NotificationController extends Controller
             $query->where('is_read', false);
         }
 
-        // Limit results
+        // Check if pagination is requested
+        $page = $request->get('page');
+        $perPage = $request->get('per_page', 50);
+        
+        // Get total count for pagination info
+        $totalCount = Notification::where('user_id', $user->id)->count();
+        
+        $unreadCount = Notification::where('user_id', $user->id)
+                                  ->where('is_read', false)
+                                  ->count();
+
+        // If 'all' is requested, return all notifications (for frontend that handles its own pagination)
+        if ($request->get('limit') === 'all' || $request->get('all') === 'true') {
+            $notifications = $query->orderBy('created_at', 'desc')->get();
+            
+            return response()->json([
+                'notifications' => $notifications,
+                'unread_count' => $unreadCount,
+                'total_count' => $totalCount,
+            ]);
+        }
+
+        // If page is specified, use Laravel pagination
+        if ($page) {
+            $paginated = $query->orderBy('created_at', 'desc')->paginate($perPage);
+            
+            return response()->json([
+                'notifications' => $paginated->items(),
+                'unread_count' => $unreadCount,
+                'total_count' => $totalCount,
+                'pagination' => [
+                    'current_page' => $paginated->currentPage(),
+                    'last_page' => $paginated->lastPage(),
+                    'per_page' => $paginated->perPage(),
+                    'total' => $paginated->total(),
+                ],
+            ]);
+        }
+
+        // Default: limit results (backward compatible)
         $limit = $request->get('limit', 50);
         $notifications = $query->orderBy('created_at', 'desc')
                               ->limit($limit)
                               ->get();
 
-        $unreadCount = Notification::where('user_id', $user->id)
-                                  ->where('is_read', false)
-                                  ->count();
-
         return response()->json([
             'notifications' => $notifications,
             'unread_count' => $unreadCount,
+            'total_count' => $totalCount,
         ]);
     }
 

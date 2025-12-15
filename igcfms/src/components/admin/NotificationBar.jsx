@@ -20,19 +20,21 @@ const NotificationBar = () => {
   const hasProcessedLocalStorage = useRef(false); // Track if we've processed localStorage
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   const token = localStorage.getItem("token");
 
   // WebSocket hook for real-time updates
   useNotificationsWebSocket();
 
-  // TanStack Query hooks
+  // TanStack Query hooks - fetch ALL notifications for the full notification page
   const {
     data: notifications = [],
     isLoading: notificationsLoading,
     isFetching: notificationsFetching,
     error: notificationsError
-  } = useNotifications({ enabled: !!token });
+  } = useNotifications({ enabled: !!token, fetchAll: true });
 
   // Only show loading if we have no data AND we're loading
   // If we have cached data, show it immediately (no loading state)
@@ -356,7 +358,8 @@ const NotificationBar = () => {
     { value: "all", label: "View all", icon: "fas fa-stream" },
     { value: "logins", label: "Log ins", icon: "fas fa-sign-in-alt" },
     { value: "transactions", label: "Transactions", icon: "fas fa-exchange-alt" },
-    { value: "override", label: "Override Request", icon: "fas fa-edit" }
+    { value: "override", label: "Override Request", icon: "fas fa-edit" },
+    { value: "password_reset", label: "Password Reset", icon: "fas fa-key" }
   ];
 
   // Build a grouping key for notifications that belong to the same real-world activity
@@ -529,6 +532,14 @@ const NotificationBar = () => {
           n.type === "override_request" ||
           n.title?.toLowerCase().includes("override") ||
           n.message?.toLowerCase().includes("override")
+        );
+        break;
+      case "password_reset":
+        filtered = baseList.filter(n => 
+          n.type === "user_activity" &&
+          (n.title?.toLowerCase().includes("password reset") ||
+           n.message?.toLowerCase().includes("password reset") ||
+           n.data?.action_type === "password_reset_approval")
         );
         break;
       default:
@@ -734,6 +745,9 @@ const NotificationBar = () => {
         return "fas fa-edit";
       case "collection":
         return "fas fa-coins";
+      case "password_reset":
+      case "password_reset_request":
+        return "fas fa-key";
       default:
         return "fas fa-bell";
     }
@@ -750,6 +764,27 @@ const NotificationBar = () => {
 
   const selectedFilterLabel = viewArchived ? 'Archived' : (filterOptions.find(option => option.value === filter)?.label || "Filter notifications");
   const filteredNotifications = getFilteredNotifications();
+  
+  // Pagination calculations
+  const totalItems = filteredNotifications.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedNotifications = filteredNotifications.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, searchTerm, viewArchived]);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    // Scroll to top of notification list
+    const listElement = document.querySelector('.notification-items');
+    if (listElement) {
+      listElement.scrollTop = 0;
+    }
+  };
 
   const handlePreviewAction = async (action) => {
     if (!selectedNotification) return;
@@ -964,8 +999,8 @@ const NotificationBar = () => {
                   <i className="fas fa-spinner fa-spin"></i>
                   <p>Loading notifications...</p>
                 </div>
-              ) : filteredNotifications.length > 0 ? (
-                filteredNotifications.map((notification) => (
+              ) : paginatedNotifications.length > 0 ? (
+                paginatedNotifications.map((notification) => (
                   <div
                     key={notification.id}
                     data-notification-id={notification.id}
@@ -1008,6 +1043,75 @@ const NotificationBar = () => {
                 </div>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="notification-pagination">
+                <div className="pagination-info">
+                  Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems}
+                </div>
+                <div className="pagination-controls">
+                  <button
+                    className="pagination-btn"
+                    onClick={() => handlePageChange(1)}
+                    disabled={currentPage === 1}
+                    title="First page"
+                  >
+                    <i className="fas fa-angle-double-left"></i>
+                  </button>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    title="Previous page"
+                  >
+                    <i className="fas fa-angle-left"></i>
+                  </button>
+                  
+                  {/* Page numbers */}
+                  {(() => {
+                    const pages = [];
+                    const maxVisiblePages = 5;
+                    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                    
+                    if (endPage - startPage + 1 < maxVisiblePages) {
+                      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                    }
+                    
+                    for (let i = startPage; i <= endPage; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          className={`pagination-btn pagination-number ${currentPage === i ? 'active' : ''}`}
+                          onClick={() => handlePageChange(i)}
+                        >
+                          {i}
+                        </button>
+                      );
+                    }
+                    return pages;
+                  })()}
+                  
+                  <button
+                    className="pagination-btn"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    title="Next page"
+                  >
+                    <i className="fas fa-angle-right"></i>
+                  </button>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => handlePageChange(totalPages)}
+                    disabled={currentPage === totalPages}
+                    title="Last page"
+                  >
+                    <i className="fas fa-angle-double-right"></i>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1104,14 +1208,82 @@ const NotificationBar = () => {
                     <div className="related-data">
                       <h5>Related Information:</h5>
                       <ul>
-                        {Object.entries(selectedNotification.data).map(([key, value]) => (
+                        {Object.entries(selectedNotification.data).filter(([key]) => key !== 'approval_link' && key !== 'action_type').map(([key, value]) => (
                           <li key={key}>
-                            <strong>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong> {value}
+                            <strong>{key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong> {value}
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
+
+                  {/* Password Reset Approval Action */}
+                  {selectedNotification.data && 
+                   selectedNotification.data.action_type === 'password_reset_approval' && 
+                   selectedNotification.data.approval_link && (() => {
+                    // Check if this reset request has already been approved or rejected
+                    const resetRequestId = selectedNotification.data.reset_request_id;
+                    const isAlreadyProcessed = notifications.some(n => 
+                      n.data && 
+                      n.data.reset_request_id === resetRequestId && 
+                      (n.data.activity_type === 'password_reset_approved' || 
+                       n.data.activity_type === 'password_reset_rejected' ||
+                       n.title?.toLowerCase().includes('password reset approved') ||
+                       n.title?.toLowerCase().includes('password reset rejected'))
+                    );
+                    
+                    if (isAlreadyProcessed) {
+                      return (
+                        <div className="notification-action-buttons" style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                          <h5 style={{ margin: '0 0 10px 0', color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <i className="fas fa-check-circle"></i>
+                            Password Reset Already Processed
+                          </h5>
+                          <p style={{ margin: '0', color: '#475569', fontSize: '14px' }}>
+                            This password reset request for {selectedNotification.data.user_name} ({selectedNotification.data.user_role}) has already been approved. 
+                            A temporary password was sent to the user.
+                          </p>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="notification-action-buttons" style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                        <h5 style={{ margin: '0 0 10px 0', color: '#0369a1' }}>
+                          <i className="fas fa-key" style={{ marginRight: '8px' }}></i>
+                          Password Reset Action Required
+                        </h5>
+                        <p style={{ margin: '0 0 15px 0', color: '#475569', fontSize: '14px' }}>
+                          {selectedNotification.data.user_name} ({selectedNotification.data.user_role}) has requested a password reset. 
+                          Click the button below to approve and send a temporary password.
+                        </p>
+                        <a 
+                          href={selectedNotification.data.approval_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="approve-reset-btn"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 20px',
+                            backgroundColor: '#059669',
+                            color: 'white',
+                            borderRadius: '6px',
+                            textDecoration: 'none',
+                            fontWeight: '500',
+                            fontSize: '14px',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseOver={(e) => e.target.style.backgroundColor = '#047857'}
+                          onMouseOut={(e) => e.target.style.backgroundColor = '#059669'}
+                        >
+                          <i className="fas fa-check-circle"></i>
+                          Approve Password Reset
+                        </a>
+                      </div>
+                    );
+                  })()}
 
                   {selectedNotification._group && Array.isArray(selectedNotification._groupIds) && (
                     <>

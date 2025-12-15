@@ -147,6 +147,9 @@ class ActivityTracker
             ActivityLog::ACTIVITY_USER_UPDATED => '👤 User Updated',
             ActivityLog::ACTIVITY_RECEIPT_ISSUED => '🧾 Receipt Issued',
             ActivityLog::ACTIVITY_CHEQUE_ISSUED => '💳 Cheque Issued',
+            ActivityLog::ACTIVITY_PASSWORD_RESET_REQUEST => '🔑 Password Reset Request',
+            ActivityLog::ACTIVITY_PASSWORD_RESET_APPROVED => '✅ Password Reset Approved',
+            ActivityLog::ACTIVITY_PASSWORD_RESET_REJECTED => '❌ Password Reset Rejected',
         ];
 
         return $titles[$activityLog->activity_type] ?? '📋 System Activity';
@@ -329,6 +332,58 @@ class ActivityTracker
                 'target_user_name' => $targetUser->name,
                 'target_user_role' => $targetUser->role,
                 'action' => $action,
+            ]
+        );
+    }
+
+    /**
+     * Track password reset request
+     */
+    public static function trackPasswordResetRequest($resetRequest, $user)
+    {
+        $backendUrl = env('APP_URL', 'http://localhost:8000');
+        $approvalLink = $backendUrl . '/admin/password-reset/' . $resetRequest->id . '/approve';
+
+        self::log(
+            ActivityLog::ACTIVITY_PASSWORD_RESET_REQUEST,
+            "{$user->name} ({$user->role}) requested a password reset",
+            $user,
+            [
+                'reset_request_id' => $resetRequest->id,
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'user_email' => $user->email,
+                'user_role' => $user->role,
+                'request_time' => now()->toISOString(),
+                'approval_link' => $approvalLink,
+                'action_type' => 'password_reset_approval',
+            ]
+        );
+    }
+
+    /**
+     * Track password reset approval/rejection
+     */
+    public static function trackPasswordResetReview($resetRequest, $status)
+    {
+        $activityType = $status === 'approved' 
+            ? ActivityLog::ACTIVITY_PASSWORD_RESET_APPROVED 
+            : ActivityLog::ACTIVITY_PASSWORD_RESET_REJECTED;
+
+        $user = $resetRequest->user;
+
+        self::log(
+            $activityType,
+            "Password reset for {$user->name} ({$user->role}) was {$status}",
+            null,
+            [
+                'reset_request_id' => $resetRequest->id,
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'user_email' => $user->email,
+                'user_role' => $user->role,
+                'status' => $status,
+                'reviewed_at' => now()->toISOString(),
             ]
         );
     }
