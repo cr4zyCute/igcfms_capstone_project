@@ -126,9 +126,10 @@ const Login = () => {
         navigate("/dashboard");
       } else {
         // Handle login failure - don't refresh page
-        if (data.message && data.message.toLowerCase().includes('email')) {
-          setEmailError("Invalid email address");
-        } else if (data.message && data.message.toLowerCase().includes('password')) {
+        const errorType = data.error_type || "";
+        if (errorType === 'email') {
+          setEmailError("Email not found");
+        } else if (errorType === 'password') {
           setPasswordError("Incorrect password");
         } else {
           setPasswordError("Login failed. Please check your credentials.");
@@ -141,14 +142,14 @@ const Login = () => {
       // Handle different types of errors
       if (err.response && err.response.status === 401) {
         // Unauthorized - wrong credentials
-        const errorMessage = err.response.data?.message || "";
-        if (errorMessage.toLowerCase().includes('email') || errorMessage.toLowerCase().includes('user')) {
-          setEmailError("Email not found or invalid");
-        } else if (errorMessage.toLowerCase().includes('password')) {
+        const errorType = err.response.data?.error_type || "";
+        if (errorType === 'email') {
+          setEmailError("Email not found");
+        } else if (errorType === 'password') {
           setPasswordError("Incorrect password");
         } else {
-          setEmailError("Invalid email address");
-          setPasswordError("Incorrect password");
+          // Fallback for generic error
+          setPasswordError("Invalid credentials. Please try again.");
         }
       } else if (err.response && err.response.status === 422) {
         // Validation errors

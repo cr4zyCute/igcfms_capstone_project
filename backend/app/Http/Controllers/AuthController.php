@@ -27,10 +27,24 @@ class AuthController extends Controller
         // Use parameterized query (Eloquent already does this, but being explicit)
         $user = User::where('email', $email)->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        // Check if user exists (email validation)
+        if (!$user) {
             // Track failed login attempt
             ActivityTracker::trackFailedLogin($request->email, $request);
-            return response()->json(['message' => 'Invalid login credentials'], 401);
+            return response()->json([
+                'message' => 'Email not found',
+                'error_type' => 'email'
+            ], 401);
+        }
+
+        // Check if password is correct
+        if (!Hash::check($request->password, $user->password)) {
+            // Track failed login attempt
+            ActivityTracker::trackFailedLogin($request->email, $request);
+            return response()->json([
+                'message' => 'Incorrect password',
+                'error_type' => 'password'
+            ], 401);
         }
 
         // Create token
